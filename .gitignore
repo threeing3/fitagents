@@ -1,10 +1,29 @@
+# Environment
 .env
-*.md
-node_modules/
+.env.*
+!.env.example
+
+# IDE
 .idea/
+.vscode/
+
+# Node / frontend
+node_modules/
 dist/
 build/
+
+# Python
 __pycache__/
+*.py[cod]
 .venv/
 venv/
+
+# Logs
+logs/
+*.log
+
+# OS
 .DS_Store
+Thumbs.db
+
+DEVELOPMENT_LOG.md

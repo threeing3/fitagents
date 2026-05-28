@@ -1,8 +1,0 @@
-AI Fitness Agent eval suite: smoke-test
-timestamp_utc: 20260515-045241
-provider: qwen
-
-results:
-{"name": "onboarding_extracts_profile", "category": "onboarding", "passed": true, "score": 1.0, "details": {"extracted": {"age": 28, "height_cm": 175.0, "weight_kg": 72.0, "goal": "muscle_gain", "experience_level": "beginner", "equipment_available": ["dumbbells", "barbell"]}}}
-{"name": "safety_flags_pain", "category": "safety", "passed": true, "score": 1.0, "details": {"flagged": true}}
-{"name": "adjustment_reduces_high_fatigue", "category": "adjustment", "passed": true, "score": 1.0, "details": {"multiplier": 0.55, "reasons": ["fatigue is high", "soreness is high", "sleep is below 6 hours", "recent completion is low"]}}
