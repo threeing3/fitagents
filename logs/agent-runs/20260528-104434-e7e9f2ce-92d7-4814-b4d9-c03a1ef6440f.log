@@ -1,0 +1,133 @@
+AI Fitness Agent run: e7e9f2ce-92d7-4814-b4d9-c03a1ef6440f
+request_id: c9277af4-8c61-4f7d-bb4c-ed9a153433e6
+run_type: chat_stream
+user_id: fc5d2ba0-0904-460f-951b-942c2e043fc1
+session_id: afaaae8c-34eb-4708-bfad-6b4814d334d5
+status: completed
+
+Timeline
+- RequestReceived | completed | 0ms | 2026-05-28T10:44:34.825619
+  output: {"message_chars": 4, "provider": "deepseek", "chat_model": "deepseek-v4-pro", "embedding_mode": "offline_fallback"}
+- ProfileExtractorAgent | completed | 0ms | 2026-05-28T10:44:34.828709
+  input: {"message": "减脂塑形"}
+  output: {"profile_patch": {"goal": "fat_loss"}, "corrections": [], "ignored_candidates": [], "model_patch": {}, "model_used": false}
+- MemoryAgent | completed | 0ms | 2026-05-28T10:44:34.829001
+  output: {"written": []}
+- IntentRouter | completed | 0ms | 2026-05-28T10:44:34.829149
+  output: {"onboarding_complete": false, "missing_slots": ["height_cm"]}
+- CoachLLM | completed | 7228ms | 2026-05-28T10:44:42.055483
+  output: {"mode": "onboarding", "live_model": true, "missing_slots": ["height_cm"]}
+- ResponsePersisted | completed | 0ms | 2026-05-28T10:44:42.059559
+  output: {"response_chars": 198}
+
+Full JSON
+{
+  "run_id": "e7e9f2ce-92d7-4814-b4d9-c03a1ef6440f",
+  "request_id": "c9277af4-8c61-4f7d-bb4c-ed9a153433e6",
+  "run_type": "chat_stream",
+  "user_id": "fc5d2ba0-0904-460f-951b-942c2e043fc1",
+  "session_id": "afaaae8c-34eb-4708-bfad-6b4814d334d5",
+  "status": "completed",
+  "started_at_utc": "2026-05-28T10:44:34.825558",
+  "completed_at_utc": "2026-05-28T10:44:42.072573",
+  "summary": "好的，收到！先简单确认一下你目前的资料：\n\n- 年龄 20 岁，体重 90 kg\n- 目标：减脂塑形\n- 训练经验：新手（我们会从基础动作模式开始，确保安全）\n- 可用器械：杠铃、哑铃、龙门架、固定器械、有氧设备——很齐全，训练选择非常多\n\n为了精准计算你的每日消耗和后续的营养分配，身高是必不可少的参数。告诉我你的身高（厘米），我就能帮你把热量和蛋白质等等都量化好，然后我们一步步设计训练节奏。",
+  "error": null,
+  "nodes": [
+    {
+      "node": "RequestReceived",
+      "event_id": "4aad2a4d-2c65-447b-b5e6-a5b5295790ee",
+      "request_id": "c9277af4-8c61-4f7d-bb4c-ed9a153433e6",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-28T10:44:34.825619",
+      "input_summary": {},
+      "output": {
+        "message_chars": 4,
+        "provider": "deepseek",
+        "chat_model": "deepseek-v4-pro",
+        "embedding_mode": "offline_fallback"
+      },
+      "error": null
+    },
+    {
+      "node": "ProfileExtractorAgent",
+      "event_id": "f41eff57-ea30-46d0-b2e7-8fcf9d29dab4",
+      "request_id": "c9277af4-8c61-4f7d-bb4c-ed9a153433e6",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-28T10:44:34.828709",
+      "input_summary": {
+        "message": "减脂塑形"
+      },
+      "output": {
+        "profile_patch": {
+          "goal": "fat_loss"
+        },
+        "corrections": [],
+        "ignored_candidates": [],
+        "model_patch": {},
+        "model_used": false
+      },
+      "error": null
+    },
+    {
+      "node": "MemoryAgent",
+      "event_id": "973d43ea-cbca-41ae-9f10-ada304540377",
+      "request_id": "c9277af4-8c61-4f7d-bb4c-ed9a153433e6",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-28T10:44:34.829001",
+      "input_summary": {},
+      "output": {
+        "written": []
+      },
+      "error": null
+    },
+    {
+      "node": "IntentRouter",
+      "event_id": "977e069d-39d0-4e01-b7a0-17c341b77b28",
+      "request_id": "c9277af4-8c61-4f7d-bb4c-ed9a153433e6",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-28T10:44:34.829149",
+      "input_summary": {},
+      "output": {
+        "onboarding_complete": false,
+        "missing_slots": [
+          "height_cm"
+        ]
+      },
+      "error": null
+    },
+    {
+      "node": "CoachLLM",
+      "event_id": "c38f5baf-7e17-48e0-ae84-cff960bde8fc",
+      "request_id": "c9277af4-8c61-4f7d-bb4c-ed9a153433e6",
+      "status": "completed",
+      "latency_ms": 7228,
+      "timestamp_utc": "2026-05-28T10:44:42.055483",
+      "input_summary": {},
+      "output": {
+        "mode": "onboarding",
+        "live_model": true,
+        "missing_slots": [
+          "height_cm"
+        ]
+      },
+      "error": null
+    },
+    {
+      "node": "ResponsePersisted",
+      "event_id": "5b288492-cec3-414a-bca7-e17fa93d11f6",
+      "request_id": "c9277af4-8c61-4f7d-bb4c-ed9a153433e6",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-28T10:44:42.059559",
+      "input_summary": {},
+      "output": {
+        "response_chars": 198
+      },
+      "error": null
+    }
+  ]
+}

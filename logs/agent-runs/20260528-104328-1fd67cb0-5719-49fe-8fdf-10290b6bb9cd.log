@@ -1,0 +1,144 @@
+AI Fitness Agent run: 1fd67cb0-5719-49fe-8fdf-10290b6bb9cd
+request_id: 79368da6-fd06-4d3f-ad76-8eb1b13b3f20
+run_type: chat_stream
+user_id: fc5d2ba0-0904-460f-951b-942c2e043fc1
+session_id: afaaae8c-34eb-4708-bfad-6b4814d334d5
+status: completed
+
+Timeline
+- RequestReceived | completed | 0ms | 2026-05-28T10:43:28.700892
+  output: {"message_chars": 37, "provider": "deepseek", "chat_model": "deepseek-v4-pro", "embedding_mode": "offline_fallback"}
+- ProfileExtractorAgent | completed | 1ms | 2026-05-28T10:43:28.703665
+  input: {"message": "年龄20  身高178 体重90KG 可以去健身房 更看重线条 想减掉肚子"}
+  output: {"profile_patch": {"age": 20, "weight_kg": 90.0, "equipment_available": ["barbell", "cables", "cardio", "dumbbells", "gym", "machines"]}, "corrections": [], "ignored_candidates": [], "model_patch": {}, "model_used": false}
+- MemoryAgent | completed | 0ms | 2026-05-28T10:43:28.703934
+  output: {"written": []}
+- IntentRouter | completed | 0ms | 2026-05-28T10:43:28.704063
+  output: {"onboarding_complete": false, "missing_slots": ["height_cm", "goal"]}
+- CoachLLM | completed | 23084ms | 2026-05-28T10:43:51.786586
+  output: {"mode": "onboarding", "live_model": true, "missing_slots": ["height_cm", "goal"]}
+- ResponsePersisted | completed | 0ms | 2026-05-28T10:43:51.790655
+  output: {"response_chars": 320}
+
+Full JSON
+{
+  "run_id": "1fd67cb0-5719-49fe-8fdf-10290b6bb9cd",
+  "request_id": "79368da6-fd06-4d3f-ad76-8eb1b13b3f20",
+  "run_type": "chat_stream",
+  "user_id": "fc5d2ba0-0904-460f-951b-942c2e043fc1",
+  "session_id": "afaaae8c-34eb-4708-bfad-6b4814d334d5",
+  "status": "completed",
+  "started_at_utc": "2026-05-28T10:43:28.700805",
+  "completed_at_utc": "2026-05-28T10:43:51.807815",
+  "summary": "明白了，你的信息我已经更新好了。身高是 178 cm，20 岁，体重 90 kg，有健身房条件，新手阶段，这些都很清晰。\n\n你提到“更看重线条，想减掉肚子”——这个方向我非常理解，很多男生健身的起点都一样：想看到腹肌、想让整体轮廓更紧致。那在教练档案里，我需要帮选择一个更具体一点的目标，以便后面给的训练和饮食方案能精准匹配。\n\n你觉得下面哪种描述最贴近你现在的想法？\n- **减脂塑形（重点减肚子，同时全身出线条）**  \n- **减脂增肌（脂降下来同时保留甚至增加一点肌肉量）**  \n- **纯减重（先以体重数字下降为主）**\n\n或者你心里有没有一个具体的体脂率或腰围目标？直接告诉我你想要的最终状态就可以，我会帮你拆解成可行的计划。",
+  "error": null,
+  "nodes": [
+    {
+      "node": "RequestReceived",
+      "event_id": "5789937b-0ef9-4961-a8f8-13983fc50f0e",
+      "request_id": "79368da6-fd06-4d3f-ad76-8eb1b13b3f20",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-28T10:43:28.700892",
+      "input_summary": {},
+      "output": {
+        "message_chars": 37,
+        "provider": "deepseek",
+        "chat_model": "deepseek-v4-pro",
+        "embedding_mode": "offline_fallback"
+      },
+      "error": null
+    },
+    {
+      "node": "ProfileExtractorAgent",
+      "event_id": "c19bec65-038a-467b-b89e-766a19f6fd3b",
+      "request_id": "79368da6-fd06-4d3f-ad76-8eb1b13b3f20",
+      "status": "completed",
+      "latency_ms": 1,
+      "timestamp_utc": "2026-05-28T10:43:28.703665",
+      "input_summary": {
+        "message": "年龄20  身高178 体重90KG 可以去健身房 更看重线条 想减掉肚子"
+      },
+      "output": {
+        "profile_patch": {
+          "age": 20,
+          "weight_kg": 90.0,
+          "equipment_available": [
+            "barbell",
+            "cables",
+            "cardio",
+            "dumbbells",
+            "gym",
+            "machines"
+          ]
+        },
+        "corrections": [],
+        "ignored_candidates": [],
+        "model_patch": {},
+        "model_used": false
+      },
+      "error": null
+    },
+    {
+      "node": "MemoryAgent",
+      "event_id": "ff4bbe09-56b6-45a3-9029-730c0aaa9e3d",
+      "request_id": "79368da6-fd06-4d3f-ad76-8eb1b13b3f20",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-28T10:43:28.703934",
+      "input_summary": {},
+      "output": {
+        "written": []
+      },
+      "error": null
+    },
+    {
+      "node": "IntentRouter",
+      "event_id": "babe9586-5abe-4279-9e8d-daaf7403d58c",
+      "request_id": "79368da6-fd06-4d3f-ad76-8eb1b13b3f20",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-28T10:43:28.704063",
+      "input_summary": {},
+      "output": {
+        "onboarding_complete": false,
+        "missing_slots": [
+          "height_cm",
+          "goal"
+        ]
+      },
+      "error": null
+    },
+    {
+      "node": "CoachLLM",
+      "event_id": "657e1908-b850-4e90-974d-cbe27278028e",
+      "request_id": "79368da6-fd06-4d3f-ad76-8eb1b13b3f20",
+      "status": "completed",
+      "latency_ms": 23084,
+      "timestamp_utc": "2026-05-28T10:43:51.786586",
+      "input_summary": {},
+      "output": {
+        "mode": "onboarding",
+        "live_model": true,
+        "missing_slots": [
+          "height_cm",
+          "goal"
+        ]
+      },
+      "error": null
+    },
+    {
+      "node": "ResponsePersisted",
+      "event_id": "8e7de792-620c-4187-b86b-30f71131af00",
+      "request_id": "79368da6-fd06-4d3f-ad76-8eb1b13b3f20",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-28T10:43:51.790655",
+      "input_summary": {},
+      "output": {
+        "response_chars": 320
+      },
+      "error": null
+    }
+  ]
+}

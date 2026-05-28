@@ -1,0 +1,141 @@
+AI Fitness Agent run: 4e4d4d33-aaf9-4c9e-a9d1-e18cf56915e1
+request_id: b94f6c71-d488-4a70-9f5d-fcb877d56ec2
+run_type: chat_stream
+user_id: 83239b20-7ce1-4295-8d97-bf2b99ab20c8
+session_id: ec6896ea-93de-4fe6-8c30-256c8f6ecde2
+status: completed
+
+Timeline
+- RequestReceived | completed | 0ms | 2026-05-25T11:15:23.796280
+  output: {"message_chars": 11, "provider": "deepseek", "chat_model": "deepseek-v4-pro", "embedding_mode": "qwen:text-embedding-v4"}
+- ProfileExtractorAgent | completed | 4ms | 2026-05-25T11:15:23.807862
+  input: {"message": "你是否有我目前的信息？"}
+  output: {"profile_patch": {}, "corrections": [], "ignored_candidates": [], "model_patch": {}, "model_used": false}
+- MemoryAgent | completed | 0ms | 2026-05-25T11:15:23.807940
+  output: {"written": []}
+- IntentRouter | completed | 0ms | 2026-05-25T11:15:23.807964
+  output: {"onboarding_complete": false, "missing_slots": ["age", "height_cm", "weight_kg", "goal", "experience_level", "equipment_available"]}
+- CoachLLM | completed | 12673ms | 2026-05-25T11:15:36.481153
+  output: {"mode": "onboarding", "live_model": true, "missing_slots": ["age", "height_cm", "weight_kg", "goal", "experience_level", "equipment_available"]}
+- ResponsePersisted | completed | 0ms | 2026-05-25T11:15:36.483128
+  output: {"response_chars": 140}
+
+Full JSON
+{
+  "run_id": "4e4d4d33-aaf9-4c9e-a9d1-e18cf56915e1",
+  "request_id": "b94f6c71-d488-4a70-9f5d-fcb877d56ec2",
+  "run_type": "chat_stream",
+  "user_id": "83239b20-7ce1-4295-8d97-bf2b99ab20c8",
+  "session_id": "ec6896ea-93de-4fe6-8c30-256c8f6ecde2",
+  "status": "completed",
+  "started_at_utc": "2026-05-25T11:15:23.796177",
+  "completed_at_utc": "2026-05-25T11:15:36.510283",
+  "summary": "目前我这里还没有你的任何基本信息，咱们得从头把你的教练档案建起来。这样我才能给你安排安全又有效的训练和营养方向。\n\n我先从最基础的问起：  \n**你的年龄、身高（厘米）和体重（公斤）分别是多少？**  \n等你告诉我这三个数字之后，我再接着了解你的训练目标、经验以及手边可用的器械。",
+  "error": null,
+  "nodes": [
+    {
+      "node": "RequestReceived",
+      "event_id": "f2c113be-03ce-4cd2-b312-3951cb9cef96",
+      "request_id": "b94f6c71-d488-4a70-9f5d-fcb877d56ec2",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-25T11:15:23.796280",
+      "input_summary": {},
+      "output": {
+        "message_chars": 11,
+        "provider": "deepseek",
+        "chat_model": "deepseek-v4-pro",
+        "embedding_mode": "qwen:text-embedding-v4"
+      },
+      "error": null
+    },
+    {
+      "node": "ProfileExtractorAgent",
+      "event_id": "120d9438-2de9-419e-a39d-1df29439f7d1",
+      "request_id": "b94f6c71-d488-4a70-9f5d-fcb877d56ec2",
+      "status": "completed",
+      "latency_ms": 4,
+      "timestamp_utc": "2026-05-25T11:15:23.807862",
+      "input_summary": {
+        "message": "你是否有我目前的信息？"
+      },
+      "output": {
+        "profile_patch": {},
+        "corrections": [],
+        "ignored_candidates": [],
+        "model_patch": {},
+        "model_used": false
+      },
+      "error": null
+    },
+    {
+      "node": "MemoryAgent",
+      "event_id": "fca10f2e-99e8-48d5-a881-1fe6ed104c84",
+      "request_id": "b94f6c71-d488-4a70-9f5d-fcb877d56ec2",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-25T11:15:23.807940",
+      "input_summary": {},
+      "output": {
+        "written": []
+      },
+      "error": null
+    },
+    {
+      "node": "IntentRouter",
+      "event_id": "c399d8e7-d3a4-4ada-b5db-4cf0f4f08c68",
+      "request_id": "b94f6c71-d488-4a70-9f5d-fcb877d56ec2",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-25T11:15:23.807964",
+      "input_summary": {},
+      "output": {
+        "onboarding_complete": false,
+        "missing_slots": [
+          "age",
+          "height_cm",
+          "weight_kg",
+          "goal",
+          "experience_level",
+          "equipment_available"
+        ]
+      },
+      "error": null
+    },
+    {
+      "node": "CoachLLM",
+      "event_id": "412b7e37-14bb-4627-ab09-d455d53ff62b",
+      "request_id": "b94f6c71-d488-4a70-9f5d-fcb877d56ec2",
+      "status": "completed",
+      "latency_ms": 12673,
+      "timestamp_utc": "2026-05-25T11:15:36.481153",
+      "input_summary": {},
+      "output": {
+        "mode": "onboarding",
+        "live_model": true,
+        "missing_slots": [
+          "age",
+          "height_cm",
+          "weight_kg",
+          "goal",
+          "experience_level",
+          "equipment_available"
+        ]
+      },
+      "error": null
+    },
+    {
+      "node": "ResponsePersisted",
+      "event_id": "c72805fd-ae10-4c26-95e0-67ddf3c04b29",
+      "request_id": "b94f6c71-d488-4a70-9f5d-fcb877d56ec2",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-25T11:15:36.483128",
+      "input_summary": {},
+      "output": {
+        "response_chars": 140
+      },
+      "error": null
+    }
+  ]
+}

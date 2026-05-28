@@ -1,0 +1,576 @@
+[
+  {
+    "rule_id": "rule_training_hold_high_fatigue_001",
+    "rule_type": "training_adjustment",
+    "intent": "progression_decision",
+    "description": "疲劳高、睡眠不足或酸痛明显时，不建议继续加重量，优先维持重量并减少辅助训练量。",
+    "condition_json": {
+      "any": [
+        {"path": "recent_recovery[0].fatigue_score", "op": ">=", "value": 8},
+        {"path": "recent_recovery[0].sleep_hours", "op": "<", "value": 6},
+        {"path": "recent_recovery[0].soreness_score", "op": ">=", "value": 8}
+      ]
+    },
+    "action_json": {
+      "decision": "hold_load_reduce_accessory_volume",
+      "volume_multiplier": 0.75,
+      "reason": "近期恢复状态不支持继续加重量，先保留主动作质量并降低总量。"
+    },
+    "priority": 90,
+    "safety_level": "caution",
+    "enabled": true,
+    "version": "v1"
+  },
+  {
+    "rule_id": "rule_training_add_weight_clean_bench_001",
+    "rule_type": "progression",
+    "intent": "progression_decision",
+    "description": "卧推最近完成度好、RPE不高且没有疼痛时，下次小幅加重。",
+    "condition_json": {
+      "all": [
+        {"path": "exercise_history[*].exercise_name", "op": "contains", "value": "bench"},
+        {"path": "exercise_history[*].rpe", "op": "<=", "value": 8.5},
+        {"path": "exercise_history[*].pain_score", "op": "<=", "value": 2}
+      ]
+    },
+    "action_json": {
+      "decision": "increase_next_session_by_2.5kg",
+      "reason": "近期卧推动作完成且主观强度可控，可以小幅渐进。"
+    },
+    "priority": 55,
+    "safety_level": "general",
+    "enabled": true,
+    "version": "v1"
+  },
+  {
+    "rule_id": "rule_medical_hyperthyroid_conservative_001",
+    "rule_type": "medical_boundary",
+    "intent": "training_plan",
+    "description": "用户有甲亢、甲状腺用药或心率风险记忆时，训练计划应避免高心率冲刺和极限重量。",
+    "condition_json": {
+      "any": [
+        {"path": "relevant_memories[*].memory_type", "op": "contains", "value": "medical_context"},
+        {"path": "active_risk_notes[*].risk_type", "op": "contains", "value": "thyroid"}
+      ]
+    },
+    "action_json": {
+      "decision": "avoid_hiit_and_max_effort",
+      "intensity_cap": "RPE 7-8",
+      "reason": "存在甲状腺或用药相关背景，第一版计划以稳定中等强度为主。"
+    },
+    "priority": 100,
+    "safety_level": "medical_boundary",
+    "enabled": true,
+    "version": "v1"
+  },
+  {
+    "rule_id": "rule_nutrition_takeout_fat_loss_001",
+    "rule_type": "nutrition_strategy",
+    "intent": "nutrition_advice",
+    "description": "用户不自炊或长期外食时，饮食建议优先给外食可执行方案。",
+    "condition_json": {
+      "any": [
+        {"path": "relevant_memories[*].memory_type", "op": "contains", "value": "nutrition_habit"},
+        {"path": "core_profile.dietary_preferences", "op": "contains", "value": "takeout_friendly"}
+      ]
+    },
+    "action_json": {
+      "decision": "use_takeout_friendly_options",
+      "reason": "用户平时不自己做饭，饮食方案要围绕便利店、食堂、外卖和可复制组合。"
+    },
+    "priority": 80,
+    "safety_level": "general",
+    "enabled": true,
+    "version": "v1"
+  },
+
+  {
+    "rule_id": "rule_injury_recovery_return_001",
+    "rule_type": "medical_boundary",
+    "intent": "training_plan",
+    "description": "用户近期有伤病恢复记录或疼痛评分持续偏高时，训练应从低强度、低容量开始重建，优先动作质量和无痛范围。",
+    "condition_json": {
+      "any": [
+        {"path": "relevant_memories[*].memory_type", "op": "contains", "value": "injury_history"},
+        {"path": "recent_recovery[*].pain_score", "op": ">=", "value": 5},
+        {"path": "core_profile.recent_injury", "op": "==", "value": true}
+      ]
+    },
+    "action_json": {
+      "decision": "rebuild_with_low_intensity",
+      "intensity_cap": "RPE 5-6 initially",
+      "volume_multiplier": 0.5,
+      "progression_pace": "slow_2week_blocks",
+      "reason": "伤病恢复期应以无痛重建为第一优先级，避免急于恢复原有重量和容量。建议从原重量的40-50%开始，每两周评估一次。"
+    },
+    "priority": 100,
+    "safety_level": "medical_boundary",
+    "enabled": true,
+    "version": "v1"
+  },
+  {
+    "rule_id": "rule_injury_pain_during_exercise_001",
+    "rule_type": "training_adjustment",
+    "intent": "exercise_selection",
+    "description": "训练中某动作出现关节锐痛或疼痛评分超过4分时，应立即停止该动作并替换为无痛替代动作。",
+    "condition_json": {
+      "all": [
+        {"path": "exercise_history[*].pain_type", "op": "contains", "value": "sharp"},
+        {"path": "exercise_history[*].pain_score", "op": ">=", "value": 4}
+      ]
+    },
+    "action_json": {
+      "decision": "stop_and_substitute_exercise",
+      "reason": "关节锐痛不是正常的训练酸痛，继续该动作可能加重损伤。应立刻替换为无痛替代动作（如深蹲痛换腿举、卧推肩痛换哑铃或器械推），并在下次训练前评估。"
+    },
+    "priority": 100,
+    "safety_level": "medical_boundary",
+    "enabled": true,
+    "version": "v1"
+  },
+  {
+    "rule_id": "rule_injury_shoulder_modify_overhead_001",
+    "rule_type": "exercise_modification",
+    "intent": "exercise_selection",
+    "description": "用户有肩部不适或肩伤史时，避免过头推举和颈后动作，改用前平举、侧平举、面拉等中低位动作。",
+    "condition_json": {
+      "any": [
+        {"path": "relevant_memories[*].content", "op": "contains", "value": "肩伤"},
+        {"path": "relevant_memories[*].content", "op": "contains", "value": "肩膀不舒服"},
+        {"path": "exercise_history[*].exercise_name", "op": "contains", "value": "overhead_press"},
+        {"path": "exercise_history[*].pain_score", "op": ">=", "value": 5}
+      ]
+    },
+    "action_json": {
+      "decision": "avoid_overhead_modify_to_mid_range",
+      "substitute_exercises": ["front_raise", "lateral_raise", "face_pull", "band_pull_apart"],
+      "reason": "肩部不适时应减少过头动作对肩峰下间隙的压力，改用中低位动作维持肩部训练量。"
+    },
+    "priority": 95,
+    "safety_level": "caution",
+    "enabled": true,
+    "version": "v1"
+  },
+
+  {
+    "rule_id": "rule_plateau_strength_3week_stall_001",
+    "rule_type": "progression",
+    "intent": "progression_decision",
+    "description": "主要动作连续3周以上没有进步（重量或次数停滞），疲劳和睡眠正常时，应引入周期化变化：更换次数区间、增加辅助动作或安排一次减载周。",
+    "condition_json": {
+      "all": [
+        {"path": "exercise_history[*].progression_status", "op": "contains", "value": "stalled"},
+        {"path": "exercise_history[*].stall_weeks", "op": ">=", "value": 3},
+        {"path": "recent_recovery[0].fatigue_score", "op": "<=", "value": 7},
+        {"path": "recent_recovery[0].sleep_hours", "op": ">=", "value": 6}
+      ]
+    },
+    "action_json": {
+      "decision": "apply_periodization_change",
+      "options": ["change_rep_range", "add_variation", "schedule_deload", "increase_frequency"],
+      "reason": "连续3周以上停滞且恢复状态正常时，不是疲劳问题而是适应问题。需要新的训练刺激打破平台期——可以尝试改变次数区间（如5x5换3x8-10）、加入变式动作或安排减载周后再冲。"
+    },
+    "priority": 70,
+    "safety_level": "general",
+    "enabled": true,
+    "version": "v1"
+  },
+  {
+    "rule_id": "rule_plateau_fat_loss_2week_stall_001",
+    "rule_type": "nutrition_strategy",
+    "intent": "nutrition_advice",
+    "description": "减脂期连续2周体重无明显变化且饮食依从性良好时，优先检查隐性热量摄入和NEAT下降，而非直接大幅降热量。",
+    "condition_json": {
+      "all": [
+        {"path": "core_profile.goal", "op": "contains", "value": "fat_loss"},
+        {"path": "recent_checkins[*].weight_change_kg", "op": ">=", "value": -0.3},
+        {"path": "recent_checkins[*].weight_change_kg", "op": "<=", "value": 0.3},
+        {"path": "recent_checkins[*].nutrition_adherence", "op": ">=", "value": 0.7}
+      ]
+    },
+    "action_json": {
+      "decision": "audit_before_cutting_calories",
+      "steps": ["check_liquid_calories", "check_cooking_oils_sauces", "increase_daily_steps_by_2000", "ensure_sleep_7h"],
+      "reason": "体重停滞2周且饮食依从性好时，直接降热量可能适得其反。优先排查隐性热量（饮料、酱料、烹饪油）、增加日常活动量（NEAT），多数情况下比再降200卡更可持续。"
+    },
+    "priority": 75,
+    "safety_level": "general",
+    "enabled": true,
+    "version": "v1"
+  },
+  {
+    "rule_id": "rule_plateau_muscle_gain_calorie_gap_001",
+    "rule_type": "nutrition_strategy",
+    "intent": "nutrition_advice",
+    "description": "增肌期体重和力量均停滞超过4周时，检查总热量和蛋白质是否真正达到盈余。",
+    "condition_json": {
+      "all": [
+        {"path": "core_profile.goal", "op": "contains", "value": "muscle_gain"},
+        {"path": "recent_checkins[*].weight_change_kg", "op": "<=", "value": 0.2},
+        {"path": "exercise_history[*].progression_status", "op": "contains", "value": "stalled"},
+        {"path": "exercise_history[*].stall_weeks", "op": ">=", "value": 4}
+      ]
+    },
+    "action_json": {
+      "decision": "increase_calorie_surplus",
+      "calorie_adjustment": "+200_300_kcal",
+      "protein_minimum": "1.8g_per_kg",
+      "reason": "增肌期体重和力量同步停滞超过4周，说明当前热量可能只够维持。建议每日增加200-300千卡（优先碳水），确保蛋白质不低于1.8g/kg体重，2-3周后重新评估。"
+    },
+    "priority": 65,
+    "safety_level": "general",
+    "enabled": true,
+    "version": "v1"
+  },
+
+  {
+    "rule_id": "rule_female_luteal_phase_adjust_001",
+    "rule_type": "training_adjustment",
+    "intent": "progression_decision",
+    "description": "女性用户在黄体期（经前7-10天）反馈疲劳升高或力量下降时，适当降低强度目标并增加恢复时间，不视为退步。",
+    "condition_json": {
+      "all": [
+        {"path": "core_profile.biological_sex", "op": "==", "value": "female"},
+        {"path": "recent_checkins[*].menstrual_phase", "op": "contains", "value": "luteal"},
+        {"path": "recent_recovery[0].fatigue_score", "op": ">=", "value": 7}
+      ]
+    },
+    "action_json": {
+      "decision": "adjust_intensity_for_luteal_phase",
+      "intensity_modifier": "reduce_RPE_by_1",
+      "volume_multiplier": 0.85,
+      "reason": "黄体期孕酮升高可能导致体温升高、疲劳感增强和力量输出下降，这是正常的生理反应而非训练退步。适当降低训练强度1个RPE点、增加组间休息时间，不影响长期进步。"
+    },
+    "priority": 75,
+    "safety_level": "general",
+    "enabled": true,
+    "version": "v1"
+  },
+  {
+    "rule_id": "rule_female_follicular_optimize_001",
+    "rule_type": "progression",
+    "intent": "progression_decision",
+    "description": "女性用户在卵泡期（经期结束后至排卵前）恢复良好时可以尝试强度突破或新PR尝试。",
+    "condition_json": {
+      "all": [
+        {"path": "core_profile.biological_sex", "op": "==", "value": "female"},
+        {"path": "recent_checkins[*].menstrual_phase", "op": "contains", "value": "follicular"},
+        {"path": "recent_recovery[0].fatigue_score", "op": "<=", "value": 5},
+        {"path": "recent_recovery[0].sleep_hours", "op": ">=", "value": 7}
+      ]
+    },
+    "action_json": {
+      "decision": "optimize_intensity_for_follicular_phase",
+      "intensity_modifier": "allow_RPE_8_9",
+      "reason": "卵泡期雌激素水平升高有利于肌肉恢复和力量输出，恢复良好时可以安排强度突破训练或尝试新的个人记录，这是周期性训练优化的好时机。"
+    },
+    "priority": 60,
+    "safety_level": "general",
+    "enabled": true,
+    "version": "v1"
+  },
+  {
+    "rule_id": "rule_female_dysmenorrhea_modify_001",
+    "rule_type": "training_adjustment",
+    "intent": "exercise_selection",
+    "description": "女性用户在经期第1-3天反馈严重痛经或极度疲劳时，建议改为低强度活动或完全休息。",
+    "condition_json": {
+      "all": [
+        {"path": "core_profile.biological_sex", "op": "==", "value": "female"},
+        {"path": "recent_checkins[*].menstrual_phase", "op": "contains", "value": "menstrual"},
+        {"path": "recent_checkins[*].cramps_severity", "op": ">=", "value": 7}
+      ]
+    },
+    "action_json": {
+      "decision": "rest_or_light_activity",
+      "alternatives": ["walking", "gentle_yoga", "stretching"],
+      "reason": "经期严重痛经时强制训练可能增加不适且效果不佳。1-3天的主动休息或低强度活动（散步、温和瑜伽）不会影响长期训练成果，反而有利于身体恢复。"
+    },
+    "priority": 85,
+    "safety_level": "caution",
+    "enabled": true,
+    "version": "v1"
+  },
+
+  {
+    "rule_id": "rule_overtraining_multiple_red_flags_001",
+    "rule_type": "training_adjustment",
+    "intent": "progression_decision",
+    "description": "同时出现疲劳高、睡眠差、静息心率升高和训练动力下降等多个过训练信号时，应强制安排减载周或主动恢复周。",
+    "condition_json": {
+      "all": [
+        {"path": "recent_recovery[0].fatigue_score", "op": ">=", "value": 8},
+        {"path": "recent_recovery[0].sleep_hours", "op": "<", "value": 6},
+        {"path": "recent_recovery[0].motivation_score", "op": "<=", "value": 3}
+      ],
+      "any": [
+        {"path": "recent_checkins[*].resting_hr_elevated", "op": "==", "value": true},
+        {"path": "recent_recovery[0].mood_score", "op": "<=", "value": 3}
+      ]
+    },
+    "action_json": {
+      "decision": "mandatory_deload_week",
+      "volume_multiplier": 0.4,
+      "intensity_cap": "RPE 6",
+      "reason": "多个过训练信号同时出现（疲劳≥8、睡眠<6h、动力≤3，合并心率升高或情绪低落），需要强制安排减载周。训练量降至40%，强度不超过RPE 6，以主动恢复为主。这不是退步，是保护长期进步的必要措施。"
+    },
+    "priority": 95,
+    "safety_level": "caution",
+    "enabled": true,
+    "version": "v1"
+  },
+
+  {
+    "rule_id": "rule_joint_knee_pain_squat_modify_001",
+    "rule_type": "exercise_modification",
+    "intent": "exercise_selection",
+    "description": "用户反馈深蹲时膝关节不适或疼痛，应评估动作模式并考虑替换为对膝关节压力较小的动作。",
+    "condition_json": {
+      "all": [
+        {"path": "exercise_history[*].exercise_name", "op": "contains", "value": "squat"},
+        {"path": "exercise_history[*].pain_location", "op": "contains", "value": "knee"},
+        {"path": "exercise_history[*].pain_score", "op": ">=", "value": 3}
+      ]
+    },
+    "action_json": {
+      "decision": "modify_or_substitute_squat_pattern",
+      "substitute_exercises": ["leg_press", "box_squat", "goblet_squat_reduced_depth", "bulgarian_split_squat"],
+      "check_form": ["knee_tracking", "depth_control", "stance_width", "ankle_mobility"],
+      "reason": "深蹲膝痛可能与动作模式、活动度或负荷管理有关。先检查动作质量（膝是否内扣、深度控制），再考虑替换为腿举、箱式深蹲或保加利亚分腿蹲等对膝压力更可控的动作。"
+    },
+    "priority": 85,
+    "safety_level": "caution",
+    "enabled": true,
+    "version": "v1"
+  },
+  {
+    "rule_id": "rule_joint_lower_back_modify_001",
+    "rule_type": "exercise_modification",
+    "intent": "exercise_selection",
+    "description": "用户反馈下背不适时，避免传统硬拉和负重弯腰动作，改用对脊柱压力较小的替代动作。",
+    "condition_json": {
+      "any": [
+        {"path": "exercise_history[*].pain_location", "op": "contains", "value": "lower_back"},
+        {"path": "relevant_memories[*].content", "op": "contains", "value": "腰伤"},
+        {"path": "relevant_memories[*].content", "op": "contains", "value": "腰间盘"}
+      ]
+    },
+    "action_json": {
+      "decision": "avoid_spinal_loading_replace_with_hip_hinge_alternatives",
+      "substitute_exercises": ["trap_bar_deadlift", "hip_thrust", "kettlebell_swing", "back_extension", "single_leg_rdl"],
+      "reason": "下背不适时应减少脊柱直接负重，改用六角杠硬拉、臀推、壶铃摆荡等髋铰链动作训练后链，同时加入核心稳定训练。"
+    },
+    "priority": 90,
+    "safety_level": "caution",
+    "enabled": true,
+    "version": "v1"
+  },
+
+  {
+    "rule_id": "rule_sleep_chronic_poor_quality_001",
+    "rule_type": "training_adjustment",
+    "intent": "progression_decision",
+    "description": "用户连续5天以上睡眠不足6小时或睡眠质量差时，训练重点从渐进超负荷转为维持和动作质量。",
+    "condition_json": {
+      "all": [
+        {"path": "recent_recovery[*].sleep_hours", "op": "<", "value": 6},
+        {"path": "recent_recovery[*].consecutive_bad_sleep_days", "op": ">=", "value": 5}
+      ]
+    },
+    "action_json": {
+      "decision": "shift_to_maintenance_mode",
+      "volume_multiplier": 0.6,
+      "intensity_cap": "RPE 7",
+      "reason": "连续睡眠不足不仅影响训练表现，更会削弱恢复能力和免疫系统。此时训练目标应从突破转为维持——保留主动作的核心组，去掉高强度冲刺和大量辅助动作。同时提供改善睡眠的具体建议。"
+    },
+    "priority": 85,
+    "safety_level": "caution",
+    "enabled": true,
+    "version": "v1"
+  },
+
+  {
+    "rule_id": "rule_stress_high_life_stress_adjust_001",
+    "rule_type": "training_adjustment",
+    "intent": "progression_decision",
+    "description": "用户反馈近期生活或工作压力极大（应激评分≥8）时，适当降低训练压力，避免训练成为额外应激源。",
+    "condition_json": {
+      "any": [
+        {"path": "recent_recovery[0].stress_score", "op": ">=", "value": 8},
+        {"path": "recent_checkins[*].life_stress_note", "op": "contains", "value": "高压"}
+      ]
+    },
+    "action_json": {
+      "decision": "reduce_training_stress",
+      "volume_multiplier": 0.7,
+      "session_duration_cap": "45min",
+      "recommend": ["prioritize_sleep", "walking_for_stress_relief"],
+      "reason": "高生活压力时身体已处于应激状态，训练产生的额外压力会叠加而非互补。此时缩短训练时长至45分钟内，降低容量但不完全停训，用运动帮助减压而非增加负担。"
+    },
+    "priority": 80,
+    "safety_level": "general",
+    "enabled": true,
+    "version": "v1"
+  },
+
+  {
+    "rule_id": "rule_nutrition_pre_post_workout_001",
+    "rule_type": "nutrition_strategy",
+    "intent": "nutrition_advice",
+    "description": "用户训练强度较高（RPE≥8或时长超过60分钟）时，提醒训练前1-2小时适当补充碳水，训练后30-60分钟内补充蛋白质。",
+    "condition_json": {
+      "any": [
+        {"path": "exercise_history[0].rpe", "op": ">=", "value": 8},
+        {"path": "exercise_history[0].duration_min", "op": ">=", "value": 60}
+      ]
+    },
+    "action_json": {
+      "decision": "remind_peri_workout_nutrition",
+      "pre_workout": "训练前1-2h摄入30-50g碳水（香蕉、燕麦、面包）",
+      "post_workout": "训练后30-60min内摄入20-40g蛋白质（蛋白粉、鸡蛋、鸡胸）",
+      "reason": "中高强度或长时间训练时，训练前后营养对表现和恢复有显著影响。训练前碳水提供能量，训练后蛋白质支持修复。日常饮食已充足的情况下不需要刻意追求黄金窗口，但提醒有益。"
+    },
+    "priority": 50,
+    "safety_level": "general",
+    "enabled": true,
+    "version": "v1"
+  },
+
+  {
+    "rule_id": "rule_beginner_form_priority_over_weight_001",
+    "rule_type": "training_adjustment",
+    "intent": "progression_decision",
+    "description": "训练经验不足6个月的用户，当动作质量评分偏低时，应优先完善动作模式，不应追求重量增长。",
+    "condition_json": {
+      "all": [
+        {"path": "core_profile.training_experience_months", "op": "<=", "value": 6},
+        {"path": "exercise_history[*].form_quality_score", "op": "<=", "value": 6}
+      ]
+    },
+    "action_json": {
+      "decision": "prioritize_form_over_weight",
+      "progression_rule": "form_score_8_before_weight_increase",
+      "reason": "新手期6个月内是建立正确动作模式的关键窗口。动作质量低于6分时加重量会固化错误模式，增加受伤风险。应先用可控重量建立正确动作，达到质量评分8分以上再渐进加重。"
+    },
+    "priority": 90,
+    "safety_level": "caution",
+    "enabled": true,
+    "version": "v1"
+  },
+
+  {
+    "rule_id": "rule_deload_scheduled_4week_block_001",
+    "rule_type": "training_adjustment",
+    "intent": "training_plan",
+    "description": "用户连续训练4-6周且强度较高（多数训练RPE≥7）时，建议安排一个主动减载周以促进恢复和预防过训练。",
+    "condition_json": {
+      "all": [
+        {"path": "core_profile.consecutive_training_weeks", "op": ">=", "value": 4},
+        {"path": "exercise_history[*].rpe", "op": ">=", "value": 7}
+      ]
+    },
+    "action_json": {
+      "decision": "recommend_scheduled_deload",
+      "deload_protocol": "same_exercises_50%_volume_RPE_6",
+      "reason": "持续4-6周的中高强度训练后，结缔组织和神经系统需要主动恢复。减载周不是完全休息——保持同样动作但容量减半、强度控制在RPE 6左右，可以维持技术同时让身体恢复。"
+    },
+    "priority": 65,
+    "safety_level": "general",
+    "enabled": true,
+    "version": "v1"
+  },
+
+  {
+    "rule_id": "rule_warmup_cold_start_minimum_001",
+    "rule_type": "training_adjustment",
+    "intent": "training_plan",
+    "description": "所有训练计划应包含至少5-10分钟的动态热身环节，尤其是训练环境温度较低或训练内容包含大重量复合动作时。",
+    "condition_json": {
+      "any": [
+        {"path": "core_profile.training_environment", "op": "contains", "value": "cold"},
+        {"path": "plan_template.includes_compound_lifts", "op": "==", "value": true}
+      ]
+    },
+    "action_json": {
+      "decision": "include_dynamic_warmup",
+      "warmup_protocol": "5-10min_light_cardio_dynamic_stretching_ramp_up_sets",
+      "reason": "冷启动直接上大重量是受伤的主要原因之一。动态热身提高核心温度、激活神经肌肉系统、增加关节滑液。包含：轻有氧3-5分钟、动态拉伸、动作模式激活、递增负重热身组。"
+    },
+    "priority": 80,
+    "safety_level": "general",
+    "enabled": true,
+    "version": "v1"
+  },
+
+  {
+    "rule_id": "rule_age_masters_over45_programming_001",
+    "rule_type": "training_adjustment",
+    "intent": "training_plan",
+    "description": "用户年龄45+时，训练计划应增加恢复时间、减少极限强度频率、加入更多关节保护和活动度训练。",
+    "condition_json": {
+      "all": [
+        {"path": "core_profile.age", "op": ">=", "value": 45}
+      ]
+    },
+    "action_json": {
+      "decision": "masters_programming_adjustments",
+      "modifications": [
+        "每块肌群每周训练频率不超过2次",
+        "极限重量(RPE9+)训练不超过每2周1次",
+        "增加热身时间至10-15分钟",
+        "加入关节保护训练（面拉、外旋、臀桥）",
+        "组间休息延长至2-3分钟"
+      ],
+      "reason": "年龄45岁以上时恢复能力下降、结缔组织需要更长适应时间。保持训练量和强度是安全且推荐的，但需要更长的恢复窗口、更充分的热身和更多的关节预康复训练。"
+    },
+    "priority": 70,
+    "safety_level": "general",
+    "enabled": true,
+    "version": "v1"
+  },
+
+  {
+    "rule_id": "rule_hydration_heat_training_adjust_001",
+    "rule_type": "training_adjustment",
+    "intent": "training_plan",
+    "description": "训练环境高温或用户反馈训练中大量出汗时，提醒补水策略并适当降低训练强度。",
+    "condition_json": {
+      "any": [
+        {"path": "core_profile.training_environment", "op": "contains", "value": "hot"},
+        {"path": "recent_checkins[*].sweat_level", "op": ">=", "value": "heavy"},
+        {"path": "recent_checkins[*].hydration_concern", "op": "==", "value": true}
+      ]
+    },
+    "action_json": {
+      "decision": "hydration_reminder_and_intensity_adjustment",
+      "hydration_protocol": "训练前500ml_训练中每15min_150-250ml_训练后补充体重差x1.5",
+      "intensity_modifier": "reduce_RPE_ceiling_by_1_in_heat",
+      "reason": "高温或大量出汗环境下脱水风险显著增加，可能影响训练表现并增加热相关疾病风险。训练期间应规律补水，高温时适当降低强度上限。"
+    },
+    "priority": 75,
+    "safety_level": "caution",
+    "enabled": true,
+    "version": "v1"
+  },
+
+  {
+    "rule_id": "rule_recovery_active_rest_day_protocol_001",
+    "rule_type": "training_adjustment",
+    "intent": "training_plan",
+    "description": "休息日不等于完全不动，建议加入低强度活动促进血液循环和恢复。",
+    "condition_json": {
+      "all": [
+        {"path": "core_profile.training_days_per_week", "op": ">=", "value": 4}
+      ]
+    },
+    "action_json": {
+      "decision": "recommend_active_rest",
+      "activities": ["20-30min_walking", "light_stretching", "foam_rolling", "leisure_cycling"],
+      "reason": "对于每周训练4天以上的用户，完全静息反而不利于恢复。低强度活动（散步、拉伸、泡沫轴）促进血液循环、帮助代谢废物清除、减少肌肉僵硬。强度上限是能轻松对话的程度。"
+    },
+    "priority": 45,
+    "safety_level": "general",
+    "enabled": true,
+    "version": "v1"
+  }
+]

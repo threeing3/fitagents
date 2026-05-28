@@ -1,0 +1,72 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: ai_fitness_agent_postgres
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "4553:5432"
+    volumes:
+      - postgres_data_ai_fitness_agent:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - ai-fitness-network
+
+  fast_api_ai_fitness_planner:
+    container_name: fast_api_ai_fitness_planner
+    restart: unless-stopped
+    build:
+      context: ./fast_api
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
+      LANGCHAIN_TRACING_V2: ${LANGCHAIN_TRACING_V2:-false}
+      LANGCHAIN_PROJECT: ${LANGCHAIN_PROJECT:-ai-fitness-coach}
+      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
+    volumes:
+      - ./:/app
+    ports:
+      - "1015:8000"
+    command: ["uvicorn", "fast_api.app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - ai-fitness-network
+
+  web_ai_fitness_planner:
+    container_name: web_ai_fitness_planner
+    restart: unless-stopped
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    environment:
+      VITE_API_BASE_URL: http://localhost:1015
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./web:/usr/src/app
+      - /usr/src/app/node_modules
+    depends_on:
+      - fast_api_ai_fitness_planner
+    networks:
+      - ai-fitness-network
+
+volumes:
+  postgres_data_ai_fitness_agent:
+    driver: local
+
+networks:
+  ai-fitness-network:
+    driver: bridge

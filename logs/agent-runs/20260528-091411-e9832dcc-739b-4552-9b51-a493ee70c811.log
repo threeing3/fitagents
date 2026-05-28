@@ -1,0 +1,141 @@
+AI Fitness Agent run: e9832dcc-739b-4552-9b51-a493ee70c811
+request_id: 9517490c-7c8d-4a15-8413-353433142bc8
+run_type: chat_stream
+user_id: fc5d2ba0-0904-460f-951b-942c2e043fc1
+session_id: 5f5144cd-b6eb-4fb2-8945-d02a76f1be41
+status: completed
+
+Timeline
+- RequestReceived | completed | 0ms | 2026-05-28T09:14:11.796653
+  output: {"message_chars": 25, "provider": "deepseek", "chat_model": "deepseek-v4-pro", "embedding_mode": "offline_fallback"}
+- ProfileExtractorAgent | completed | 1ms | 2026-05-28T09:14:11.800008
+  input: {"message": "Generate my training plan"}
+  output: {"profile_patch": {}, "corrections": [], "ignored_candidates": [], "model_patch": {}, "model_used": false}
+- MemoryAgent | completed | 0ms | 2026-05-28T09:14:11.800268
+  output: {"written": []}
+- IntentRouter | completed | 0ms | 2026-05-28T09:14:11.800326
+  output: {"onboarding_complete": false, "missing_slots": ["age", "height_cm", "weight_kg", "goal", "experience_level", "equipment_available"]}
+- CoachLLM | completed | 10591ms | 2026-05-28T09:14:22.390889
+  output: {"mode": "onboarding", "live_model": true, "missing_slots": ["age", "height_cm", "weight_kg", "goal", "experience_level", "equipment_available"]}
+- ResponsePersisted | completed | 0ms | 2026-05-28T09:14:22.393206
+  output: {"response_chars": 325}
+
+Full JSON
+{
+  "run_id": "e9832dcc-739b-4552-9b51-a493ee70c811",
+  "request_id": "9517490c-7c8d-4a15-8413-353433142bc8",
+  "run_type": "chat_stream",
+  "user_id": "fc5d2ba0-0904-460f-951b-942c2e043fc1",
+  "session_id": "5f5144cd-b6eb-4fb2-8945-d02a76f1be41",
+  "status": "completed",
+  "started_at_utc": "2026-05-28T09:14:11.796518",
+  "completed_at_utc": "2026-05-28T09:14:22.421279",
+  "summary": "好的，很高兴能成为你的私人健身教练！要为你量身打造安全有效的训练计划，我需要先了解一些基本信息。你刚才提供的资料还缺少几项关键数据，咱们一步一步补齐就好。\n\n目前我需要知道：\n- **年龄**（周岁）\n- **身高**（厘米）\n- **体重**（公斤）\n- **健身目标**（比如减脂、增肌、提升耐力、塑形等）\n- **训练经验**（完全新手、有几个月基础、还是已经系统训练过一两年？）\n- **可用器械**（是在家练，还是去健身房？手头有没有哑铃、弹力带、跑步机等？）\n\n你可以直接一次性告诉我，或者我们先从这几项开始。放心，在你提供完整信息之前，我不会随便塞给你一份通用计划，所有安排都会基于你的真实情况来设计。\n\n先说说你的年龄、身高和体重吧？",
+  "error": null,
+  "nodes": [
+    {
+      "node": "RequestReceived",
+      "event_id": "951a3c9c-aacf-4578-bd5e-9044fad59e85",
+      "request_id": "9517490c-7c8d-4a15-8413-353433142bc8",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-28T09:14:11.796653",
+      "input_summary": {},
+      "output": {
+        "message_chars": 25,
+        "provider": "deepseek",
+        "chat_model": "deepseek-v4-pro",
+        "embedding_mode": "offline_fallback"
+      },
+      "error": null
+    },
+    {
+      "node": "ProfileExtractorAgent",
+      "event_id": "41d37db0-368e-41ec-9b7a-61c6ce68ecb2",
+      "request_id": "9517490c-7c8d-4a15-8413-353433142bc8",
+      "status": "completed",
+      "latency_ms": 1,
+      "timestamp_utc": "2026-05-28T09:14:11.800008",
+      "input_summary": {
+        "message": "Generate my training plan"
+      },
+      "output": {
+        "profile_patch": {},
+        "corrections": [],
+        "ignored_candidates": [],
+        "model_patch": {},
+        "model_used": false
+      },
+      "error": null
+    },
+    {
+      "node": "MemoryAgent",
+      "event_id": "6dba4aca-2858-4d83-a361-b33e88429c5b",
+      "request_id": "9517490c-7c8d-4a15-8413-353433142bc8",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-28T09:14:11.800268",
+      "input_summary": {},
+      "output": {
+        "written": []
+      },
+      "error": null
+    },
+    {
+      "node": "IntentRouter",
+      "event_id": "174750d7-489a-4078-a2d5-036d3b716b7e",
+      "request_id": "9517490c-7c8d-4a15-8413-353433142bc8",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-28T09:14:11.800326",
+      "input_summary": {},
+      "output": {
+        "onboarding_complete": false,
+        "missing_slots": [
+          "age",
+          "height_cm",
+          "weight_kg",
+          "goal",
+          "experience_level",
+          "equipment_available"
+        ]
+      },
+      "error": null
+    },
+    {
+      "node": "CoachLLM",
+      "event_id": "6d5d8425-7261-47c9-b74b-f94265fcc417",
+      "request_id": "9517490c-7c8d-4a15-8413-353433142bc8",
+      "status": "completed",
+      "latency_ms": 10591,
+      "timestamp_utc": "2026-05-28T09:14:22.390889",
+      "input_summary": {},
+      "output": {
+        "mode": "onboarding",
+        "live_model": true,
+        "missing_slots": [
+          "age",
+          "height_cm",
+          "weight_kg",
+          "goal",
+          "experience_level",
+          "equipment_available"
+        ]
+      },
+      "error": null
+    },
+    {
+      "node": "ResponsePersisted",
+      "event_id": "b1f4c550-9d88-4684-b02f-dc37fa4dc7f8",
+      "request_id": "9517490c-7c8d-4a15-8413-353433142bc8",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-28T09:14:22.393206",
+      "input_summary": {},
+      "output": {
+        "response_chars": 325
+      },
+      "error": null
+    }
+  ]
+}

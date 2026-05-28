@@ -1,0 +1,144 @@
+AI Fitness Agent run: 036271f2-1121-4ddb-ad68-2fb161d3cccd
+request_id: 0a638217-60c9-40f9-a164-52830c815ef8
+run_type: chat
+user_id: 805eb8d8-e8de-4e78-84df-82a55303f4a4
+session_id: dfbe42f6-bcfb-448d-9849-bb0dc0acddea
+status: completed
+
+Timeline
+- RequestReceived | completed | 0ms | 2026-05-28T09:10:48.807249
+  output: {"message_chars": 43, "provider": "deepseek", "chat_model": "deepseek-v4-pro", "embedding_mode": "offline_fallback"}
+- ProfileExtractorAgent | completed | 0ms | 2026-05-28T09:10:48.808740
+  input: {"message": "我21岁，178cm，80kg，系统训练一年，在健身房训练，目标减脂。今天应该练什么？"}
+  output: {"profile_patch": {"age": 21, "height_cm": 178.0, "weight_kg": 80.0, "goal": "fat_loss", "equipment_available": ["barbell", "cables", "cardio", "dumbbells", "gym", "machines"]}, "corrections": [], "ignored_candidates": [], "model_patch": {}, "model_used": false}
+- MemoryAgent | completed | 0ms | 2026-05-28T09:10:48.808790
+  output: {"written": []}
+- IntentRouter | completed | 0ms | 2026-05-28T09:10:48.808836
+  output: {"onboarding_complete": false, "missing_slots": ["experience_level"]}
+- CoachLLM | completed | 12105ms | 2026-05-28T09:11:00.912295
+  output: {"mode": "onboarding", "live_model": true, "missing_slots": ["experience_level"]}
+- ResponsePersisted | completed | 0ms | 2026-05-28T09:11:00.915850
+  output: {"response_chars": 220}
+
+Full JSON
+{
+  "run_id": "036271f2-1121-4ddb-ad68-2fb161d3cccd",
+  "request_id": "0a638217-60c9-40f9-a164-52830c815ef8",
+  "run_type": "chat",
+  "user_id": "805eb8d8-e8de-4e78-84df-82a55303f4a4",
+  "session_id": "dfbe42f6-bcfb-448d-9849-bb0dc0acddea",
+  "status": "completed",
+  "started_at_utc": "2026-05-28T09:10:48.807206",
+  "completed_at_utc": "2026-05-28T09:11:00.928637",
+  "summary": "好的，我先确认一下。你的档案里目前还缺**训练经验**这个关键信息。虽然你说“系统训练一年”，但为了给你匹配最安全的减脂计划，我需要你明确一下：你觉得自己的训练水平属于**新手、中级还是高级**？比如，三大项（深蹲/硬拉/卧推）大概能推起多重，或者你对渐进超负荷、周期化训练是否熟悉？\n\n等你告诉我，我就能直接给你今天的具体训练安排了。另外，根据你的减脂目标，我估算了一下每日热量摄入大约在**2300千卡**左右，后续也可以配合饮食建议。",
+  "error": null,
+  "nodes": [
+    {
+      "node": "RequestReceived",
+      "event_id": "755675eb-3581-45b7-9772-1082f1a952b9",
+      "request_id": "0a638217-60c9-40f9-a164-52830c815ef8",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-28T09:10:48.807249",
+      "input_summary": {},
+      "output": {
+        "message_chars": 43,
+        "provider": "deepseek",
+        "chat_model": "deepseek-v4-pro",
+        "embedding_mode": "offline_fallback"
+      },
+      "error": null
+    },
+    {
+      "node": "ProfileExtractorAgent",
+      "event_id": "17d3fa4d-ed19-429a-a230-a05f7bc88670",
+      "request_id": "0a638217-60c9-40f9-a164-52830c815ef8",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-28T09:10:48.808740",
+      "input_summary": {
+        "message": "我21岁，178cm，80kg，系统训练一年，在健身房训练，目标减脂。今天应该练什么？"
+      },
+      "output": {
+        "profile_patch": {
+          "age": 21,
+          "height_cm": 178.0,
+          "weight_kg": 80.0,
+          "goal": "fat_loss",
+          "equipment_available": [
+            "barbell",
+            "cables",
+            "cardio",
+            "dumbbells",
+            "gym",
+            "machines"
+          ]
+        },
+        "corrections": [],
+        "ignored_candidates": [],
+        "model_patch": {},
+        "model_used": false
+      },
+      "error": null
+    },
+    {
+      "node": "MemoryAgent",
+      "event_id": "3663a737-fb14-4a44-9ce7-b1c49553ac03",
+      "request_id": "0a638217-60c9-40f9-a164-52830c815ef8",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-28T09:10:48.808790",
+      "input_summary": {},
+      "output": {
+        "written": []
+      },
+      "error": null
+    },
+    {
+      "node": "IntentRouter",
+      "event_id": "3a184227-e8b2-4133-8b0f-d04187369d5a",
+      "request_id": "0a638217-60c9-40f9-a164-52830c815ef8",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-28T09:10:48.808836",
+      "input_summary": {},
+      "output": {
+        "onboarding_complete": false,
+        "missing_slots": [
+          "experience_level"
+        ]
+      },
+      "error": null
+    },
+    {
+      "node": "CoachLLM",
+      "event_id": "daf1be6e-8f05-47c9-a399-e0004f55cb72",
+      "request_id": "0a638217-60c9-40f9-a164-52830c815ef8",
+      "status": "completed",
+      "latency_ms": 12105,
+      "timestamp_utc": "2026-05-28T09:11:00.912295",
+      "input_summary": {},
+      "output": {
+        "mode": "onboarding",
+        "live_model": true,
+        "missing_slots": [
+          "experience_level"
+        ]
+      },
+      "error": null
+    },
+    {
+      "node": "ResponsePersisted",
+      "event_id": "595ee6f3-8831-4940-ab0c-5b9689c77b59",
+      "request_id": "0a638217-60c9-40f9-a164-52830c815ef8",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-28T09:11:00.915850",
+      "input_summary": {},
+      "output": {
+        "response_chars": 220
+      },
+      "error": null
+    }
+  ]
+}

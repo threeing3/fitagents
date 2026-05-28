@@ -1,0 +1,140 @@
+AI Fitness Agent run: 547c6b59-b401-4a55-b0ea-a9b2e9dfdaf4
+request_id: 774d1dda-709d-4b0c-ba74-d0805bd24f08
+run_type: chat
+user_id: 6bdce222-6906-4e02-b8f6-b6636ce9d286
+session_id: 0dedd2bc-ba3e-48a4-93d6-79f9f9052364
+status: completed
+
+Timeline
+- RequestReceived | completed | 0ms | 2026-05-28T09:07:41.026130
+  output: {"message_chars": 43, "provider": "deepseek", "chat_model": "deepseek-v4-pro", "embedding_mode": "offline_fallback"}
+- ProfileExtractorAgent | completed | 0ms | 2026-05-28T09:07:41.027502
+  input: {"message": "?21??178cm?80kg????????????????????????????"}
+  output: {"profile_patch": {"height_cm": 178.0, "weight_kg": 80.0}, "corrections": [], "ignored_candidates": [], "model_patch": {}, "model_used": false}
+- MemoryAgent | completed | 0ms | 2026-05-28T09:07:41.027560
+  output: {"written": []}
+- IntentRouter | completed | 0ms | 2026-05-28T09:07:41.027627
+  output: {"onboarding_complete": false, "missing_slots": ["age", "goal", "experience_level", "equipment_available"]}
+- CoachLLM | completed | 13233ms | 2026-05-28T09:07:54.261108
+  output: {"mode": "onboarding", "live_model": true, "missing_slots": ["age", "goal", "experience_level", "equipment_available"]}
+- ResponsePersisted | completed | 0ms | 2026-05-28T09:07:54.265563
+  output: {"response_chars": 276}
+
+Full JSON
+{
+  "run_id": "547c6b59-b401-4a55-b0ea-a9b2e9dfdaf4",
+  "request_id": "774d1dda-709d-4b0c-ba74-d0805bd24f08",
+  "run_type": "chat",
+  "user_id": "6bdce222-6906-4e02-b8f6-b6636ce9d286",
+  "session_id": "0dedd2bc-ba3e-48a4-93d6-79f9f9052364",
+  "status": "completed",
+  "started_at_utc": "2026-05-28T09:07:41.026089",
+  "completed_at_utc": "2026-05-28T09:07:54.283296",
+  "summary": "您好！我这边收到的消息有些显示不清，不过看到您的身高178cm、体重80kg，还提到了“21”，是想告诉我年龄是21岁吧？我先确认一下。\n\n为了给您安全有效的定制方案，还需要您补充几项关键信息：\n\n1. **年龄**：是21岁吗？\n2. **主要目标**：减脂、增肌、塑形还是提升体能？\n3. **训练经验**：完全没有经验/新手、练过一段时间但不太系统、还是能独立完成复合动作（深蹲硬拉卧推）？\n4. **可用的器材**：目前有什么器械？比如居家无器材、有哑铃/弹力带，还是能去健身房用全器械？\n\n先告诉我这些，我就能帮您搭配合适的训练和饮食方向了。",
+  "error": null,
+  "nodes": [
+    {
+      "node": "RequestReceived",
+      "event_id": "e8f477eb-f458-43c5-8c3e-67bdc06c6c4a",
+      "request_id": "774d1dda-709d-4b0c-ba74-d0805bd24f08",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-28T09:07:41.026130",
+      "input_summary": {},
+      "output": {
+        "message_chars": 43,
+        "provider": "deepseek",
+        "chat_model": "deepseek-v4-pro",
+        "embedding_mode": "offline_fallback"
+      },
+      "error": null
+    },
+    {
+      "node": "ProfileExtractorAgent",
+      "event_id": "ae83ba24-1a3c-4b85-b14e-300059217d58",
+      "request_id": "774d1dda-709d-4b0c-ba74-d0805bd24f08",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-28T09:07:41.027502",
+      "input_summary": {
+        "message": "?21??178cm?80kg????????????????????????????"
+      },
+      "output": {
+        "profile_patch": {
+          "height_cm": 178.0,
+          "weight_kg": 80.0
+        },
+        "corrections": [],
+        "ignored_candidates": [],
+        "model_patch": {},
+        "model_used": false
+      },
+      "error": null
+    },
+    {
+      "node": "MemoryAgent",
+      "event_id": "bcce3d71-ff10-4bbe-b795-f3c8b4964b3a",
+      "request_id": "774d1dda-709d-4b0c-ba74-d0805bd24f08",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-28T09:07:41.027560",
+      "input_summary": {},
+      "output": {
+        "written": []
+      },
+      "error": null
+    },
+    {
+      "node": "IntentRouter",
+      "event_id": "723bcfb0-c62a-4ab6-a6be-f1c3a63580cb",
+      "request_id": "774d1dda-709d-4b0c-ba74-d0805bd24f08",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-28T09:07:41.027627",
+      "input_summary": {},
+      "output": {
+        "onboarding_complete": false,
+        "missing_slots": [
+          "age",
+          "goal",
+          "experience_level",
+          "equipment_available"
+        ]
+      },
+      "error": null
+    },
+    {
+      "node": "CoachLLM",
+      "event_id": "9a74e743-866e-4869-a563-ecaaefcd5c52",
+      "request_id": "774d1dda-709d-4b0c-ba74-d0805bd24f08",
+      "status": "completed",
+      "latency_ms": 13233,
+      "timestamp_utc": "2026-05-28T09:07:54.261108",
+      "input_summary": {},
+      "output": {
+        "mode": "onboarding",
+        "live_model": true,
+        "missing_slots": [
+          "age",
+          "goal",
+          "experience_level",
+          "equipment_available"
+        ]
+      },
+      "error": null
+    },
+    {
+      "node": "ResponsePersisted",
+      "event_id": "a9b24d49-63ae-44b6-b7f2-eac0168b6975",
+      "request_id": "774d1dda-709d-4b0c-ba74-d0805bd24f08",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-28T09:07:54.265563",
+      "input_summary": {},
+      "output": {
+        "response_chars": 276
+      },
+      "error": null
+    }
+  ]
+}

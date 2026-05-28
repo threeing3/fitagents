@@ -1,0 +1,535 @@
+AI Fitness Agent run: 4f16f178-5ffd-4ddd-9bbc-bcc8323e59fc
+request_id: ed9fc2d2-bb07-49c4-b18a-fdbdb74a4382
+run_type: chat_stream
+user_id: f97d34b4-87bb-4a21-a3f0-f19ea7edd43f
+session_id: 5fe9e371-3426-45f3-8288-d837911c7ecd
+status: completed
+
+Timeline
+- RequestReceived | completed | 0ms | 2026-05-25T11:30:40.008659
+  output: {"message_chars": 42, "provider": "deepseek", "chat_model": "deepseek-v4-pro", "embedding_mode": "offline_fallback"}
+- ProfileExtractorAgent | completed | 0ms | 2026-05-25T11:30:40.009941
+  input: {"message": "我21岁，男，178cm，80kg，目标减脂，系统训练过1年，在健身房训练，每周5天"}
+  output: {"profile_patch": {"age": 21, "sex": "male", "height_cm": 178.0, "weight_kg": 80.0, "goal": "fat_loss", "workout_frequency": 5, "experience_level": "intermediate", "equipment_available": ["barbell", "cables", "cardio", "dumbbells", "gym", "machines"]}, "corrections": [], "ignored_candidates": [], "model_patch": {}, "model_used": false}
+- MemoryAgent | completed | 0ms | 2026-05-25T11:30:40.009990
+  output: {"written": []}
+- IntentRouter | completed | 0ms | 2026-05-25T11:30:40.010003
+  output: {"onboarding_complete": true, "missing_slots": []}
+- ContextBuilder | completed | 9ms | 2026-05-25T11:30:40.039555
+  output: {"intent": "training_log", "core_profile": {"age": 21, "sex": "male", "height_cm": 178.0, "weight_kg": 80.0, "activity_level": "moderate", "goal": "fat_loss", "experience_level": "intermediate", "workout_frequency": 5, "equipment_available": ["barbell", "cables", "cardio", "dumbbells", "gym", "machines"], "dietary_preferences": [], "injuries": [], "target_calories": 2304, "target_protein_g": 173.0, "target_carbs_g": 230.0, "target_fat_g": 77.0}, "memory_catalog": [], "active_plan": {"id": "9d31d9e3-ed32-49a8-bafc-1e2280f3574d", "status": "active", "week_start": "2026-05-25", "plan": {"goal": "fat_loss", "nutrition": {"fat_g": 77, "carbs_g": 230, "protein_g": 173, "principles": ["Anchor each meal around protein.", "Put more carbs near training sessions.", "Adjust portions weekly based on weight trend and adherence."], "target_calories": 2304}, "plan_days": 7, "training_days": [{"day": 1, "name": "Full Body Strength", "focus": "squat pattern", "equipment": ["barbell", "cables", "cardio", "dumbbells", "gym", "machines"], "exercises": [{"name": "squat pattern", "reps": "10-15", "sets": 3, "notes": "Keep 1-3 reps in reserve and stop if pain appears.", "rest_seconds": 90}, {"name": "push", "reps": "10-15", "sets": 3, "notes": "Keep 1-3 reps in reserve and stop if pain appears.", "rest_seconds": 90}, {"name": "pull", "reps": "10-15", "sets": 3, "notes": "Keep 1-3 reps in reserve and stop if pain appears.", "rest_seconds": 90}, {"name": "hinge", "reps": "10-15", "sets": 3, "notes": "Keep 1-3 reps in reserve and stop if pain appears.", "rest_seconds": 90}, {"name": "core", "reps": "10-15", "sets": 3, "notes": "Keep 1-3 reps in reserve and stop if pain appears.", "rest_seconds": 90}]}, {"day": 2, "name": "Upper Body", "focus": "horizontal push", "equipment": ["barbell", "cables", "cardio", "dumbbells", "gym", "machines"], "exercises": [{"name": "horizontal push", "reps": "10-15", "sets": 3, "notes": "Keep 1-3 reps in reserve and stop if pain appears.", "rest_seconds": 90}, {"name": "horizontal pull", "reps": "10-15", "sets": 3, "notes": "Keep 1-3 reps in reserve and stop if pain appears.", "rest_seconds": 90}, {"name": "vertical push", "reps": "10-15", "sets": 3, "notes": "Keep 1-3 reps in reserve and stop if pain appears.", "rest_seconds": 90}, {"name": "arms", "reps": "10-15", "sets": 3, "notes": "Keep 1-3 reps in reserve and stop if pain appears.", "rest_seconds": 90}]}, {"day": 3, "name": "Lower Body", "focus": "squat", "equipment": ["barbell", "cables", "cardio", "dumbbells", "gym", "machines"], "exercises": [{"name": "squat", "reps": "10-15", "sets": 3, "notes": "Keep 1-3 reps in reserve and stop if pain appears.", "rest_seconds": 90}, {"name": "hinge", "reps": "10-15", "sets": 3, "notes": "Keep 1-3 reps in reserve and stop if pain appears.", "rest_seconds": 90}, {"name": "single-leg", "reps": "10-15", "sets": 3, "notes": "Keep 1-3 reps in reserve and stop if pain appears.", "rest_seconds": 90}, {"name": "calves", "reps": "10-15", "sets": 3, "notes": "Keep 1-3 reps in reserve and stop if pain appears.", "rest_seconds": 90}, {"name": "core", "reps": "10-15", "sets": 3, "notes": "Keep 1-3 reps in reserve and stop if pain appears.", "rest_seconds": 90}]}, {"day": 4, "name": "Conditioning + Mobility", "focus": "zone 2 cardio", "equipment": ["barbell", "cables", "cardio", "dumbbells", "gym", "machines"], "exercises": [{"name": "zone 2 cardio", "reps": "10-15", "sets": 3, "notes": "Keep 1-3 reps in reserve and stop if pain appears.", "rest_seconds": 90}, {"name": "mobility", "reps": "10-15", "sets": 3, "notes": "Keep 1-3 reps in reserve and stop if pain appears.", "rest_seconds": 90}, {"name": "core", "reps": "10-15", "sets": 3, "notes": "Keep 1-3 reps in reserve and stop if pain appears.", "rest_seconds": 90}]}, {"day": 5, "name": "Push Focus", "focus": "bench or push-up", "equipment": ["barbell", "cables", "cardio", "dumbbells", "gym", "machines"], "exercises": [{"name": "bench or push-up", "reps": "10-15", "sets": 3, "notes": "Keep 1-3 reps in reserve and stop if pain appears.", "rest_seconds": 90}, {"name": "overhead press", "reps": "10-15", "sets": 3, "notes": "Keep 1-3 reps in reserve and stop if pain appears.", "rest_seconds": 90}, {"name": "triceps", "reps": "10-15", "sets": 3, "notes": "Keep 1-3 reps in reserve and stop if pain appears.", "rest_seconds": 90}]}], "review_cadence": "weekly"}, "rationale": "Plan targets fat_loss with 5 sessions per week, 2304 kcal/day, and equipment barbell, cables, cardio, dumbbells, gym, machines."}, "active_risk_notes": [], "recent_training": [], "exercise_history": [], "recent_nutrition": [], "recent_recovery": [], "recent_symptoms": [], "relevant_memories": [], "knowledge_context": {"embedding_mode": "offline_fallback", "explanation_knowledge": [], "decision_rules": [], "plan_templates": [], "coaching_cases": [], "debug": {"intent": "training_log", "query": "我21岁，男，178cm，80kg，目标减脂，系统训练过1年，在健身房训练，每周5天", "rag_used_for": ["explanation_knowledge", "coaching_cases"], "structured_used_for": ["decision_rules", "plan_templates"], "matched_knowledge_ids": [], "matched_rule_ids": [], "matched_template_ids": [], "matched_case_ids": []}}, "retrieval_debug": {"intent": "training_log", "memory_category_filter": "training", "memory_top_k": 6, "knowledge_sources": {"intent": "training_log", "query": "我21岁，男，178cm，80kg，目标减脂，系统训练过1年，在健身房训练，每周5天", "rag_used_for": ["explanation_knowledge", "coaching_cases"], "structured_used_for": ["decision_rules", "plan_templates"], "matched_knowledge_ids": [], "matched_rule_ids": [], "matched_template_ids": [], "matched_case_ids": []}}, "agent_decision_history": [], "context_summary": "intent=training_log; loaded core_profile=1, active_plan=1, knowledge_context=1"}
+- KnowledgeRetrieval | completed | 0ms | 2026-05-25T11:30:40.039761
+  output: {"intent": "training_log", "query": "我21岁，男，178cm，80kg，目标减脂，系统训练过1年，在健身房训练，每周5天", "rag_used_for": ["explanation_knowledge", "coaching_cases"], "structured_used_for": ["decision_rules", "plan_templates"], "matched_knowledge_ids": [], "matched_rule_ids": [], "matched_template_ids": [], "matched_case_ids": []}
+- DecisionRules | completed | 0ms | 2026-05-25T11:30:40.039776
+  output: {"matched_rule_ids": [], "rules": []}
+- TemplateSelector | completed | 0ms | 2026-05-25T11:30:40.039783
+  output: {"matched_template_ids": [], "templates": []}
+- CoachLLM | completed | 35748ms | 2026-05-25T11:31:15.786843
+  output: {"safety": false, "live_model": true, "response_chars": 1680}
+- ResponsePersisted | completed | 0ms | 2026-05-25T11:31:15.790531
+  output: {"response_chars": 1680}
+
+Full JSON
+{
+  "run_id": "4f16f178-5ffd-4ddd-9bbc-bcc8323e59fc",
+  "request_id": "ed9fc2d2-bb07-49c4-b18a-fdbdb74a4382",
+  "run_type": "chat_stream",
+  "user_id": "f97d34b4-87bb-4a21-a3f0-f19ea7edd43f",
+  "session_id": "5fe9e371-3426-45f3-8288-d837911c7ecd",
+  "status": "completed",
+  "started_at_utc": "2026-05-25T11:30:40.008605",
+  "completed_at_utc": "2026-05-25T11:31:15.802161",
+  "summary": "收到！根据你提供的信息，我先确认一下你的档案，然后直接给你**今天的训练和营养实战计划**。目标明确——减脂，每周5练，健身房爱好者。\n\n---\n\n## 📋 档案确认\n\n- **年龄/性别**：21岁 / 男  \n- **身高体重**：178 cm / 80 kg  \n- **训练水平**：系统训练1年，有经验基础  \n- **目标**：减脂  \n- **可用器械**：杠铃、哑铃、绳索、固定器械、有氧  \n- **无伤病**（档案中无记录）  \n- **营养目标**：每日约 **2304 kcal**，蛋白质 **173 g**，碳水 **230 g**，脂肪 **77 g**\n\n---\n\n## 🔥 今日训练 —— **Day 1 全身力量（蹲类动作重点）**\n\n| 动作类型 | 具体建议（任选一项） | 组数 | 次数 | 休息 |\n|----------|----------------------|------|------|------|\n| **Squat Pattern（蹲）** | 杠铃深蹲 / 高脚杯深蹲 | 3 | 10–15 | 90秒 |\n| **Push（推）*",
+  "error": null,
+  "nodes": [
+    {
+      "node": "RequestReceived",
+      "event_id": "94daa7ea-2f62-4d68-899a-7c081c031bb5",
+      "request_id": "ed9fc2d2-bb07-49c4-b18a-fdbdb74a4382",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-25T11:30:40.008659",
+      "input_summary": {},
+      "output": {
+        "message_chars": 42,
+        "provider": "deepseek",
+        "chat_model": "deepseek-v4-pro",
+        "embedding_mode": "offline_fallback"
+      },
+      "error": null
+    },
+    {
+      "node": "ProfileExtractorAgent",
+      "event_id": "1be318ef-4cb2-4461-8c35-5b5221287878",
+      "request_id": "ed9fc2d2-bb07-49c4-b18a-fdbdb74a4382",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-25T11:30:40.009941",
+      "input_summary": {
+        "message": "我21岁，男，178cm，80kg，目标减脂，系统训练过1年，在健身房训练，每周5天"
+      },
+      "output": {
+        "profile_patch": {
+          "age": 21,
+          "sex": "male",
+          "height_cm": 178.0,
+          "weight_kg": 80.0,
+          "goal": "fat_loss",
+          "workout_frequency": 5,
+          "experience_level": "intermediate",
+          "equipment_available": [
+            "barbell",
+            "cables",
+            "cardio",
+            "dumbbells",
+            "gym",
+            "machines"
+          ]
+        },
+        "corrections": [],
+        "ignored_candidates": [],
+        "model_patch": {},
+        "model_used": false
+      },
+      "error": null
+    },
+    {
+      "node": "MemoryAgent",
+      "event_id": "d1444f4b-41c1-4d51-a7e4-96cead366a54",
+      "request_id": "ed9fc2d2-bb07-49c4-b18a-fdbdb74a4382",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-25T11:30:40.009990",
+      "input_summary": {},
+      "output": {
+        "written": []
+      },
+      "error": null
+    },
+    {
+      "node": "IntentRouter",
+      "event_id": "3d5f518b-9dfa-4e87-a52b-b7d1243c5af8",
+      "request_id": "ed9fc2d2-bb07-49c4-b18a-fdbdb74a4382",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-25T11:30:40.010003",
+      "input_summary": {},
+      "output": {
+        "onboarding_complete": true,
+        "missing_slots": []
+      },
+      "error": null
+    },
+    {
+      "node": "ContextBuilder",
+      "event_id": "a1a19f28-d2b9-4754-b926-2b3d8a8d352c",
+      "request_id": "ed9fc2d2-bb07-49c4-b18a-fdbdb74a4382",
+      "status": "completed",
+      "latency_ms": 9,
+      "timestamp_utc": "2026-05-25T11:30:40.039555",
+      "input_summary": {},
+      "output": {
+        "intent": "training_log",
+        "core_profile": {
+          "age": 21,
+          "sex": "male",
+          "height_cm": 178.0,
+          "weight_kg": 80.0,
+          "activity_level": "moderate",
+          "goal": "fat_loss",
+          "experience_level": "intermediate",
+          "workout_frequency": 5,
+          "equipment_available": [
+            "barbell",
+            "cables",
+            "cardio",
+            "dumbbells",
+            "gym",
+            "machines"
+          ],
+          "dietary_preferences": [],
+          "injuries": [],
+          "target_calories": 2304,
+          "target_protein_g": 173.0,
+          "target_carbs_g": 230.0,
+          "target_fat_g": 77.0
+        },
+        "memory_catalog": [],
+        "active_plan": {
+          "id": "9d31d9e3-ed32-49a8-bafc-1e2280f3574d",
+          "status": "active",
+          "week_start": "2026-05-25",
+          "plan": {
+            "goal": "fat_loss",
+            "nutrition": {
+              "fat_g": 77,
+              "carbs_g": 230,
+              "protein_g": 173,
+              "principles": [
+                "Anchor each meal around protein.",
+                "Put more carbs near training sessions.",
+                "Adjust portions weekly based on weight trend and adherence."
+              ],
+              "target_calories": 2304
+            },
+            "plan_days": 7,
+            "training_days": [
+              {
+                "day": 1,
+                "name": "Full Body Strength",
+                "focus": "squat pattern",
+                "equipment": [
+                  "barbell",
+                  "cables",
+                  "cardio",
+                  "dumbbells",
+                  "gym",
+                  "machines"
+                ],
+                "exercises": [
+                  {
+                    "name": "squat pattern",
+                    "reps": "10-15",
+                    "sets": 3,
+                    "notes": "Keep 1-3 reps in reserve and stop if pain appears.",
+                    "rest_seconds": 90
+                  },
+                  {
+                    "name": "push",
+                    "reps": "10-15",
+                    "sets": 3,
+                    "notes": "Keep 1-3 reps in reserve and stop if pain appears.",
+                    "rest_seconds": 90
+                  },
+                  {
+                    "name": "pull",
+                    "reps": "10-15",
+                    "sets": 3,
+                    "notes": "Keep 1-3 reps in reserve and stop if pain appears.",
+                    "rest_seconds": 90
+                  },
+                  {
+                    "name": "hinge",
+                    "reps": "10-15",
+                    "sets": 3,
+                    "notes": "Keep 1-3 reps in reserve and stop if pain appears.",
+                    "rest_seconds": 90
+                  },
+                  {
+                    "name": "core",
+                    "reps": "10-15",
+                    "sets": 3,
+                    "notes": "Keep 1-3 reps in reserve and stop if pain appears.",
+                    "rest_seconds": 90
+                  }
+                ]
+              },
+              {
+                "day": 2,
+                "name": "Upper Body",
+                "focus": "horizontal push",
+                "equipment": [
+                  "barbell",
+                  "cables",
+                  "cardio",
+                  "dumbbells",
+                  "gym",
+                  "machines"
+                ],
+                "exercises": [
+                  {
+                    "name": "horizontal push",
+                    "reps": "10-15",
+                    "sets": 3,
+                    "notes": "Keep 1-3 reps in reserve and stop if pain appears.",
+                    "rest_seconds": 90
+                  },
+                  {
+                    "name": "horizontal pull",
+                    "reps": "10-15",
+                    "sets": 3,
+                    "notes": "Keep 1-3 reps in reserve and stop if pain appears.",
+                    "rest_seconds": 90
+                  },
+                  {
+                    "name": "vertical push",
+                    "reps": "10-15",
+                    "sets": 3,
+                    "notes": "Keep 1-3 reps in reserve and stop if pain appears.",
+                    "rest_seconds": 90
+                  },
+                  {
+                    "name": "arms",
+                    "reps": "10-15",
+                    "sets": 3,
+                    "notes": "Keep 1-3 reps in reserve and stop if pain appears.",
+                    "rest_seconds": 90
+                  }
+                ]
+              },
+              {
+                "day": 3,
+                "name": "Lower Body",
+                "focus": "squat",
+                "equipment": [
+                  "barbell",
+                  "cables",
+                  "cardio",
+                  "dumbbells",
+                  "gym",
+                  "machines"
+                ],
+                "exercises": [
+                  {
+                    "name": "squat",
+                    "reps": "10-15",
+                    "sets": 3,
+                    "notes": "Keep 1-3 reps in reserve and stop if pain appears.",
+                    "rest_seconds": 90
+                  },
+                  {
+                    "name": "hinge",
+                    "reps": "10-15",
+                    "sets": 3,
+                    "notes": "Keep 1-3 reps in reserve and stop if pain appears.",
+                    "rest_seconds": 90
+                  },
+                  {
+                    "name": "single-leg",
+                    "reps": "10-15",
+                    "sets": 3,
+                    "notes": "Keep 1-3 reps in reserve and stop if pain appears.",
+                    "rest_seconds": 90
+                  },
+                  {
+                    "name": "calves",
+                    "reps": "10-15",
+                    "sets": 3,
+                    "notes": "Keep 1-3 reps in reserve and stop if pain appears.",
+                    "rest_seconds": 90
+                  },
+                  {
+                    "name": "core",
+                    "reps": "10-15",
+                    "sets": 3,
+                    "notes": "Keep 1-3 reps in reserve and stop if pain appears.",
+                    "rest_seconds": 90
+                  }
+                ]
+              },
+              {
+                "day": 4,
+                "name": "Conditioning + Mobility",
+                "focus": "zone 2 cardio",
+                "equipment": [
+                  "barbell",
+                  "cables",
+                  "cardio",
+                  "dumbbells",
+                  "gym",
+                  "machines"
+                ],
+                "exercises": [
+                  {
+                    "name": "zone 2 cardio",
+                    "reps": "10-15",
+                    "sets": 3,
+                    "notes": "Keep 1-3 reps in reserve and stop if pain appears.",
+                    "rest_seconds": 90
+                  },
+                  {
+                    "name": "mobility",
+                    "reps": "10-15",
+                    "sets": 3,
+                    "notes": "Keep 1-3 reps in reserve and stop if pain appears.",
+                    "rest_seconds": 90
+                  },
+                  {
+                    "name": "core",
+                    "reps": "10-15",
+                    "sets": 3,
+                    "notes": "Keep 1-3 reps in reserve and stop if pain appears.",
+                    "rest_seconds": 90
+                  }
+                ]
+              },
+              {
+                "day": 5,
+                "name": "Push Focus",
+                "focus": "bench or push-up",
+                "equipment": [
+                  "barbell",
+                  "cables",
+                  "cardio",
+                  "dumbbells",
+                  "gym",
+                  "machines"
+                ],
+                "exercises": [
+                  {
+                    "name": "bench or push-up",
+                    "reps": "10-15",
+                    "sets": 3,
+                    "notes": "Keep 1-3 reps in reserve and stop if pain appears.",
+                    "rest_seconds": 90
+                  },
+                  {
+                    "name": "overhead press",
+                    "reps": "10-15",
+                    "sets": 3,
+                    "notes": "Keep 1-3 reps in reserve and stop if pain appears.",
+                    "rest_seconds": 90
+                  },
+                  {
+                    "name": "triceps",
+                    "reps": "10-15",
+                    "sets": 3,
+                    "notes": "Keep 1-3 reps in reserve and stop if pain appears.",
+                    "rest_seconds": 90
+                  }
+                ]
+              }
+            ],
+            "review_cadence": "weekly"
+          },
+          "rationale": "Plan targets fat_loss with 5 sessions per week, 2304 kcal/day, and equipment barbell, cables, cardio, dumbbells, gym, machines."
+        },
+        "active_risk_notes": [],
+        "recent_training": [],
+        "exercise_history": [],
+        "recent_nutrition": [],
+        "recent_recovery": [],
+        "recent_symptoms": [],
+        "relevant_memories": [],
+        "knowledge_context": {
+          "embedding_mode": "offline_fallback",
+          "explanation_knowledge": [],
+          "decision_rules": [],
+          "plan_templates": [],
+          "coaching_cases": [],
+          "debug": {
+            "intent": "training_log",
+            "query": "我21岁，男，178cm，80kg，目标减脂，系统训练过1年，在健身房训练，每周5天",
+            "rag_used_for": [
+              "explanation_knowledge",
+              "coaching_cases"
+            ],
+            "structured_used_for": [
+              "decision_rules",
+              "plan_templates"
+            ],
+            "matched_knowledge_ids": [],
+            "matched_rule_ids": [],
+            "matched_template_ids": [],
+            "matched_case_ids": []
+          }
+        },
+        "retrieval_debug": {
+          "intent": "training_log",
+          "memory_category_filter": "training",
+          "memory_top_k": 6,
+          "knowledge_sources": {
+            "intent": "training_log",
+            "query": "我21岁，男，178cm，80kg，目标减脂，系统训练过1年，在健身房训练，每周5天",
+            "rag_used_for": [
+              "explanation_knowledge",
+              "coaching_cases"
+            ],
+            "structured_used_for": [
+              "decision_rules",
+              "plan_templates"
+            ],
+            "matched_knowledge_ids": [],
+            "matched_rule_ids": [],
+            "matched_template_ids": [],
+            "matched_case_ids": []
+          }
+        },
+        "agent_decision_history": [],
+        "context_summary": "intent=training_log; loaded core_profile=1, active_plan=1, knowledge_context=1"
+      },
+      "error": null
+    },
+    {
+      "node": "KnowledgeRetrieval",
+      "event_id": "9fe9321e-32e0-4267-ab4d-d5acfe8b355b",
+      "request_id": "ed9fc2d2-bb07-49c4-b18a-fdbdb74a4382",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-25T11:30:40.039761",
+      "input_summary": {},
+      "output": {
+        "intent": "training_log",
+        "query": "我21岁，男，178cm，80kg，目标减脂，系统训练过1年，在健身房训练，每周5天",
+        "rag_used_for": [
+          "explanation_knowledge",
+          "coaching_cases"
+        ],
+        "structured_used_for": [
+          "decision_rules",
+          "plan_templates"
+        ],
+        "matched_knowledge_ids": [],
+        "matched_rule_ids": [],
+        "matched_template_ids": [],
+        "matched_case_ids": []
+      },
+      "error": null
+    },
+    {
+      "node": "DecisionRules",
+      "event_id": "d3df54ea-5929-4eaf-83db-c6a8407fae30",
+      "request_id": "ed9fc2d2-bb07-49c4-b18a-fdbdb74a4382",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-25T11:30:40.039776",
+      "input_summary": {},
+      "output": {
+        "matched_rule_ids": [],
+        "rules": []
+      },
+      "error": null
+    },
+    {
+      "node": "TemplateSelector",
+      "event_id": "ab07a514-b721-466f-b974-4b1a25d870b5",
+      "request_id": "ed9fc2d2-bb07-49c4-b18a-fdbdb74a4382",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-25T11:30:40.039783",
+      "input_summary": {},
+      "output": {
+        "matched_template_ids": [],
+        "templates": []
+      },
+      "error": null
+    },
+    {
+      "node": "CoachLLM",
+      "event_id": "ebe5662d-2de1-4def-af1a-42858cf7484c",
+      "request_id": "ed9fc2d2-bb07-49c4-b18a-fdbdb74a4382",
+      "status": "completed",
+      "latency_ms": 35748,
+      "timestamp_utc": "2026-05-25T11:31:15.786843",
+      "input_summary": {},
+      "output": {
+        "safety": false,
+        "live_model": true,
+        "response_chars": 1680
+      },
+      "error": null
+    },
+    {
+      "node": "ResponsePersisted",
+      "event_id": "c581539d-cb1f-4e01-bac3-75d262210bf0",
+      "request_id": "ed9fc2d2-bb07-49c4-b18a-fdbdb74a4382",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-25T11:31:15.790531",
+      "input_summary": {},
+      "output": {
+        "response_chars": 1680
+      },
+      "error": null
+    }
+  ]
+}

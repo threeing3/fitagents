@@ -1,0 +1,387 @@
+[
+  {
+    "template_id": "tpl_training_fat_loss_intermediate_gym_5d_001",
+    "template_type": "training",
+    "goal": "fat_loss",
+    "level": "intermediate",
+    "days_per_week": 5,
+    "equipment": ["gym", "barbell", "dumbbell", "machines"],
+    "template_json": {
+      "name": "5天健身房减脂力量模板",
+      "split": ["上肢推", "下肢", "上肢拉", "休息或低强度有氧", "全身力量", "弱项与有氧", "休息"],
+      "intensity": "多数动作RPE 7-8，保留1-3次余力",
+      "cardio": "每周2-3次20-35分钟低到中等强度有氧",
+      "daily_structure": {"warmup": "5-10 min动态热身", "main_lift": "2-3个复合动作", "accessory": "3-4个辅助动作", "cardio": "训练后20-30 min", "cooldown": "5 min拉伸"}
+    },
+    "constraints": {"avoid": ["max_effort_when_fatigued"], "requires": ["gym"]},
+    "version": "v1",
+    "enabled": true
+  },
+  {
+    "template_id": "tpl_training_beginner_gym_3d_001",
+    "template_type": "training",
+    "goal": "general_fitness",
+    "level": "beginner",
+    "days_per_week": 3,
+    "equipment": ["gym", "machines", "dumbbell"],
+    "template_json": {
+      "name": "3天新手全身训练模板",
+      "split": ["全身A", "休息", "全身B", "休息", "全身A", "休息", "休息"],
+      "intensity": "先学习动作，RPE 6-7",
+      "cardio": "训练后10-20分钟轻中等强度有氧",
+      "daily_structure": {"warmup": "5-8 min动态热身", "main_lift": "2个复合动作（轻重量学习）", "accessory": "2-3个辅助动作", "cardio": "训练后10-15 min", "cooldown": "5 min拉伸"},
+      "progression": "每周增加1-2次重复次数，动作质量优先"
+    },
+    "constraints": {"avoid": ["max_effort"]},
+    "version": "v1",
+    "enabled": true
+  },
+  {
+    "template_id": "tpl_nutrition_fat_loss_takeout_001",
+    "template_type": "nutrition",
+    "goal": "fat_loss",
+    "level": null,
+    "days_per_week": null,
+    "equipment": [],
+    "template_json": {
+      "name": "减脂期外食模板",
+      "meal_patterns": [
+        "每餐先定蛋白质：鸡胸/牛肉/鱼/虾/鸡蛋/豆制品",
+        "主食按训练日和休息日调整：米饭、面、土豆、玉米都可以",
+        "外卖优先选轻油、可备注少油少酱、能看清食材的组合"
+      ],
+      "guardrails": ["避免极端节食", "优先稳定蛋白质和总热量"]
+    },
+    "constraints": {"fits": ["takeout", "canteen", "convenience_store"]},
+    "version": "v1",
+    "enabled": true
+  },
+
+  {
+    "template_id": "tpl_training_muscle_gain_intermediate_gym_4d_upper_lower_001",
+    "template_type": "training",
+    "goal": "muscle_gain",
+    "level": "intermediate",
+    "days_per_week": 4,
+    "equipment": ["gym", "barbell", "dumbbell", "machines"],
+    "template_json": {
+      "name": "4天上肢/下肢增肌模板",
+      "split": ["上肢力量日", "下肢力量日", "休息", "上肢肌肥大日", "下肢肌肥大日", "休息", "休息"],
+      "intensity": "力量日RPE 7-9，肌肥大日RPE 7-8",
+      "cardio": "每周1-2次15-25分钟中等强度有氧（不影响恢复）",
+      "daily_structure": {"strength_day": {"main_lift": "5x5或3x5", "accessory": "3x8-10"}, "hypertrophy_day": {"main_lift": "3-4x8-12", "accessory": "3-4x10-15"}},
+      "progression": "力量日每2周尝试+2.5kg，肌肥大日优先增加次数再加重"
+    },
+    "constraints": {"avoid": ["excessive_cardio"], "requires": ["gym"]},
+    "version": "v1",
+    "enabled": true
+  },
+  {
+    "template_id": "tpl_training_muscle_gain_advanced_gym_5d_ppl_001",
+    "template_type": "training",
+    "goal": "muscle_gain",
+    "level": "advanced",
+    "days_per_week": 5,
+    "equipment": ["gym", "barbell", "dumbbell", "machines", "cable"],
+    "template_json": {
+      "name": "5天推拉腿(PPL)增肌模板",
+      "split": ["推日(胸肩三头)", "拉日(背二头)", "腿日(股四腘绳臀)", "休息", "推日(侧重肩)", "拉日(侧重背厚)", "休息"],
+      "intensity": "复合动作RPE 7-9，孤立动作RPE 8-10",
+      "cardio": "每周1次20分钟低强度有氧",
+      "daily_structure": {"compound": "2个复合动作(3-5组)", "isolation": "4-5个孤立动作(3-4组)", "finisher": "1个代谢压力动作(2-3组至力竭或近力竭)"},
+      "periodization": "每4周安排1个减载周，每8-12周更换部分辅助动作"
+    },
+    "constraints": {"avoid": ["overtraining", "skip_deload"], "requires": ["gym", "cable"]},
+    "version": "v1",
+    "enabled": true
+  },
+  {
+    "template_id": "tpl_training_muscle_gain_beginner_gym_3d_fullbody_001",
+    "template_type": "training",
+    "goal": "muscle_gain",
+    "level": "beginner",
+    "days_per_week": 3,
+    "equipment": ["gym", "machines", "dumbbell", "barbell"],
+    "template_json": {
+      "name": "3天新手全身增肌模板",
+      "split": ["全身训练A", "休息", "全身训练B", "休息", "全身训练C", "休息", "休息"],
+      "intensity": "RPE 6-7，注重动作模式学习",
+      "cardio": "训练后10-15分钟低强度有氧",
+      "daily_structure": {"warmup": "8-10 min", "compound": "3个复合动作(3x8-10)", "accessory": "2个辅助动作(2-3x10-12)", "cooldown": "5 min拉伸"},
+      "progression": "前4周优先增加重复次数，第5周起可小幅加重（复合动作+2.5kg/周）",
+      "key_exercises": ["高脚杯深蹲", "哑铃卧推", "器械划船", "腿举", "哑铃肩推", "背阔下拉"]
+    },
+    "constraints": {"avoid": ["max_effort", "complex_olympic_lifts"], "requires": ["gym"]},
+    "version": "v1",
+    "enabled": true
+  },
+
+  {
+    "template_id": "tpl_training_fat_loss_beginner_gym_3d_001",
+    "template_type": "training",
+    "goal": "fat_loss",
+    "level": "beginner",
+    "days_per_week": 3,
+    "equipment": ["gym", "machines", "dumbbell"],
+    "template_json": {
+      "name": "3天新手减脂力量模板",
+      "split": ["全身力量+有氧", "休息或散步", "全身力量+有氧", "休息", "全身力量+有氧", "主动恢复", "休息"],
+      "intensity": "力量RPE 6-7，有氧心率zone2（能说话但不轻松）",
+      "cardio": "每次训练后15-25分钟中等强度有氧，非训练日鼓励30-45分钟步行",
+      "daily_structure": {"warmup": "5-8 min", "circuit": "4-5个动作循环2-3轮", "cardio": "15-25 min", "cooldown": "5 min"},
+      "progression": "优先增加训练密度（减少组间休息），其次增加次数，最后加重"
+    },
+    "constraints": {"avoid": ["extreme_restriction", "overtraining"], "requires": ["gym"]},
+    "version": "v1",
+    "enabled": true
+  },
+  {
+    "template_id": "tpl_training_fat_loss_advanced_gym_5d_001",
+    "template_type": "training",
+    "goal": "fat_loss",
+    "level": "advanced",
+    "days_per_week": 5,
+    "equipment": ["gym", "barbell", "dumbbell", "machines", "cable", "cardio"],
+    "template_json": {
+      "name": "5天进阶减脂力量+有氧模板",
+      "split": ["上肢推+HIIT", "下肢力量", "上肢拉+LISS", "休息", "全身力量", "弱项+有氧间歇", "主动恢复"],
+      "intensity": "力量RPE 7-8，HIIT 15-20min，LISS 30-40min",
+      "cardio": "1次HIIT(15-20min) + 2次LISS(30-40min) + 每日步数8000-12000",
+      "daily_structure": {"strength_day": {"warmup": "8-10 min", "main": "40-50 min力量", "cardio": "15-30 min"}, "hiit_day": {"warmup": "10 min", "strength": "30-35 min力量", "hiit": "15-20 min"}},
+      "nutrition_sync": "训练日碳水偏高，休息日碳水偏低，蛋白质全天稳定"
+    },
+    "constraints": {"avoid": ["chronic_undereating"], "requires": ["gym"]},
+    "version": "v1",
+    "enabled": true
+  },
+
+  {
+    "template_id": "tpl_training_home_dumbbell_beginner_3d_001",
+    "template_type": "training",
+    "goal": "general_fitness",
+    "level": "beginner",
+    "days_per_week": 3,
+    "equipment": ["dumbbell", "resistance_bands"],
+    "template_json": {
+      "name": "3天居家哑铃新手模板",
+      "split": ["全身力量", "休息", "全身力量", "休息", "全身力量", "休息", "休息"],
+      "intensity": "RPE 6-7，用可控重量学习动作",
+      "cardio": "训练后10-15分钟原地踏步或跳绳",
+      "daily_structure": {"warmup": "5-8 min原地动态热身", "main": "5-6个哑铃动作(3x8-12)", "finisher": "2-3分钟核心训练", "cooldown": "5 min拉伸"},
+      "key_exercises": ["哑铃高脚杯深蹲", "哑铃地板卧推", "单臂哑铃划船", "哑铃肩推", "哑铃罗马尼亚硬拉", "哑铃弯举"],
+      "progression": "先增加次数到15次，再升级哑铃重量"
+    },
+    "constraints": {"requires": ["dumbbell_pair", "space_2x2m"]},
+    "version": "v1",
+    "enabled": true
+  },
+  {
+    "template_id": "tpl_training_home_dumbbell_intermediate_4d_upper_lower_001",
+    "template_type": "training",
+    "goal": "muscle_gain",
+    "level": "intermediate",
+    "days_per_week": 4,
+    "equipment": ["dumbbell", "adjustable_bench", "resistance_bands", "pull_up_bar"],
+    "template_json": {
+      "name": "4天居家哑铃增肌模板（上肢/下肢）",
+      "split": ["上肢推拉", "下肢核心", "休息", "上肢推拉(侧重)", "下肢核心(侧重)", "休息", "休息"],
+      "intensity": "复合动作RPE 7-9，孤立动作接近力竭",
+      "cardio": "每周1-2次15-20分钟低强度有氧",
+      "daily_structure": {"upper": {"push": "2-3个推类动作", "pull": "2-3个拉类动作", "isolation": "2-3个孤立动作"}, "lower": {"compound": "2个下肢复合动作", "isolation": "2-3个孤立动作", "core": "3-5分钟核心训练"}},
+      "key_exercises": ["哑铃卧推", "哑铃划船", "保加利亚分腿蹲", "哑铃RDL", "哑铃肩推", "引体向上", "哑铃臀推"],
+      "progression": "使用双进阶法：先达到目标次数范围上限，再加重并降低次数重新爬坡"
+    },
+    "constraints": {"requires": ["adjustable_dumbbells", "bench", "pull_up_bar"]},
+    "version": "v1",
+    "enabled": true
+  },
+  {
+    "template_id": "tpl_training_bodyweight_beginner_3d_001",
+    "template_type": "training",
+    "goal": "general_fitness",
+    "level": "beginner",
+    "days_per_week": 3,
+    "equipment": ["bodyweight"],
+    "template_json": {
+      "name": "3天自重新手训练模板",
+      "split": ["全身自重", "休息", "全身自重", "休息", "全身自重", "休息", "休息"],
+      "intensity": "每个动作做至技术力竭前1-2次停止",
+      "cardio": "训练后15-20分钟快走或慢跑",
+      "daily_structure": {"warmup": "5-8 min关节活动+动态拉伸", "circuit": "6-8个自重动作(每个30-45秒，循环3-4轮)", "core": "3 min核心", "cooldown": "5 min"},
+      "key_exercises": ["自重深蹲", "俯卧撑(可从跪姿开始)", "臀桥", "鸟狗式", "平板支撑", "弓步蹲", "登山者"],
+      "progression": "从跪姿俯卧撑到标准俯卧撑，从深蹲到弓步蹲到保加利亚分腿蹲，逐步增加动作难度而非增加重量"
+    },
+    "constraints": {"avoid": ["max_effort"], "requires": ["floor_space"]},
+    "version": "v1",
+    "enabled": true
+  },
+  {
+    "template_id": "tpl_training_bodyweight_intermediate_4d_001",
+    "template_type": "training",
+    "goal": "muscle_gain",
+    "level": "intermediate",
+    "days_per_week": 4,
+    "equipment": ["bodyweight", "pull_up_bar", "resistance_bands"],
+    "template_json": {
+      "name": "4天自重进阶增肌模板",
+      "split": ["上肢推+核心", "下肢+核心", "休息", "上肢拉+核心", "全身自重循环", "休息", "休息"],
+      "intensity": "每个动作做到接近力竭（RIR 1-2），高阶变式",
+      "cardio": "每周1-2次20分钟低强度有氧",
+      "daily_structure": {"strength": "4-5个进阶变式动作(4-5组)", "superset": "2-3个超级组", "core": "5 min"},
+      "key_exercises": ["引体向上/弹力带辅助", "双杠臂屈伸/椅子臂屈伸", "保加利亚分腿蹲", "单腿臀桥", "派克俯卧撑", "澳大利亚引体", "龙旗(进阶)"],
+      "progression": "增加动作难度(改变杠杆臂长)、增加次数、减少休息时间"
+    },
+    "constraints": {"requires": ["pull_up_bar", "parallel_bars_or_chairs"]},
+    "version": "v1",
+    "enabled": true
+  },
+
+  {
+    "template_id": "tpl_training_strength_intermediate_gym_4d_001",
+    "template_type": "training",
+    "goal": "strength",
+    "level": "intermediate",
+    "days_per_week": 4,
+    "equipment": ["gym", "barbell", "dumbbell", "power_rack"],
+    "template_json": {
+      "name": "4天力量导向模板（上/下分化）",
+      "split": ["上肢大重量日", "下肢大重量日", "休息", "上肢容量日", "下肢容量日", "休息", "休息"],
+      "intensity": "大重量日RPE 8-9(3-5次范围)，容量日RPE 7-8(6-10次范围)",
+      "cardio": "每周1次20分钟低强度有氧或条件性训练",
+      "daily_structure": {"heavy_day": {"main_lift": "1个主项5x3-5", "supplemental": "2个辅助动作3-4x5-8"}, "volume_day": {"variation": "1个主项变式3x6-10", "accessory": "3-4个辅助动作3x8-12"}},
+      "key_exercises": ["杠铃深蹲", "杠铃卧推", "传统硬拉", "杠铃过头推举", "杠铃划船"],
+      "progression": "主项每2周尝试+2.5kg(上肢)/+5kg(下肢)，如果失败退回前一周重量做容量积累"
+    },
+    "constraints": {"avoid": ["excessive_volume_on_heavy_days"], "requires": ["gym", "barbell", "power_rack"]},
+    "version": "v1",
+    "enabled": true
+  },
+  {
+    "template_id": "tpl_training_strength_advanced_gym_5d_001",
+    "template_type": "training",
+    "goal": "strength",
+    "level": "advanced",
+    "days_per_week": 5,
+    "equipment": ["gym", "barbell", "dumbbell", "power_rack", "specialty_bars"],
+    "template_json": {
+      "name": "5天进阶力量周期化模板",
+      "split": ["深蹲主项+下肢辅助", "卧推主项+上肢推辅助", "休息", "硬拉主项+后链辅助", "卧推变式+上肢拉", "弱项补强", "休息"],
+      "intensity": "遵循3周积累+1周减载的周期化模式",
+      "cardio": "每周1-2次20分钟低强度有氧（不影响恢复）",
+      "daily_structure": {"main_lift": "主项按周期化方案(波浪负荷/线性周期)", "supplemental": "1-2个专项辅助(针对弱项)", "accessory": "2-3个体型/健康辅助"},
+      "periodization": {"week1": "3x8@70%", "week2": "3x6@75%", "week3": "3x4@80%", "week4": "deload_3x5@60%"},
+      "progression": "每周期结束后评估，下一个周期的起始重量在当前周期最高组重量上加2.5-5kg"
+    },
+    "constraints": {"avoid": ["skip_deload", "excessive_cardio"], "requires": ["gym", "barbell", "power_rack"]},
+    "version": "v1",
+    "enabled": true
+  },
+
+  {
+    "template_id": "tpl_training_maintenance_intermediate_gym_3d_001",
+    "template_type": "training",
+    "goal": "maintenance",
+    "level": "intermediate",
+    "days_per_week": 3,
+    "equipment": ["gym", "barbell", "dumbbell", "machines"],
+    "template_json": {
+      "name": "3天维持期训练模板",
+      "split": ["全身训练A", "休息或活动", "全身训练B", "休息", "全身训练C", "休息", "休息"],
+      "intensity": "RPE 6-7，保持不退化即可",
+      "cardio": "每周2-3次20-30分钟任意喜好的有氧",
+      "daily_structure": {"warmup": "5-8 min", "compound": "2个复合动作(2-3x6-8)", "accessory": "3-4个辅助动作(2x8-10)", "cooldown": "5 min"},
+      "philosophy": "维持期目标是不退步，约需增肌期50-60%的训练量即可维持力量和肌肉量。适合繁忙阶段、旅行期间或主动休息期。",
+      "progression": "不需要追求进步，保持在当前水平不下降即可"
+    },
+    "constraints": {"avoid": ["overtraining"], "requires": ["gym"]},
+    "version": "v1",
+    "enabled": true
+  },
+
+  {
+    "template_id": "tpl_nutrition_muscle_gain_clean_bulk_001",
+    "template_type": "nutrition",
+    "goal": "muscle_gain",
+    "level": null,
+    "days_per_week": null,
+    "equipment": [],
+    "template_json": {
+      "name": "干净增肌营养模板",
+      "meal_patterns": [
+        "每日热量盈余200-400千卡",
+        "蛋白质1.6-2.2g/kg体重，均匀分布在3-5餐",
+        "碳水3-5g/kg体重，训练前后适当集中",
+        "脂肪0.8-1.2g/kg体重，优先不饱和脂肪"
+      ],
+      "guardrails": ["避免脏增肌（盈余>500千卡/天）", "监控体脂率每2-4周", "蛋白质不足时优先补蛋白质而非总热量"],
+      "food_suggestions": {"protein": ["鸡胸肉", "鸡蛋", "牛肉", "三文鱼", "希腊酸奶", "豆腐"], "carbs": ["米饭", "燕麦", "红薯", "全麦面包", "香蕉"], "fats": ["牛油果", "坚果", "橄榄油", "花生酱"]}
+    },
+    "constraints": {"fits": ["home_cooking", "meal_prep"]},
+    "version": "v1",
+    "enabled": true
+  },
+  {
+    "template_id": "tpl_nutrition_maintenance_balanced_001",
+    "template_type": "nutrition",
+    "goal": "maintenance",
+    "level": null,
+    "days_per_week": null,
+    "equipment": [],
+    "template_json": {
+      "name": "平衡维持期营养模板",
+      "meal_patterns": [
+        "每日热量约等于TDEE（总热量消耗）",
+        "蛋白质1.5-1.8g/kg体重",
+        "碳水根据活动量弹性调整",
+        "脂肪0.8-1.0g/kg体重"
+      ],
+      "guardrails": ["保持热量稳定，体重波动在±1kg内", "蛋白质不低于1.5g/kg", "允许弹性饮食(80/20原则)"],
+      "flexible_guidelines": "80%时间吃营养密度高的食物，20%灵活空间用于社交和享受。不需要精准称重，但要建立份量意识。"
+    },
+    "constraints": {"fits": ["all_dietary_patterns"]},
+    "version": "v1",
+    "enabled": true
+  },
+  {
+    "template_id": "tpl_nutrition_fat_loss_vegetarian_001",
+    "template_type": "nutrition",
+    "goal": "fat_loss",
+    "level": null,
+    "days_per_week": null,
+    "equipment": [],
+    "template_json": {
+      "name": "素食减脂营养模板",
+      "meal_patterns": [
+        "蛋白质来源：豆腐、豆类、扁豆、鹰嘴豆、藜麦、希腊酸奶(蛋奶素)、鸡蛋(蛋奶素)、植物蛋白粉",
+        "注意完全蛋白质组合：谷物+豆类在同一餐或同一天",
+        "碳水来源：燕麦、红薯、糙米、全麦、藜麦",
+        "补充关注：维生素B12、铁、锌、Omega-3(亚麻籽、奇亚籽)"
+      ],
+      "guardrails": ["蛋白质不低于1.6g/kg(素食需要更高)", "总热量缺口300-500千卡", "定期检查铁蛋白和B12"],
+      "sample_day": "早餐：豆腐炒蛋+全麦吐司 午餐：鹰嘴豆沙拉+藜麦 晚餐：扁豆咖喱+糙米 加餐：希腊酸奶+坚果+植物蛋白粉"
+    },
+    "constraints": {"fits": ["vegetarian", "lacto_ovo_vegetarian"]},
+    "version": "v1",
+    "enabled": true
+  },
+  {
+    "template_id": "tpl_training_resistance_bands_home_3d_001",
+    "template_type": "training",
+    "goal": "general_fitness",
+    "level": "beginner",
+    "days_per_week": 3,
+    "equipment": ["resistance_bands"],
+    "template_json": {
+      "name": "3天弹力带居家训练模板",
+      "split": ["全身弹力带", "休息", "全身弹力带", "休息", "全身弹力带", "休息", "休息"],
+      "intensity": "用弹力带张力控制，每个动作做到接近力竭前1-2次",
+      "cardio": "训练后15-20分钟快走或弹力带低阻力高频动作",
+      "daily_structure": {"warmup": "5 min弹力带肩部激活", "circuit": "8个弹力带动作循环3轮(每个40秒on/20秒off)", "core": "3 min弹力带核心", "cooldown": "5 min"},
+      "key_exercises": ["弹力带深蹲", "弹力带划船", "弹力带推胸", "弹力带肩推", "弹力带臀桥", "弹力带侧平举", "弹力带面拉", "弹力带二头弯举"],
+      "progression": "使用更粗的弹力带、增加每组次数、减少组间休息"
+    },
+    "constraints": {"requires": ["resistance_bands_set", "door_anchor"]},
+    "version": "v1",
+    "enabled": true
+  }
+]

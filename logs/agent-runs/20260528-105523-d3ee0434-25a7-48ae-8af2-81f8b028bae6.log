@@ -1,0 +1,131 @@
+AI Fitness Agent run: d3ee0434-25a7-48ae-8af2-81f8b028bae6
+request_id: 1c70f281-8bc2-48a4-b0a5-b162220b9a16
+run_type: chat_stream
+user_id: fc5d2ba0-0904-460f-951b-942c2e043fc1
+session_id: afaaae8c-34eb-4708-bfad-6b4814d334d5
+status: completed
+
+Timeline
+- RequestReceived | completed | 0ms | 2026-05-28T10:55:23.434110
+  output: {"message_chars": 8, "provider": "deepseek", "chat_model": "deepseek-v4-pro", "embedding_mode": "offline_fallback"}
+- ProfileExtractorAgent | completed | 1ms | 2026-05-28T10:55:23.438406
+  input: {"message": "先聊聊饮食框架吧"}
+  output: {"profile_patch": {}, "corrections": [], "ignored_candidates": [], "model_patch": {}, "model_used": false}
+- MemoryAgent | completed | 0ms | 2026-05-28T10:55:23.438698
+  output: {"written": []}
+- IntentRouter | completed | 0ms | 2026-05-28T10:55:23.438794
+  output: {"onboarding_complete": false, "missing_slots": ["height_cm"]}
+- CoachLLM | completed | 14629ms | 2026-05-28T10:55:38.065639
+  output: {"mode": "onboarding", "live_model": true, "missing_slots": ["height_cm"]}
+- ResponsePersisted | completed | 0ms | 2026-05-28T10:55:38.067265
+  output: {"response_chars": 252}
+
+Full JSON
+{
+  "run_id": "d3ee0434-25a7-48ae-8af2-81f8b028bae6",
+  "request_id": "1c70f281-8bc2-48a4-b0a5-b162220b9a16",
+  "run_type": "chat_stream",
+  "user_id": "fc5d2ba0-0904-460f-951b-942c2e043fc1",
+  "session_id": "afaaae8c-34eb-4708-bfad-6b4814d334d5",
+  "status": "completed",
+  "started_at_utc": "2026-05-28T10:55:23.434039",
+  "completed_at_utc": "2026-05-28T10:55:38.080314",
+  "summary": "了解，咱们先把饮食的大方向理一理，但在给你个性化方案之前，我还缺一个关键数据：**你的身高是多少？**\n\n因为减脂饮食的核心是**热量缺口 + 蛋白质保障 + 均衡营养**，而基础代谢和每日消耗都需要身高才能算准。你目前体重 90 kg，单纯按体重估算，每天总消耗大约在 2500–2600 kcal 左右，但加上身高才能确定这个值是否准确，以及你该吃多少。\n\n所以先告诉我你的身高（厘米），然后我就可以帮你搭建一个适合你减脂的饮食框架——比如热量范围、三大营养素怎么搭、进食节奏和食物选择原则。你说呢？",
+  "error": null,
+  "nodes": [
+    {
+      "node": "RequestReceived",
+      "event_id": "f27aa6ee-b614-4e2c-a6ac-c3c28c0853ef",
+      "request_id": "1c70f281-8bc2-48a4-b0a5-b162220b9a16",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-28T10:55:23.434110",
+      "input_summary": {},
+      "output": {
+        "message_chars": 8,
+        "provider": "deepseek",
+        "chat_model": "deepseek-v4-pro",
+        "embedding_mode": "offline_fallback"
+      },
+      "error": null
+    },
+    {
+      "node": "ProfileExtractorAgent",
+      "event_id": "f6d4d089-54f4-4005-b177-50fd175609d2",
+      "request_id": "1c70f281-8bc2-48a4-b0a5-b162220b9a16",
+      "status": "completed",
+      "latency_ms": 1,
+      "timestamp_utc": "2026-05-28T10:55:23.438406",
+      "input_summary": {
+        "message": "先聊聊饮食框架吧"
+      },
+      "output": {
+        "profile_patch": {},
+        "corrections": [],
+        "ignored_candidates": [],
+        "model_patch": {},
+        "model_used": false
+      },
+      "error": null
+    },
+    {
+      "node": "MemoryAgent",
+      "event_id": "0fd1d677-97ac-4cb3-b14f-87b26aba94e5",
+      "request_id": "1c70f281-8bc2-48a4-b0a5-b162220b9a16",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-28T10:55:23.438698",
+      "input_summary": {},
+      "output": {
+        "written": []
+      },
+      "error": null
+    },
+    {
+      "node": "IntentRouter",
+      "event_id": "7cc39676-586c-4748-88f9-7c1e110cf9e9",
+      "request_id": "1c70f281-8bc2-48a4-b0a5-b162220b9a16",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-28T10:55:23.438794",
+      "input_summary": {},
+      "output": {
+        "onboarding_complete": false,
+        "missing_slots": [
+          "height_cm"
+        ]
+      },
+      "error": null
+    },
+    {
+      "node": "CoachLLM",
+      "event_id": "9a403ec1-523c-44a9-904a-07352a0f83ff",
+      "request_id": "1c70f281-8bc2-48a4-b0a5-b162220b9a16",
+      "status": "completed",
+      "latency_ms": 14629,
+      "timestamp_utc": "2026-05-28T10:55:38.065639",
+      "input_summary": {},
+      "output": {
+        "mode": "onboarding",
+        "live_model": true,
+        "missing_slots": [
+          "height_cm"
+        ]
+      },
+      "error": null
+    },
+    {
+      "node": "ResponsePersisted",
+      "event_id": "a308c12f-9040-463d-97e4-6cf2aacc9949",
+      "request_id": "1c70f281-8bc2-48a4-b0a5-b162220b9a16",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-28T10:55:38.067265",
+      "input_summary": {},
+      "output": {
+        "response_chars": 252
+      },
+      "error": null
+    }
+  ]
+}

@@ -1,0 +1,88 @@
+INFO:     Started server process [50016]
+INFO:     Waiting for application startup.
+ERROR:    Traceback (most recent call last):
+  File "C:\Users\Lenovo\Documents\New project 4\ai-fitness-planner\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1936, in _exec_single_context
+    self.dialect.do_executemany(
+  File "C:\Users\Lenovo\Documents\New project 4\ai-fitness-planner\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 938, in do_executemany
+    cursor.executemany(statement, parameters)
+  File "C:\Users\Lenovo\Documents\New project 4\ai-fitness-planner\.venv\Lib\site-packages\psycopg\cursor.py", line 128, in executemany
+    raise ex.with_traceback(None)
+psycopg.errors.DatatypeMismatch: column "embedding" is of type vector but expression is of type jsonb
+LINE 1: UPDATE explanation_knowledge SET embedding=$1::JSONB, update...
+                                                   ^
+HINT:  You will need to rewrite or cast the expression.
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\Lenovo\Documents\New project 4\ai-fitness-planner\.venv\Lib\site-packages\starlette\routing.py", line 693, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+  File "E:\anaconda\Lib\contextlib.py", line 204, in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Lenovo\Documents\New project 4\ai-fitness-planner\.venv\Lib\site-packages\fastapi\routing.py", line 133, in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+  File "E:\anaconda\Lib\contextlib.py", line 204, in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Lenovo\Documents\New project 4\ai-fitness-planner\.venv\Lib\site-packages\fastapi\routing.py", line 133, in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+  File "C:\Users\Lenovo\Documents\New project 4\ai-fitness-planner\.venv\Lib\site-packages\starlette\routing.py", line 569, in __aenter__
+    await self._router.startup()
+  File "C:\Users\Lenovo\Documents\New project 4\ai-fitness-planner\.venv\Lib\site-packages\starlette\routing.py", line 672, in startup
+    handler()
+  File "C:\Users\Lenovo\Documents\New project 4\ai-fitness-planner\fast_api\app\main.py", line 40, in startup
+    FitnessKnowledgeService(db).seed_builtin_knowledge()
+  File "C:\Users\Lenovo\Documents\New project 4\ai-fitness-planner\fast_api\app\services\fitness_knowledge.py", line 27, in seed_builtin_knowledge
+    "explanation": self._seed_explanations(),
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Lenovo\Documents\New project 4\ai-fitness-planner\fast_api\app\services\fitness_knowledge.py", line 191, in _seed_explanations
+    self.db.flush()
+  File "C:\Users\Lenovo\Documents\New project 4\ai-fitness-planner\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 4352, in flush
+    self._flush(objects)
+  File "C:\Users\Lenovo\Documents\New project 4\ai-fitness-planner\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 4487, in _flush
+    with util.safe_reraise():
+  File "C:\Users\Lenovo\Documents\New project 4\ai-fitness-planner\.venv\Lib\site-packages\sqlalchemy\util\langhelpers.py", line 146, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "C:\Users\Lenovo\Documents\New project 4\ai-fitness-planner\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 4448, in _flush
+    flush_context.execute()
+  File "C:\Users\Lenovo\Documents\New project 4\ai-fitness-planner\.venv\Lib\site-packages\sqlalchemy\orm\unitofwork.py", line 466, in execute
+    rec.execute(self)
+  File "C:\Users\Lenovo\Documents\New project 4\ai-fitness-planner\.venv\Lib\site-packages\sqlalchemy\orm\unitofwork.py", line 642, in execute
+    util.preloaded.orm_persistence.save_obj(
+  File "C:\Users\Lenovo\Documents\New project 4\ai-fitness-planner\.venv\Lib\site-packages\sqlalchemy\orm\persistence.py", line 85, in save_obj
+    _emit_update_statements(
+  File "C:\Users\Lenovo\Documents\New project 4\ai-fitness-planner\.venv\Lib\site-packages\sqlalchemy\orm\persistence.py", line 912, in _emit_update_statements
+    c = connection.execute(
+        ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Lenovo\Documents\New project 4\ai-fitness-planner\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1418, in execute
+    return meth(
+           ^^^^^
+  File "C:\Users\Lenovo\Documents\New project 4\ai-fitness-planner\.venv\Lib\site-packages\sqlalchemy\sql\elements.py", line 515, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Lenovo\Documents\New project 4\ai-fitness-planner\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1640, in _execute_clauseelement
+    ret = self._execute_context(
+          ^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Lenovo\Documents\New project 4\ai-fitness-planner\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Lenovo\Documents\New project 4\ai-fitness-planner\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1986, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "C:\Users\Lenovo\Documents\New project 4\ai-fitness-planner\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 2355, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "C:\Users\Lenovo\Documents\New project 4\ai-fitness-planner\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1936, in _exec_single_context
+    self.dialect.do_executemany(
+  File "C:\Users\Lenovo\Documents\New project 4\ai-fitness-planner\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 938, in do_executemany
+    cursor.executemany(statement, parameters)
+  File "C:\Users\Lenovo\Documents\New project 4\ai-fitness-planner\.venv\Lib\site-packages\psycopg\cursor.py", line 128, in executemany
+    raise ex.with_traceback(None)
+sqlalchemy.exc.ProgrammingError: (psycopg.errors.DatatypeMismatch) column "embedding" is of type vector but expression is of type jsonb
+LINE 1: UPDATE explanation_knowledge SET embedding=$1::JSONB, update...
+                                                   ^
+HINT:  You will need to rewrite or cast the expression.
+[SQL: UPDATE explanation_knowledge SET embedding=%(embedding)s::JSONB, updated_at=now() WHERE explanation_knowledge.id = %(explanation_knowledge_id)s::UUID]
+[parameters: [{'embedding': Jsonb([-0.21764705882352942, -0.088235294 ... (21536 chars)), 'explanation_knowledge_id': UUID('59cc9922-6428-4d4c-acd0-184713dc69c6')}, {'embedding': Jsonb([-0.39019607843137255, 0.1509803921 ... (21312 chars)), 'explanation_knowledge_id': UUID('c6234033-b4bb-41ab-8240-5b54624aed2a')}, {'embedding': Jsonb([0.3313725490196079, -0.23725490196 ... (21664 chars)), 'explanation_knowledge_id': UUID('d7771e1c-d3dd-4c22-88b0-08f1cdca4e5a')}]]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+
+ERROR:    Application startup failed. Exiting.

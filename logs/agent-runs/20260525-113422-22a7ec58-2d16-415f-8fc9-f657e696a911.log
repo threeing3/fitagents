@@ -1,0 +1,794 @@
+AI Fitness Agent run: 22a7ec58-2d16-415f-8fc9-f657e696a911
+request_id: d52a5a6d-194a-447a-b350-4c11d532a275
+run_type: chat_stream
+user_id: f97d34b4-87bb-4a21-a3f0-f19ea7edd43f
+session_id: 5fe9e371-3426-45f3-8288-d837911c7ecd
+status: completed
+
+Timeline
+- RequestReceived | completed | 0ms | 2026-05-25T11:34:22.706979
+  output: {"message_chars": 52, "provider": "deepseek", "chat_model": "deepseek-v4-pro", "embedding_mode": "offline_fallback"}
+- ProfileExtractorAgent | completed | 0ms | 2026-05-25T11:34:22.708029
+  input: {"message": "现在的训练是做推拉分类训练好 还是分化胸肩背的训练好？你有什么推荐和见解 我一周练4到5天 休息日做有氧"}
+  output: {"profile_patch": {}, "corrections": [], "ignored_candidates": [{"field": "injuries", "candidate": "shoulder", "reason": "body_part_without_injury_context", "evidence": "现在的训练是做推拉分类训练好 还是分化胸肩背的训练好？你有什么推荐和见解 我一周练4到5天 休息日做有氧"}], "model_patch": {}, "model_used": false}
+- MemoryAgent | completed | 0ms | 2026-05-25T11:34:22.708076
+  output: {"written": []}
+- IntentRouter | completed | 0ms | 2026-05-25T11:34:22.708092
+  output: {"onboarding_complete": true, "missing_slots": []}
+- ContextBuilder | completed | 17ms | 2026-05-25T11:34:22.726066
+  output: {"intent": "general_chat", "core_profile": {"age": 21, "sex": "male", "height_cm": 178.0, "weight_kg": 80.0, "activity_level": "moderate", "goal": "fat_loss", "experience_level": "intermediate", "workout_frequency": 5, "equipment_available": ["barbell", "cables", "cardio", "dumbbells", "gym", "machines"], "dietary_preferences": [], "injuries": [], "target_calories": 2304, "target_protein_g": 173.0, "target_carbs_g": 230.0, "target_fat_g": 77.0}, "memory_catalog": [{"category": "plan", "title": "Plan Memory", "summary": "1 active plan memories. Recent: Plan targets fat_loss with 5 sessions per week, 2304 kcal/day, and equipment barbell, cables, cardio, dumbbells, gym, machines.", "record_count": 1, "importance_score": 0.6, "query_hints": ["active plan", "weekly schedule", "adjustment"], "child_table": "training_plans", "child_filter": {"category": "plan"}}], "active_plan": {"id": "9d31d9e3-ed32-49a8-bafc-1e2280f3574d", "status": "active", "week_start": "2026-05-25", "plan": {"goal": "fat_loss", "nutrition": {"fat_g": 77, "carbs_g": 230, "protein_g": 173, "principles": ["Anchor each meal around protein.", "Put more carbs near training sessions.", "Adjust portions weekly based on weight trend and adherence."], "target_calories": 2304}, "plan_days": 7, "training_days": [{"day": 1, "name": "Full Body Strength", "focus": "squat pattern", "equipment": ["barbell", "cables", "cardio", "dumbbells", "gym", "machines"], "exercises": [{"name": "squat pattern", "reps": "10-15", "sets": 3, "notes": "Keep 1-3 reps in reserve and stop if pain appears.", "rest_seconds": 90}, {"name": "push", "reps": "10-15", "sets": 3, "notes": "Keep 1-3 reps in reserve and stop if pain appears.", "rest_seconds": 90}, {"name": "pull", "reps": "10-15", "sets": 3, "notes": "Keep 1-3 reps in reserve and stop if pain appears.", "rest_seconds": 90}, {"name": "hinge", "reps": "10-15", "sets": 3, "notes": "Keep 1-3 reps in reserve and stop if pain appears.", "rest_seconds": 90}, {"name": "core", "reps": "10-15", "sets": 3, "notes": "Keep 1-3 reps in reserve and stop if pain appears.", "rest_seconds": 90}]}, {"day": 2, "name": "Upper Body", "focus": "horizontal push", "equipment": ["barbell", "cables", "cardio", "dumbbells", "gym", "machines"], "exercises": [{"name": "horizontal push", "reps": "10-15", "sets": 3, "notes": "Keep 1-3 reps in reserve and stop if pain appears.", "rest_seconds": 90}, {"name": "horizontal pull", "reps": "10-15", "sets": 3, "notes": "Keep 1-3 reps in reserve and stop if pain appears.", "rest_seconds": 90}, {"name": "vertical push", "reps": "10-15", "sets": 3, "notes": "Keep 1-3 reps in reserve and stop if pain appears.", "rest_seconds": 90}, {"name": "arms", "reps": "10-15", "sets": 3, "notes": "Keep 1-3 reps in reserve and stop if pain appears.", "rest_seconds": 90}]}, {"day": 3, "name": "Lower Body", "focus": "squat", "equipment": ["barbell", "cables", "cardio", "dumbbells", "gym", "machines"], "exercises": [{"name": "squat", "reps": "10-15", "sets": 3, "notes": "Keep 1-3 reps in reserve and stop if pain appears.", "rest_seconds": 90}, {"name": "hinge", "reps": "10-15", "sets": 3, "notes": "Keep 1-3 reps in reserve and stop if pain appears.", "rest_seconds": 90}, {"name": "single-leg", "reps": "10-15", "sets": 3, "notes": "Keep 1-3 reps in reserve and stop if pain appears.", "rest_seconds": 90}, {"name": "calves", "reps": "10-15", "sets": 3, "notes": "Keep 1-3 reps in reserve and stop if pain appears.", "rest_seconds": 90}, {"name": "core", "reps": "10-15", "sets": 3, "notes": "Keep 1-3 reps in reserve and stop if pain appears.", "rest_seconds": 90}]}, {"day": 4, "name": "Conditioning + Mobility", "focus": "zone 2 cardio", "equipment": ["barbell", "cables", "cardio", "dumbbells", "gym", "machines"], "exercises": [{"name": "zone 2 cardio", "reps": "10-15", "sets": 3, "notes": "Keep 1-3 reps in reserve and stop if pain appears.", "rest_seconds": 90}, {"name": "mobility", "reps": "10-15", "sets": 3, "notes": "Keep 1-3 reps in reserve and stop if pain appears.", "rest_seconds": 90}, {"name": "core", "reps": "10-15", "sets": 3, "notes": "Keep 1-3 reps in reserve and stop if pain appears.", "rest_seconds": 90}]}, {"day": 5, "name": "Push Focus", "focus": "bench or push-up", "equipment": ["barbell", "cables", "cardio", "dumbbells", "gym", "machines"], "exercises": [{"name": "bench or push-up", "reps": "10-15", "sets": 3, "notes": "Keep 1-3 reps in reserve and stop if pain appears.", "rest_seconds": 90}, {"name": "overhead press", "reps": "10-15", "sets": 3, "notes": "Keep 1-3 reps in reserve and stop if pain appears.", "rest_seconds": 90}, {"name": "triceps", "reps": "10-15", "sets": 3, "notes": "Keep 1-3 reps in reserve and stop if pain appears.", "rest_seconds": 90}]}], "review_cadence": "weekly"}, "rationale": "Plan targets fat_loss with 5 sessions per week, 2304 kcal/day, and equipment barbell, cables, cardio, dumbbells, gym, machines."}, "active_risk_notes": [], "recent_training": [], "exercise_history": [], "recent_nutrition": [], "recent_recovery": [], "recent_symptoms": [], "relevant_memories": [{"id": "99777673-eef7-4911-933e-1cb93ba0204d", "memory_type": "plan_preference", "category": "plan", "summary": "Plan targets fat_loss with 5 sessions per week, 2304 kcal/day, and equipment barbell, cables, cardio, dumbbells, gym, machines.", "content": "Plan targets fat_loss with 5 sessions per week, 2304 kcal/day, and equipment barbell, cables, cardio, dumbbells, gym, machines.", "importance": 0.6, "confidence": 0.75, "metadata": {}}], "knowledge_context": {"embedding_mode": "offline_fallback", "explanation_knowledge": [{"knowledge_id": "exp_hyperthyroid_training_boundary_001", "topic": "hyperthyroid_training_boundary", "content": "有甲亢、甲状腺功能异常、正在服药或存在心率异常风险时，健身建议应偏保守：避免突然高强度冲刺、极限重量和长时间高心率训练。若出现胸闷、头晕、心悸、明显乏力等症状，应停止训练并按医生建议处理。", "tags": ["medical_context", "hyperthyroidism", "safety", "training"], "source": "internal_seed_v1", "safety_level": "medical_boundary"}, {"knowledge_id": "exp_fat_loss_protein_001", "topic": "fat_loss_protein", "content": "减脂期提高蛋白质摄入通常有三个作用：帮助保留瘦体重，提高饱腹感，并让力量训练后的恢复更稳定。普通健身用户可以用体重每公斤约1.6-2.2g蛋白质作为起点，再根据消化、预算和训练量调整。", "tags": ["fat_loss", "protein", "nutrition"], "source": "internal_seed_v1", "safety_level": "general"}, {"knowledge_id": "exp_progressive_overload_001", "topic": "progressive_overload", "content": "渐进超负荷不是每次都强行加重量，而是在动作质量稳定、目标次数完成、RPE可控、恢复良好的情况下，逐步增加重量、次数、组数或动作难度。疲劳高或睡眠差时，维持重量甚至降量通常更合理。", "tags": ["training", "progression", "rpe"], "source": "internal_seed_v1", "safety_level": "general"}], "decision_rules": [], "plan_templates": [{"template_id": "tpl_training_fat_loss_intermediate_gym_5d_001", "template_type": "training", "goal": "fat_loss", "level": "intermediate", "days_per_week": 5, "equipment": ["gym", "barbell", "dumbbell", "machines"], "template_json": {"name": "5天健身房减脂力量模板", "split": ["上肢推", "下肢", "上肢拉", "休息或低强度有氧", "全身力量", "弱项与有氧", "休息"], "cardio": "每周2-3次20-35分钟低到中等强度有氧", "intensity": "多数动作RPE 7-8，保留1-3次余力"}, "constraints": {"avoid": ["max_effort_when_fatigued"], "requires": ["gym"]}, "version": "v1", "match_score": 10}, {"template_id": "tpl_training_beginner_gym_3d_001", "template_type": "training", "goal": "general_fitness", "level": "beginner", "days_per_week": 3, "equipment": ["gym", "machines", "dumbbell"], "template_json": {"name": "3天新手全身训练模板", "split": ["全身A", "休息", "全身B", "休息", "全身A", "休息", "休息"], "cardio": "训练后10-20分钟轻中等强度有氧", "intensity": "先学习动作，RPE 6-7"}, "constraints": {"avoid": ["max_effort"]}, "version": "v1", "match_score": 2}], "coaching_cases": [{"case_id": "case_takeout_nutrition_001", "case_type": "nutrition", "profile_summary": "用户减脂但平时不自己做饭。", "situation": "用户问今天吃什么或者外卖怎么选。", "coach_response_pattern": "给出可直接点的外食组合，优先说明蛋白质、主食、蔬菜和酱料控制，不要求用户自炊。", "tags": ["takeout", "fat_loss", "nutrition"], "source": "internal_seed_v1"}, {"case_id": "case_high_fatigue_adjustment_001", "case_type": "adjustment", "profile_summary": "减脂用户反馈睡眠差、疲劳高。", "situation": "用户今天疲劳8-9分，睡眠少于6小时，还问能不能继续冲重量。", "coach_response_pattern": "明确不建议冲重量；给出降量训练、动作替代、恢复建议，并解释依据是疲劳和睡眠。", "tags": ["fatigue", "recovery", "training_adjustment"], "source": "internal_seed_v1"}], "debug": {"intent": "general_chat", "query": "现在的训练是做推拉分类训练好 还是分化胸肩背的训练好？你有什么推荐和见解 我一周练4到5天 休息日做有氧", "rag_used_for": ["explanation_knowledge", "coaching_cases"], "structured_used_for": ["decision_rules", "plan_templates"], "matched_knowledge_ids": ["exp_hyperthyroid_training_boundary_001", "exp_fat_loss_protein_001", "exp_progressive_overload_001"], "matched_rule_ids": [], "matched_template_ids": ["tpl_training_fat_loss_intermediate_gym_5d_001", "tpl_training_beginner_gym_3d_001"], "matched_case_ids": ["case_takeout_nutrition_001", "case_high_fatigue_adjustment_001"]}}, "retrieval_debug": {"intent": "general_chat", "memory_category_filter": null, "memory_top_k": 6, "knowledge_sources": {"intent": "general_chat", "query": "现在的训练是做推拉分类训练好 还是分化胸肩背的训练好？你有什么推荐和见解 我一周练4到5天 休息日做有氧", "rag_used_for": ["explanation_knowledge", "coaching_cases"], "structured_used_for": ["decision_rules", "plan_templates"], "matched_knowledge_ids": ["exp_hyperthyroid_training_boundary_001", "exp_fat_loss_protein_001", "exp_progressive_overload_001"], "matched_rule_ids": [], "matched_template_ids": ["tpl_training_fat_loss_intermediate_gym_5d_001", "tpl_training_beginner_gym_3d_001"], "matched_case_ids": ["case_takeout_nutrition_001", "case_high_fatigue_adjustment_001"]}}, "agent_decision_history": [], "context_summary": "intent=general_chat; loaded core_profile=1, memory_catalog=1, active_plan=1, relevant_memories=1, knowledge_context=1"}
+- KnowledgeRetrieval | completed | 0ms | 2026-05-25T11:34:22.726349
+  output: {"intent": "general_chat", "query": "现在的训练是做推拉分类训练好 还是分化胸肩背的训练好？你有什么推荐和见解 我一周练4到5天 休息日做有氧", "rag_used_for": ["explanation_knowledge", "coaching_cases"], "structured_used_for": ["decision_rules", "plan_templates"], "matched_knowledge_ids": ["exp_hyperthyroid_training_boundary_001", "exp_fat_loss_protein_001", "exp_progressive_overload_001"], "matched_rule_ids": [], "matched_template_ids": ["tpl_training_fat_loss_intermediate_gym_5d_001", "tpl_training_beginner_gym_3d_001"], "matched_case_ids": ["case_takeout_nutrition_001", "case_high_fatigue_adjustment_001"]}
+- DecisionRules | completed | 0ms | 2026-05-25T11:34:22.726366
+  output: {"matched_rule_ids": [], "rules": []}
+- TemplateSelector | completed | 0ms | 2026-05-25T11:34:22.726373
+  output: {"matched_template_ids": ["tpl_training_fat_loss_intermediate_gym_5d_001", "tpl_training_beginner_gym_3d_001"], "templates": [{"template_id": "tpl_training_fat_loss_intermediate_gym_5d_001", "template_type": "training", "goal": "fat_loss", "level": "intermediate", "days_per_week": 5, "equipment": ["gym", "barbell", "dumbbell", "machines"], "template_json": {"name": "5天健身房减脂力量模板", "split": ["上肢推", "下肢", "上肢拉", "休息或低强度有氧", "全身力量", "弱项与有氧", "休息"], "cardio": "每周2-3次20-35分钟低到中等强度有氧", "intensity": "多数动作RPE 7-8，保留1-3次余力"}, "constraints": {"avoid": ["max_effort_when_fatigued"], "requires": ["gym"]}, "version": "v1", "match_score": 10}, {"template_id": "tpl_training_beginner_gym_3d_001", "template_type": "training", "goal": "general_fitness", "level": "beginner", "days_per_week": 3, "equipment": ["gym", "machines", "dumbbell"], "template_json": {"name": "3天新手全身训练模板", "split": ["全身A", "休息", "全身B", "休息", "全身A", "休息", "休息"], "cardio": "训练后10-20分钟轻中等强度有氧", "intensity": "先学习动作，RPE 6-7"}, "constraints": {"avoid": ["max_effort"]}, "version": "v1", "match_score": 2}]}
+- CoachLLM | completed | 37571ms | 2026-05-25T11:35:00.295911
+  output: {"safety": false, "live_model": true, "response_chars": 1846}
+- ResponsePersisted | completed | 0ms | 2026-05-25T11:35:00.301299
+  output: {"response_chars": 1846}
+
+Full JSON
+{
+  "run_id": "22a7ec58-2d16-415f-8fc9-f657e696a911",
+  "request_id": "d52a5a6d-194a-447a-b350-4c11d532a275",
+  "run_type": "chat_stream",
+  "user_id": "f97d34b4-87bb-4a21-a3f0-f19ea7edd43f",
+  "session_id": "5fe9e371-3426-45f3-8288-d837911c7ecd",
+  "status": "completed",
+  "started_at_utc": "2026-05-25T11:34:22.706946",
+  "completed_at_utc": "2026-05-25T11:35:00.316453",
+  "summary": "好的，我来帮你分析推拉腿（PPL）和胸肩背分化，并结合你当前的目标给一个具体的推荐。先快速看下你的情况：21岁，中阶，减脂目标，一周能练4-5天，休息日会做有氧，器材齐全，这正是很理想的安排。\n\n### 推拉腿（PPL）vs 胸肩背分化 核心对比\n\n| 维度 | 推拉腿（PPL） | 胸肩背分化 |\n|------|------------|-----------|\n| **安排方式** | 推日（胸、肩前/中、三头）、拉日（背、肩后、二头）、腿日 | 胸+三头一天、背+二头一天、肩+腿一天（或肩单独） |\n| **每周刺激频率** | 如果练6天可以每个部位2次/周；4-5天通常只能每个部位1-1.5次/周 | 通常每个部位每周直接练一次 |\n| **恢复压力** | 上肢推日、拉日对局部肌肉刺激集中，但单次训练量可控 | 单次训练量较大，同一肌群可能积累更多疲劳 |\n| **更适合谁** | 追求力量与动作模式平衡、恢复能力强、想高效增力减脂的人 | 更喜欢泵感、追求局部细节雕刻、只想每周每个部位猛练一次的人 |\n\n**你的减脂关键点**  \n在热量赤字的减脂期，身体恢复能力会下降",
+  "error": null,
+  "nodes": [
+    {
+      "node": "RequestReceived",
+      "event_id": "3ce8643e-3089-4db8-9ac1-de260e3451f2",
+      "request_id": "d52a5a6d-194a-447a-b350-4c11d532a275",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-25T11:34:22.706979",
+      "input_summary": {},
+      "output": {
+        "message_chars": 52,
+        "provider": "deepseek",
+        "chat_model": "deepseek-v4-pro",
+        "embedding_mode": "offline_fallback"
+      },
+      "error": null
+    },
+    {
+      "node": "ProfileExtractorAgent",
+      "event_id": "6753d4f2-53e6-4c7e-b79f-42caff99c9b1",
+      "request_id": "d52a5a6d-194a-447a-b350-4c11d532a275",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-25T11:34:22.708029",
+      "input_summary": {
+        "message": "现在的训练是做推拉分类训练好 还是分化胸肩背的训练好？你有什么推荐和见解 我一周练4到5天 休息日做有氧"
+      },
+      "output": {
+        "profile_patch": {},
+        "corrections": [],
+        "ignored_candidates": [
+          {
+            "field": "injuries",
+            "candidate": "shoulder",
+            "reason": "body_part_without_injury_context",
+            "evidence": "现在的训练是做推拉分类训练好 还是分化胸肩背的训练好？你有什么推荐和见解 我一周练4到5天 休息日做有氧"
+          }
+        ],
+        "model_patch": {},
+        "model_used": false
+      },
+      "error": null
+    },
+    {
+      "node": "MemoryAgent",
+      "event_id": "d428ea56-f21b-494d-8ec1-329048e992af",
+      "request_id": "d52a5a6d-194a-447a-b350-4c11d532a275",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-25T11:34:22.708076",
+      "input_summary": {},
+      "output": {
+        "written": []
+      },
+      "error": null
+    },
+    {
+      "node": "IntentRouter",
+      "event_id": "e3201dfd-4fb6-4168-9d92-8f2122f3bb7a",
+      "request_id": "d52a5a6d-194a-447a-b350-4c11d532a275",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-25T11:34:22.708092",
+      "input_summary": {},
+      "output": {
+        "onboarding_complete": true,
+        "missing_slots": []
+      },
+      "error": null
+    },
+    {
+      "node": "ContextBuilder",
+      "event_id": "f8e38935-183f-499a-a400-634335293b0d",
+      "request_id": "d52a5a6d-194a-447a-b350-4c11d532a275",
+      "status": "completed",
+      "latency_ms": 17,
+      "timestamp_utc": "2026-05-25T11:34:22.726066",
+      "input_summary": {},
+      "output": {
+        "intent": "general_chat",
+        "core_profile": {
+          "age": 21,
+          "sex": "male",
+          "height_cm": 178.0,
+          "weight_kg": 80.0,
+          "activity_level": "moderate",
+          "goal": "fat_loss",
+          "experience_level": "intermediate",
+          "workout_frequency": 5,
+          "equipment_available": [
+            "barbell",
+            "cables",
+            "cardio",
+            "dumbbells",
+            "gym",
+            "machines"
+          ],
+          "dietary_preferences": [],
+          "injuries": [],
+          "target_calories": 2304,
+          "target_protein_g": 173.0,
+          "target_carbs_g": 230.0,
+          "target_fat_g": 77.0
+        },
+        "memory_catalog": [
+          {
+            "category": "plan",
+            "title": "Plan Memory",
+            "summary": "1 active plan memories. Recent: Plan targets fat_loss with 5 sessions per week, 2304 kcal/day, and equipment barbell, cables, cardio, dumbbells, gym, machines.",
+            "record_count": 1,
+            "importance_score": 0.6,
+            "query_hints": [
+              "active plan",
+              "weekly schedule",
+              "adjustment"
+            ],
+            "child_table": "training_plans",
+            "child_filter": {
+              "category": "plan"
+            }
+          }
+        ],
+        "active_plan": {
+          "id": "9d31d9e3-ed32-49a8-bafc-1e2280f3574d",
+          "status": "active",
+          "week_start": "2026-05-25",
+          "plan": {
+            "goal": "fat_loss",
+            "nutrition": {
+              "fat_g": 77,
+              "carbs_g": 230,
+              "protein_g": 173,
+              "principles": [
+                "Anchor each meal around protein.",
+                "Put more carbs near training sessions.",
+                "Adjust portions weekly based on weight trend and adherence."
+              ],
+              "target_calories": 2304
+            },
+            "plan_days": 7,
+            "training_days": [
+              {
+                "day": 1,
+                "name": "Full Body Strength",
+                "focus": "squat pattern",
+                "equipment": [
+                  "barbell",
+                  "cables",
+                  "cardio",
+                  "dumbbells",
+                  "gym",
+                  "machines"
+                ],
+                "exercises": [
+                  {
+                    "name": "squat pattern",
+                    "reps": "10-15",
+                    "sets": 3,
+                    "notes": "Keep 1-3 reps in reserve and stop if pain appears.",
+                    "rest_seconds": 90
+                  },
+                  {
+                    "name": "push",
+                    "reps": "10-15",
+                    "sets": 3,
+                    "notes": "Keep 1-3 reps in reserve and stop if pain appears.",
+                    "rest_seconds": 90
+                  },
+                  {
+                    "name": "pull",
+                    "reps": "10-15",
+                    "sets": 3,
+                    "notes": "Keep 1-3 reps in reserve and stop if pain appears.",
+                    "rest_seconds": 90
+                  },
+                  {
+                    "name": "hinge",
+                    "reps": "10-15",
+                    "sets": 3,
+                    "notes": "Keep 1-3 reps in reserve and stop if pain appears.",
+                    "rest_seconds": 90
+                  },
+                  {
+                    "name": "core",
+                    "reps": "10-15",
+                    "sets": 3,
+                    "notes": "Keep 1-3 reps in reserve and stop if pain appears.",
+                    "rest_seconds": 90
+                  }
+                ]
+              },
+              {
+                "day": 2,
+                "name": "Upper Body",
+                "focus": "horizontal push",
+                "equipment": [
+                  "barbell",
+                  "cables",
+                  "cardio",
+                  "dumbbells",
+                  "gym",
+                  "machines"
+                ],
+                "exercises": [
+                  {
+                    "name": "horizontal push",
+                    "reps": "10-15",
+                    "sets": 3,
+                    "notes": "Keep 1-3 reps in reserve and stop if pain appears.",
+                    "rest_seconds": 90
+                  },
+                  {
+                    "name": "horizontal pull",
+                    "reps": "10-15",
+                    "sets": 3,
+                    "notes": "Keep 1-3 reps in reserve and stop if pain appears.",
+                    "rest_seconds": 90
+                  },
+                  {
+                    "name": "vertical push",
+                    "reps": "10-15",
+                    "sets": 3,
+                    "notes": "Keep 1-3 reps in reserve and stop if pain appears.",
+                    "rest_seconds": 90
+                  },
+                  {
+                    "name": "arms",
+                    "reps": "10-15",
+                    "sets": 3,
+                    "notes": "Keep 1-3 reps in reserve and stop if pain appears.",
+                    "rest_seconds": 90
+                  }
+                ]
+              },
+              {
+                "day": 3,
+                "name": "Lower Body",
+                "focus": "squat",
+                "equipment": [
+                  "barbell",
+                  "cables",
+                  "cardio",
+                  "dumbbells",
+                  "gym",
+                  "machines"
+                ],
+                "exercises": [
+                  {
+                    "name": "squat",
+                    "reps": "10-15",
+                    "sets": 3,
+                    "notes": "Keep 1-3 reps in reserve and stop if pain appears.",
+                    "rest_seconds": 90
+                  },
+                  {
+                    "name": "hinge",
+                    "reps": "10-15",
+                    "sets": 3,
+                    "notes": "Keep 1-3 reps in reserve and stop if pain appears.",
+                    "rest_seconds": 90
+                  },
+                  {
+                    "name": "single-leg",
+                    "reps": "10-15",
+                    "sets": 3,
+                    "notes": "Keep 1-3 reps in reserve and stop if pain appears.",
+                    "rest_seconds": 90
+                  },
+                  {
+                    "name": "calves",
+                    "reps": "10-15",
+                    "sets": 3,
+                    "notes": "Keep 1-3 reps in reserve and stop if pain appears.",
+                    "rest_seconds": 90
+                  },
+                  {
+                    "name": "core",
+                    "reps": "10-15",
+                    "sets": 3,
+                    "notes": "Keep 1-3 reps in reserve and stop if pain appears.",
+                    "rest_seconds": 90
+                  }
+                ]
+              },
+              {
+                "day": 4,
+                "name": "Conditioning + Mobility",
+                "focus": "zone 2 cardio",
+                "equipment": [
+                  "barbell",
+                  "cables",
+                  "cardio",
+                  "dumbbells",
+                  "gym",
+                  "machines"
+                ],
+                "exercises": [
+                  {
+                    "name": "zone 2 cardio",
+                    "reps": "10-15",
+                    "sets": 3,
+                    "notes": "Keep 1-3 reps in reserve and stop if pain appears.",
+                    "rest_seconds": 90
+                  },
+                  {
+                    "name": "mobility",
+                    "reps": "10-15",
+                    "sets": 3,
+                    "notes": "Keep 1-3 reps in reserve and stop if pain appears.",
+                    "rest_seconds": 90
+                  },
+                  {
+                    "name": "core",
+                    "reps": "10-15",
+                    "sets": 3,
+                    "notes": "Keep 1-3 reps in reserve and stop if pain appears.",
+                    "rest_seconds": 90
+                  }
+                ]
+              },
+              {
+                "day": 5,
+                "name": "Push Focus",
+                "focus": "bench or push-up",
+                "equipment": [
+                  "barbell",
+                  "cables",
+                  "cardio",
+                  "dumbbells",
+                  "gym",
+                  "machines"
+                ],
+                "exercises": [
+                  {
+                    "name": "bench or push-up",
+                    "reps": "10-15",
+                    "sets": 3,
+                    "notes": "Keep 1-3 reps in reserve and stop if pain appears.",
+                    "rest_seconds": 90
+                  },
+                  {
+                    "name": "overhead press",
+                    "reps": "10-15",
+                    "sets": 3,
+                    "notes": "Keep 1-3 reps in reserve and stop if pain appears.",
+                    "rest_seconds": 90
+                  },
+                  {
+                    "name": "triceps",
+                    "reps": "10-15",
+                    "sets": 3,
+                    "notes": "Keep 1-3 reps in reserve and stop if pain appears.",
+                    "rest_seconds": 90
+                  }
+                ]
+              }
+            ],
+            "review_cadence": "weekly"
+          },
+          "rationale": "Plan targets fat_loss with 5 sessions per week, 2304 kcal/day, and equipment barbell, cables, cardio, dumbbells, gym, machines."
+        },
+        "active_risk_notes": [],
+        "recent_training": [],
+        "exercise_history": [],
+        "recent_nutrition": [],
+        "recent_recovery": [],
+        "recent_symptoms": [],
+        "relevant_memories": [
+          {
+            "id": "99777673-eef7-4911-933e-1cb93ba0204d",
+            "memory_type": "plan_preference",
+            "category": "plan",
+            "summary": "Plan targets fat_loss with 5 sessions per week, 2304 kcal/day, and equipment barbell, cables, cardio, dumbbells, gym, machines.",
+            "content": "Plan targets fat_loss with 5 sessions per week, 2304 kcal/day, and equipment barbell, cables, cardio, dumbbells, gym, machines.",
+            "importance": 0.6,
+            "confidence": 0.75,
+            "metadata": {}
+          }
+        ],
+        "knowledge_context": {
+          "embedding_mode": "offline_fallback",
+          "explanation_knowledge": [
+            {
+              "knowledge_id": "exp_hyperthyroid_training_boundary_001",
+              "topic": "hyperthyroid_training_boundary",
+              "content": "有甲亢、甲状腺功能异常、正在服药或存在心率异常风险时，健身建议应偏保守：避免突然高强度冲刺、极限重量和长时间高心率训练。若出现胸闷、头晕、心悸、明显乏力等症状，应停止训练并按医生建议处理。",
+              "tags": [
+                "medical_context",
+                "hyperthyroidism",
+                "safety",
+                "training"
+              ],
+              "source": "internal_seed_v1",
+              "safety_level": "medical_boundary"
+            },
+            {
+              "knowledge_id": "exp_fat_loss_protein_001",
+              "topic": "fat_loss_protein",
+              "content": "减脂期提高蛋白质摄入通常有三个作用：帮助保留瘦体重，提高饱腹感，并让力量训练后的恢复更稳定。普通健身用户可以用体重每公斤约1.6-2.2g蛋白质作为起点，再根据消化、预算和训练量调整。",
+              "tags": [
+                "fat_loss",
+                "protein",
+                "nutrition"
+              ],
+              "source": "internal_seed_v1",
+              "safety_level": "general"
+            },
+            {
+              "knowledge_id": "exp_progressive_overload_001",
+              "topic": "progressive_overload",
+              "content": "渐进超负荷不是每次都强行加重量，而是在动作质量稳定、目标次数完成、RPE可控、恢复良好的情况下，逐步增加重量、次数、组数或动作难度。疲劳高或睡眠差时，维持重量甚至降量通常更合理。",
+              "tags": [
+                "training",
+                "progression",
+                "rpe"
+              ],
+              "source": "internal_seed_v1",
+              "safety_level": "general"
+            }
+          ],
+          "decision_rules": [],
+          "plan_templates": [
+            {
+              "template_id": "tpl_training_fat_loss_intermediate_gym_5d_001",
+              "template_type": "training",
+              "goal": "fat_loss",
+              "level": "intermediate",
+              "days_per_week": 5,
+              "equipment": [
+                "gym",
+                "barbell",
+                "dumbbell",
+                "machines"
+              ],
+              "template_json": {
+                "name": "5天健身房减脂力量模板",
+                "split": [
+                  "上肢推",
+                  "下肢",
+                  "上肢拉",
+                  "休息或低强度有氧",
+                  "全身力量",
+                  "弱项与有氧",
+                  "休息"
+                ],
+                "cardio": "每周2-3次20-35分钟低到中等强度有氧",
+                "intensity": "多数动作RPE 7-8，保留1-3次余力"
+              },
+              "constraints": {
+                "avoid": [
+                  "max_effort_when_fatigued"
+                ],
+                "requires": [
+                  "gym"
+                ]
+              },
+              "version": "v1",
+              "match_score": 10
+            },
+            {
+              "template_id": "tpl_training_beginner_gym_3d_001",
+              "template_type": "training",
+              "goal": "general_fitness",
+              "level": "beginner",
+              "days_per_week": 3,
+              "equipment": [
+                "gym",
+                "machines",
+                "dumbbell"
+              ],
+              "template_json": {
+                "name": "3天新手全身训练模板",
+                "split": [
+                  "全身A",
+                  "休息",
+                  "全身B",
+                  "休息",
+                  "全身A",
+                  "休息",
+                  "休息"
+                ],
+                "cardio": "训练后10-20分钟轻中等强度有氧",
+                "intensity": "先学习动作，RPE 6-7"
+              },
+              "constraints": {
+                "avoid": [
+                  "max_effort"
+                ]
+              },
+              "version": "v1",
+              "match_score": 2
+            }
+          ],
+          "coaching_cases": [
+            {
+              "case_id": "case_takeout_nutrition_001",
+              "case_type": "nutrition",
+              "profile_summary": "用户减脂但平时不自己做饭。",
+              "situation": "用户问今天吃什么或者外卖怎么选。",
+              "coach_response_pattern": "给出可直接点的外食组合，优先说明蛋白质、主食、蔬菜和酱料控制，不要求用户自炊。",
+              "tags": [
+                "takeout",
+                "fat_loss",
+                "nutrition"
+              ],
+              "source": "internal_seed_v1"
+            },
+            {
+              "case_id": "case_high_fatigue_adjustment_001",
+              "case_type": "adjustment",
+              "profile_summary": "减脂用户反馈睡眠差、疲劳高。",
+              "situation": "用户今天疲劳8-9分，睡眠少于6小时，还问能不能继续冲重量。",
+              "coach_response_pattern": "明确不建议冲重量；给出降量训练、动作替代、恢复建议，并解释依据是疲劳和睡眠。",
+              "tags": [
+                "fatigue",
+                "recovery",
+                "training_adjustment"
+              ],
+              "source": "internal_seed_v1"
+            }
+          ],
+          "debug": {
+            "intent": "general_chat",
+            "query": "现在的训练是做推拉分类训练好 还是分化胸肩背的训练好？你有什么推荐和见解 我一周练4到5天 休息日做有氧",
+            "rag_used_for": [
+              "explanation_knowledge",
+              "coaching_cases"
+            ],
+            "structured_used_for": [
+              "decision_rules",
+              "plan_templates"
+            ],
+            "matched_knowledge_ids": [
+              "exp_hyperthyroid_training_boundary_001",
+              "exp_fat_loss_protein_001",
+              "exp_progressive_overload_001"
+            ],
+            "matched_rule_ids": [],
+            "matched_template_ids": [
+              "tpl_training_fat_loss_intermediate_gym_5d_001",
+              "tpl_training_beginner_gym_3d_001"
+            ],
+            "matched_case_ids": [
+              "case_takeout_nutrition_001",
+              "case_high_fatigue_adjustment_001"
+            ]
+          }
+        },
+        "retrieval_debug": {
+          "intent": "general_chat",
+          "memory_category_filter": null,
+          "memory_top_k": 6,
+          "knowledge_sources": {
+            "intent": "general_chat",
+            "query": "现在的训练是做推拉分类训练好 还是分化胸肩背的训练好？你有什么推荐和见解 我一周练4到5天 休息日做有氧",
+            "rag_used_for": [
+              "explanation_knowledge",
+              "coaching_cases"
+            ],
+            "structured_used_for": [
+              "decision_rules",
+              "plan_templates"
+            ],
+            "matched_knowledge_ids": [
+              "exp_hyperthyroid_training_boundary_001",
+              "exp_fat_loss_protein_001",
+              "exp_progressive_overload_001"
+            ],
+            "matched_rule_ids": [],
+            "matched_template_ids": [
+              "tpl_training_fat_loss_intermediate_gym_5d_001",
+              "tpl_training_beginner_gym_3d_001"
+            ],
+            "matched_case_ids": [
+              "case_takeout_nutrition_001",
+              "case_high_fatigue_adjustment_001"
+            ]
+          }
+        },
+        "agent_decision_history": [],
+        "context_summary": "intent=general_chat; loaded core_profile=1, memory_catalog=1, active_plan=1, relevant_memories=1, knowledge_context=1"
+      },
+      "error": null
+    },
+    {
+      "node": "KnowledgeRetrieval",
+      "event_id": "fee312c0-e56d-45ca-b268-644b2f300b42",
+      "request_id": "d52a5a6d-194a-447a-b350-4c11d532a275",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-25T11:34:22.726349",
+      "input_summary": {},
+      "output": {
+        "intent": "general_chat",
+        "query": "现在的训练是做推拉分类训练好 还是分化胸肩背的训练好？你有什么推荐和见解 我一周练4到5天 休息日做有氧",
+        "rag_used_for": [
+          "explanation_knowledge",
+          "coaching_cases"
+        ],
+        "structured_used_for": [
+          "decision_rules",
+          "plan_templates"
+        ],
+        "matched_knowledge_ids": [
+          "exp_hyperthyroid_training_boundary_001",
+          "exp_fat_loss_protein_001",
+          "exp_progressive_overload_001"
+        ],
+        "matched_rule_ids": [],
+        "matched_template_ids": [
+          "tpl_training_fat_loss_intermediate_gym_5d_001",
+          "tpl_training_beginner_gym_3d_001"
+        ],
+        "matched_case_ids": [
+          "case_takeout_nutrition_001",
+          "case_high_fatigue_adjustment_001"
+        ]
+      },
+      "error": null
+    },
+    {
+      "node": "DecisionRules",
+      "event_id": "f338f26c-f71e-48a8-a8f8-d44eb1ea6323",
+      "request_id": "d52a5a6d-194a-447a-b350-4c11d532a275",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-25T11:34:22.726366",
+      "input_summary": {},
+      "output": {
+        "matched_rule_ids": [],
+        "rules": []
+      },
+      "error": null
+    },
+    {
+      "node": "TemplateSelector",
+      "event_id": "c0dfe5e3-229d-45c2-a509-5140ff8d5df2",
+      "request_id": "d52a5a6d-194a-447a-b350-4c11d532a275",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-25T11:34:22.726373",
+      "input_summary": {},
+      "output": {
+        "matched_template_ids": [
+          "tpl_training_fat_loss_intermediate_gym_5d_001",
+          "tpl_training_beginner_gym_3d_001"
+        ],
+        "templates": [
+          {
+            "template_id": "tpl_training_fat_loss_intermediate_gym_5d_001",
+            "template_type": "training",
+            "goal": "fat_loss",
+            "level": "intermediate",
+            "days_per_week": 5,
+            "equipment": [
+              "gym",
+              "barbell",
+              "dumbbell",
+              "machines"
+            ],
+            "template_json": {
+              "name": "5天健身房减脂力量模板",
+              "split": [
+                "上肢推",
+                "下肢",
+                "上肢拉",
+                "休息或低强度有氧",
+                "全身力量",
+                "弱项与有氧",
+                "休息"
+              ],
+              "cardio": "每周2-3次20-35分钟低到中等强度有氧",
+              "intensity": "多数动作RPE 7-8，保留1-3次余力"
+            },
+            "constraints": {
+              "avoid": [
+                "max_effort_when_fatigued"
+              ],
+              "requires": [
+                "gym"
+              ]
+            },
+            "version": "v1",
+            "match_score": 10
+          },
+          {
+            "template_id": "tpl_training_beginner_gym_3d_001",
+            "template_type": "training",
+            "goal": "general_fitness",
+            "level": "beginner",
+            "days_per_week": 3,
+            "equipment": [
+              "gym",
+              "machines",
+              "dumbbell"
+            ],
+            "template_json": {
+              "name": "3天新手全身训练模板",
+              "split": [
+                "全身A",
+                "休息",
+                "全身B",
+                "休息",
+                "全身A",
+                "休息",
+                "休息"
+              ],
+              "cardio": "训练后10-20分钟轻中等强度有氧",
+              "intensity": "先学习动作，RPE 6-7"
+            },
+            "constraints": {
+              "avoid": [
+                "max_effort"
+              ]
+            },
+            "version": "v1",
+            "match_score": 2
+          }
+        ]
+      },
+      "error": null
+    },
+    {
+      "node": "CoachLLM",
+      "event_id": "5ee289c0-055c-4cee-8870-c416dc2c4b98",
+      "request_id": "d52a5a6d-194a-447a-b350-4c11d532a275",
+      "status": "completed",
+      "latency_ms": 37571,
+      "timestamp_utc": "2026-05-25T11:35:00.295911",
+      "input_summary": {},
+      "output": {
+        "safety": false,
+        "live_model": true,
+        "response_chars": 1846
+      },
+      "error": null
+    },
+    {
+      "node": "ResponsePersisted",
+      "event_id": "fa52888e-e3bc-4703-82a1-4d92d089ab2c",
+      "request_id": "d52a5a6d-194a-447a-b350-4c11d532a275",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-25T11:35:00.301299",
+      "input_summary": {},
+      "output": {
+        "response_chars": 1846
+      },
+      "error": null
+    }
+  ]
+}

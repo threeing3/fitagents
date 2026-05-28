@@ -1,0 +1,140 @@
+AI Fitness Agent run: c5a4f5a0-fda1-4a17-9372-12593a7d1685
+request_id: fadf12ce-8d20-4e0b-80dd-dbb85b86be15
+run_type: chat
+user_id: 19b3e81b-fccc-4347-93e8-8d593ad71a39
+session_id: 515be1af-b1cc-4f6d-8a3d-53eb35bed26c
+status: completed
+
+Timeline
+- RequestReceived | completed | 0ms | 2026-05-28T09:06:26.266896
+  output: {"message_chars": 43, "provider": "deepseek", "chat_model": "deepseek-v4-pro", "embedding_mode": "offline_fallback"}
+- ProfileExtractorAgent | completed | 3ms | 2026-05-28T09:06:26.276645
+  input: {"message": "?21?,178cm,80kg,??????,??????,?????????????"}
+  output: {"profile_patch": {"height_cm": 178.0, "weight_kg": 80.0}, "corrections": [], "ignored_candidates": [], "model_patch": {}, "model_used": false}
+- MemoryAgent | completed | 0ms | 2026-05-28T09:06:26.276703
+  output: {"written": []}
+- IntentRouter | completed | 0ms | 2026-05-28T09:06:26.276739
+  output: {"onboarding_complete": false, "missing_slots": ["age", "goal", "experience_level", "equipment_available"]}
+- CoachLLM | completed | 8425ms | 2026-05-28T09:06:34.701755
+  output: {"mode": "onboarding", "live_model": true, "missing_slots": ["age", "goal", "experience_level", "equipment_available"]}
+- ResponsePersisted | completed | 0ms | 2026-05-28T09:06:34.705832
+  output: {"response_chars": 170}
+
+Full JSON
+{
+  "run_id": "c5a4f5a0-fda1-4a17-9372-12593a7d1685",
+  "request_id": "fadf12ce-8d20-4e0b-80dd-dbb85b86be15",
+  "run_type": "chat",
+  "user_id": "19b3e81b-fccc-4347-93e8-8d593ad71a39",
+  "session_id": "515be1af-b1cc-4f6d-8a3d-53eb35bed26c",
+  "status": "completed",
+  "started_at_utc": "2026-05-28T09:06:26.266750",
+  "completed_at_utc": "2026-05-28T09:06:34.727196",
+  "summary": "收到，178cm、80kg 的数据先记下了。要把你的训练和营养方向调准，我还需要几项关键信息：\n\n- **年龄**\n- **主要目标**（增肌、减脂、保持、提升体能等）\n- **训练经验**（完全新手、练过几个月、一年以上系统训练等）\n- **可用的器械**（徒手/家庭小器材、健身房、哑铃杠铃等）\n\n你可以一条条说，也可以直接一起告诉我。",
+  "error": null,
+  "nodes": [
+    {
+      "node": "RequestReceived",
+      "event_id": "afb85efc-e5ed-4b03-a175-b9faf4d44ae2",
+      "request_id": "fadf12ce-8d20-4e0b-80dd-dbb85b86be15",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-28T09:06:26.266896",
+      "input_summary": {},
+      "output": {
+        "message_chars": 43,
+        "provider": "deepseek",
+        "chat_model": "deepseek-v4-pro",
+        "embedding_mode": "offline_fallback"
+      },
+      "error": null
+    },
+    {
+      "node": "ProfileExtractorAgent",
+      "event_id": "021fe055-6869-4c93-98a8-3d027e9bb77e",
+      "request_id": "fadf12ce-8d20-4e0b-80dd-dbb85b86be15",
+      "status": "completed",
+      "latency_ms": 3,
+      "timestamp_utc": "2026-05-28T09:06:26.276645",
+      "input_summary": {
+        "message": "?21?,178cm,80kg,??????,??????,?????????????"
+      },
+      "output": {
+        "profile_patch": {
+          "height_cm": 178.0,
+          "weight_kg": 80.0
+        },
+        "corrections": [],
+        "ignored_candidates": [],
+        "model_patch": {},
+        "model_used": false
+      },
+      "error": null
+    },
+    {
+      "node": "MemoryAgent",
+      "event_id": "bfe69d14-f91b-4c42-9a4f-bf5013734321",
+      "request_id": "fadf12ce-8d20-4e0b-80dd-dbb85b86be15",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-28T09:06:26.276703",
+      "input_summary": {},
+      "output": {
+        "written": []
+      },
+      "error": null
+    },
+    {
+      "node": "IntentRouter",
+      "event_id": "d209c8ab-7390-440b-b7b9-8aa631b2c677",
+      "request_id": "fadf12ce-8d20-4e0b-80dd-dbb85b86be15",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-28T09:06:26.276739",
+      "input_summary": {},
+      "output": {
+        "onboarding_complete": false,
+        "missing_slots": [
+          "age",
+          "goal",
+          "experience_level",
+          "equipment_available"
+        ]
+      },
+      "error": null
+    },
+    {
+      "node": "CoachLLM",
+      "event_id": "f25db211-248b-452d-acf8-b335b0928c38",
+      "request_id": "fadf12ce-8d20-4e0b-80dd-dbb85b86be15",
+      "status": "completed",
+      "latency_ms": 8425,
+      "timestamp_utc": "2026-05-28T09:06:34.701755",
+      "input_summary": {},
+      "output": {
+        "mode": "onboarding",
+        "live_model": true,
+        "missing_slots": [
+          "age",
+          "goal",
+          "experience_level",
+          "equipment_available"
+        ]
+      },
+      "error": null
+    },
+    {
+      "node": "ResponsePersisted",
+      "event_id": "2c6dabab-003f-4635-8beb-fbe777ced4f2",
+      "request_id": "fadf12ce-8d20-4e0b-80dd-dbb85b86be15",
+      "status": "completed",
+      "latency_ms": 0,
+      "timestamp_utc": "2026-05-28T09:06:34.705832",
+      "input_summary": {},
+      "output": {
+        "response_chars": 170
+      },
+      "error": null
+    }
+  ]
+}

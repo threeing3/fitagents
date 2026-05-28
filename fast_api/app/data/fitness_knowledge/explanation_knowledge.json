@@ -1,0 +1,254 @@
+[
+  {
+    "knowledge_id": "exp_fat_loss_protein_001",
+    "topic": "fat_loss_protein",
+    "content": "减脂期提高蛋白质摄入通常有三个作用：帮助保留瘦体重，提高饱腹感，并让力量训练后的恢复更稳定。普通健身用户可以用体重每公斤约1.6-2.2g蛋白质作为起点，再根据消化、预算和训练量调整。",
+    "tags": ["fat_loss", "protein", "nutrition"],
+    "source": "internal_seed_v1",
+    "safety_level": "general"
+  },
+  {
+    "knowledge_id": "exp_progressive_overload_001",
+    "topic": "progressive_overload",
+    "content": "渐进超负荷不是每次都强行加重量，而是在动作质量稳定、目标次数完成、RPE可控、恢复良好的情况下，逐步增加重量、次数、组数或动作难度。疲劳高或睡眠差时，维持重量甚至降量通常更合理。",
+    "tags": ["training", "progression", "rpe"],
+    "source": "internal_seed_v1",
+    "safety_level": "general"
+  },
+  {
+    "knowledge_id": "exp_hyperthyroid_training_boundary_001",
+    "topic": "hyperthyroid_training_boundary",
+    "content": "有甲亢、甲状腺功能异常、正在服药或存在心率异常风险时，健身建议应偏保守：避免突然高强度冲刺、极限重量和长时间高心率训练。若出现胸闷、头晕、心悸、明显乏力等症状，应停止训练并按医生建议处理。",
+    "tags": ["medical_context", "hyperthyroidism", "safety", "training"],
+    "source": "internal_seed_v1",
+    "safety_level": "medical_boundary"
+  },
+
+  {
+    "knowledge_id": "exp_macronutrients_carbs_role_001",
+    "topic": "carbohydrates_role",
+    "content": "碳水化合物是力量训练和高强度运动的主要燃料。在训练前摄入碳水可提升训练表现，训练后摄入有助于补充肌糖原和促进恢复。减脂期不应完全断碳——低碳水可能导致训练质量下降、恢复变慢和激素紊乱。建议根据训练强度调整每日碳水：训练强度高或频率高时保持中等碳水(3-4g/kg)，减脂期可适当降低至2-3g/kg但不应低于1.5g/kg。",
+    "tags": ["nutrition", "carbohydrates", "performance", "fat_loss"],
+    "source": "internal_seed_v2",
+    "safety_level": "general"
+  },
+  {
+    "knowledge_id": "exp_macronutrients_fats_role_001",
+    "topic": "dietary_fats_role",
+    "content": "膳食脂肪对激素健康至关重要，尤其是睾酮等合成代谢激素的正常分泌需要足够的脂肪摄入。建议每日脂肪摄入不低于0.8g/kg体重，优先选择不饱和脂肪（橄榄油、坚果、牛油果、鱼油）。完全没有脂肪或脂肪极低的饮食可能导致激素紊乱、关节问题和训练恢复困难。减脂期脂肪摄入的下限约为0.6g/kg体重。",
+    "tags": ["nutrition", "fats", "hormones", "health"],
+    "source": "internal_seed_v2",
+    "safety_level": "general"
+  },
+  {
+    "knowledge_id": "exp_training_volume_landmarks_001",
+    "topic": "training_volume_guidelines",
+    "content": "训练量的控制是长期进步的关键。一般性指引：每块肌群每周10-20组是多数人的有效增肌区间（新手可低至6-10组），超过20组/周/肌群的边际收益递减且恢复压力加大。单次训练中，每块肌群超过8-10组后，后续组数的刺激效率明显下降。容量应根据恢复能力、睡眠质量、生活压力动态调整——不是越多越好。",
+    "tags": ["training", "volume", "hypertrophy", "programming"],
+    "source": "internal_seed_v2",
+    "safety_level": "general"
+  },
+  {
+    "knowledge_id": "exp_training_frequency_per_week_001",
+    "topic": "training_frequency",
+    "content": "每周训练同一肌群2次通常比1次更有利于增肌和力量增长，因为可以更好地分配训练量并保持蛋白质合成信号。但频率不是越高越好：3次/周/肌群在总训练量相同的情况下与2次差异不大，但恢复压力增加。新手可以从每周3次全身训练开始，中阶训练者适合上下肢分化或推拉腿每周各肌群2次，进阶训练者可根据弱项调整频率。",
+    "tags": ["training", "frequency", "programming", "hypertrophy"],
+    "source": "internal_seed_v2",
+    "safety_level": "general"
+  },
+  {
+    "knowledge_id": "exp_training_intensity_rpe_guide_001",
+    "topic": "rpe_and_intensity",
+    "content": "RPE（自觉运动强度）是管理训练负荷的有效工具。RPE 6：可轻松完成4-6次以上；RPE 7：可再做3次；RPE 8：可再做2次；RPE 9：可再做1次；RPE 10：完全力竭无法再做。增肌训练多数组应在RPE 7-9之间（保留1-3次余力），这样既能提供足够刺激又不会过度消耗恢复能力。频繁做到RPE 10会显著增加疲劳积累和受伤风险。",
+    "tags": ["training", "rpe", "intensity", "programming"],
+    "source": "internal_seed_v2",
+    "safety_level": "general"
+  },
+
+  {
+    "knowledge_id": "exp_recovery_sleep_science_001",
+    "topic": "sleep_and_recovery",
+    "content": "睡眠是训练恢复中最重要的单一因素。深度睡眠阶段（慢波睡眠）是生长激素分泌的高峰期，对肌肉修复和力量增长至关重要。大多数训练者需要7-9小时高质量睡眠。睡眠不足6小时超过3天会显著影响：力量输出下降5-15%、蛋白质合成效率降低、皮质醇升高、受伤风险增加。改善睡眠的策略包括：固定作息时间、睡前减少蓝光、卧室温度控制在18-22°C、避免睡前3小时内大量进食和剧烈运动。",
+    "tags": ["recovery", "sleep", "hormones", "performance"],
+    "source": "internal_seed_v2",
+    "safety_level": "general"
+  },
+  {
+    "knowledge_id": "exp_recovery_deload_science_001",
+    "topic": "deload_and_taper",
+    "content": "减载周（deload week）是主动安排的训练量或强度降低期，目的是让身体从连续训练积累的疲劳中恢复。研究表明每4-8周安排一次减载周可以有效预防过训练并提升长期进步速度。减载方案可以是：保持动作但容量降至50-60%、保持容量但强度降至RPE 6、或完全更换训练模式（如改为一周瑜伽和轻度有氧）。减载周后通常会出现超量恢复，训练表现可能不降反升。",
+    "tags": ["training", "deload", "recovery", "programming"],
+    "source": "internal_seed_v2",
+    "safety_level": "general"
+  },
+  {
+    "knowledge_id": "exp_recovery_active_vs_passive_001",
+    "topic": "active_recovery",
+    "content": "主动恢复（低强度活动如散步、拉伸、泡沫轴）通常优于完全静息，因为它促进血液循环、帮助清除代谢废物、减少延迟性肌肉酸痛。散步（心率在zone 1-2，可以轻松对话）是最被低估的恢复工具——每天30-60分钟步行可以显著改善恢复质量而不产生额外训练压力。但注意：高强度有氧或长时间中等强度有氧不算主动恢复，它们会产生额外的训练压力。",
+    "tags": ["recovery", "active_recovery", "cardio"],
+    "source": "internal_seed_v2",
+    "safety_level": "general"
+  },
+
+  {
+    "knowledge_id": "exp_hypertrophy_mechanisms_001",
+    "topic": "muscle_growth_mechanisms",
+    "content": "肌肉增长的三个主要机制：1）机械张力——通过足够的负荷在肌肉上产生张力，这是最主要的增肌驱动因素，复合动作如深蹲、卧推、硬拉和划船是产生高机械张力的高效方式；2）代谢压力——训练时肌肉内代谢产物（乳酸、氢离子等）积累产生的细胞肿胀信号，通过中高次数(8-15次)、适中休息时间(60-90秒)的训练可以最大化；3）肌肉损伤——训练造成的肌纤维微损伤及其修复过程，通过控制离心阶段（慢放）和全幅度动作可增强。有效的增肌计划应兼顾这三种机制。",
+    "tags": ["hypertrophy", "muscle_growth", "training_science"],
+    "source": "internal_seed_v2",
+    "safety_level": "general"
+  },
+  {
+    "knowledge_id": "exp_hypertrophy_rep_ranges_001",
+    "topic": "rep_ranges_for_hypertrophy",
+    "content": "增肌的有效次数范围比传统认为的更宽：研究显示5-30次都可以有效刺激肌肉增长，只要每组做到接近力竭（RIR 0-3）。但不同次数范围各有侧重：低次数(3-6次)更侧重力量适应和神经适应，适合复合动作；中等次数(6-12次)在机械张力和代谢压力间取得平衡，是增肌的黄金区间；高次数(12-20次)产生更多代谢压力和泵感，适合孤立动作和关节友好的训练。一个好的增肌计划应混合使用不同次数区间。",
+    "tags": ["hypertrophy", "rep_ranges", "programming"],
+    "source": "internal_seed_v2",
+    "safety_level": "general"
+  },
+  {
+    "knowledge_id": "exp_hypertrophy_rest_periods_001",
+    "topic": "rest_periods",
+    "content": "组间休息时间应根据训练目标调整：力量训练（大重量低次数）建议休息2-5分钟，确保ATP-CP系统充分恢复；肌肥大训练建议休息1-3分钟，复合动作偏长(2-3分钟)以保持动作质量，孤立动作可较短(60-90秒)以维持代谢压力；肌耐力训练建议休息30-60秒。休息不足导致下一组表现明显下降时，刺激性降低且受伤风险增加——宁可多休息30秒也不要牺牲下一组质量。",
+    "tags": ["training", "rest_periods", "programming"],
+    "source": "internal_seed_v2",
+    "safety_level": "general"
+  },
+
+  {
+    "knowledge_id": "exp_energy_balance_metabolism_001",
+    "topic": "energy_balance_and_metabolism",
+    "content": "能量平衡是体重管理的核心：热量摄入 > 消耗 = 增重，摄入 < 消耗 = 减重。但实际操作中需要注意：1）TDEE（每日总热量消耗）由基础代谢率(60-70%)、食物热效应(10%)和身体活动(20-30%)组成；2）身体会适应性调整代谢——长期热量赤字下NEAT（非运动活动消耗）会无意识降低，这是减脂平台期的常见原因；3）大幅热量赤字（>500千卡/天）虽然减重快，但更容易导致肌肉流失、代谢适应和反弹。可持续的减脂速度是每周0.5-1%体重。",
+    "tags": ["nutrition", "energy_balance", "fat_loss", "metabolism"],
+    "source": "internal_seed_v2",
+    "safety_level": "general"
+  },
+  {
+    "knowledge_id": "exp_metabolic_adaptation_001",
+    "topic": "metabolic_adaptation",
+    "content": "长期热量赤字会导致代谢适应：身体通过降低基础代谢率、减少NEAT（下意识减少日常活动，如少抖腿、少走动）、提高能量利用效率来抵抗体重下降。这被称为适应性产热，是减脂平台期的主要原因之一。应对策略包括：1）每8-12周安排1-2周的维持热量期（饮食休息）；2）刻意保持每日步数8000+；3）优先保证蛋白质摄入以减少肌肉流失；4）不要一次性把热量降得太低，建议每次调整100-200千卡。",
+    "tags": ["nutrition", "metabolism", "fat_loss", "plateau"],
+    "source": "internal_seed_v2",
+    "safety_level": "general"
+  },
+
+  {
+    "knowledge_id": "exp_cardio_types_and_effects_001",
+    "topic": "cardio_types_liss_vs_hiit",
+    "content": "不同有氧类型各有用途。LISS（低强度稳态有氧，心率zone 2）：燃脂效率高、恢复快、不影响力量训练、适合每天进行，每次30-60分钟。HIIT（高强度间歇训练）：耗时短、EPOC（运动后过量氧耗）高、提升心肺能力快，但恢复需求大、对力量训练有干扰效应，每周1-3次、每次15-25分钟为宜。减脂期建议以LISS为主（增加消耗而不增加恢复负担），HIIT作为补充。增肌期有氧以维持心肺健康为目标，每周1-3次LISS 20-30分钟即可。",
+    "tags": ["cardio", "hiit", "liss", "fat_loss", "programming"],
+    "source": "internal_seed_v2",
+    "safety_level": "general"
+  },
+  {
+    "knowledge_id": "exp_cardio_interference_effect_001",
+    "topic": "cardio_interference_with_strength",
+    "content": "干扰效应是指过多的有氧训练可能削弱力量和肌肉增长。主要机制：1）同时进行大量有氧和力量训练时，分子信号通路互斥（AMPK vs mTOR）；2）有氧产生的额外疲劳可能降低力量训练质量；3）热量分配分散。减轻干扰的策略：将有氧和力量训练分开至少6小时以上；力量训练优先于有氧（先力量后有氧）；增肌期有氧量控制在每周不超过3次、每次不超过30分钟中等强度；确保总热量和蛋白质足够支持两种训练的恢复。",
+    "tags": ["cardio", "strength_training", "programming", "hypertrophy"],
+    "source": "internal_seed_v2",
+    "safety_level": "general"
+  },
+
+  {
+    "knowledge_id": "exp_supplements_evidence_based_001",
+    "topic": "evidence_based_supplements",
+    "content": "有充分科学证据支持的补充剂只有少数几种：1）肌酸（Creatine Monohydrate）——提升力量和肌肉量，每日3-5g，是最安全有效且便宜的补充剂；2）蛋白质粉——方便达到每日蛋白质目标，不是必需品但实用；3）咖啡因——训练前30-60分钟摄入3-6mg/kg可提升力量和耐力表现；4）维生素D——缺乏者补充有益骨质和免疫，非缺乏者证据不足。市面上大多数补充剂（BCAA、燃脂剂、睾酮助推器等）缺乏足够科学支持。补充剂不能替代均衡饮食和训练——它们是锦上添花，不是基础。",
+    "tags": ["supplements", "nutrition", "evidence_based"],
+    "source": "internal_seed_v2",
+    "safety_level": "general"
+  },
+  {
+    "knowledge_id": "exp_mobility_flexibility_training_001",
+    "topic": "mobility_and_flexibility",
+    "content": "灵活性（肌肉延展性）和活动度（关节在全程范围内的主动控制能力）对训练安全和动作质量至关重要。关键区别：被动拉伸改善灵活性，主动活动度训练（如控制性关节旋转、负重全幅度训练）改善活动度。日常建议：训练前做动态拉伸和动作模式激活（5-10分钟），训练后用全幅度力量训练本身维持活动度（全程深蹲就是对深蹲活动度最好的训练），休息日可加入10-15分钟针对性的活动度练习。静态拉伸适合训练后或单独进行，训练前大量静态拉伸可能暂时降低力量输出。",
+    "tags": ["mobility", "flexibility", "warmup", "injury_prevention"],
+    "source": "internal_seed_v2",
+    "safety_level": "general"
+  },
+
+  {
+    "knowledge_id": "exp_mind_muscle_connection_001",
+    "topic": "mind_muscle_connection",
+    "content": "念动一致（注意力集中在目标肌肉的收缩感上）在高次数孤立动作中的增肌效果优于只关注移动重量。研究表明在侧平举、二头弯举、腿屈伸等孤立动作中，有意专注于目标肌肉的收缩可以增加肌电活动10-20%。但在大重量复合动作（深蹲、硬拉）中，注意力应放在动作模式和发力效率上，而非刻意感受某块肌肉。实用建议：孤立动作和辅助动作中尝试建立念动一致，复合动作中专注于技术执行。",
+    "tags": ["hypertrophy", "technique", "mind_muscle_connection"],
+    "source": "internal_seed_v2",
+    "safety_level": "general"
+  },
+  {
+    "knowledge_id": "exp_periodization_concepts_001",
+    "topic": "periodization",
+    "content": "周期化是将训练分为不同阶段，每个阶段有不同的训练重点，以避免平台期并优化长期表现。线性周期化：从高容量低强度逐步过渡到低容量高强度（适合新手）。波动周期化：在一周或一个微周期内交替不同强度和容量（如力量日-肌肥大日-力量耐力日）。板块周期化：将训练年分为积累、转化、实现等板块（适合进阶训练者）。对于大多数健身用户，最简单的周期化就是每4-8周改变一个训练变量：次数范围、动作选择、训练频率或休息时间。不需要过度复杂化——在基础动作上渐进超负荷就能推动长期进步。",
+    "tags": ["training", "periodization", "programming", "progression"],
+    "source": "internal_seed_v2",
+    "safety_level": "general"
+  },
+
+  {
+    "knowledge_id": "exp_warmup_science_001",
+    "topic": "warmup_importance",
+    "content": "充分热身通过以下机制降低受伤风险并提升表现：1）提高核心温度和肌肉温度，使肌纤维收缩更高效；2）增加关节滑液分泌，减少关节摩擦；3）激活神经肌肉系统，提高动作协调性和反应速度；4）心理准备，帮助进入训练状态。有效热身的结构：3-5分钟低强度有氧→动态拉伸和关节活动（5-8个动作）→动作模式激活（无负重或轻负重练习今天的主项动作模式）→递增热身组（从空杠开始，逐步加重至训练重量，每组做2-5次）。整个过程10-15分钟，寒冷环境下适当延长。",
+    "tags": ["warmup", "injury_prevention", "performance"],
+    "source": "internal_seed_v2",
+    "safety_level": "general"
+  },
+  {
+    "knowledge_id": "exp_hydration_performance_001",
+    "topic": "hydration_and_exercise",
+    "content": "脱水程度对训练表现的量化影响：体重1-2%的水分流失就会导致力量输出下降5-10%和耐力表现下降；3%以上可能导致明显的运动表现受损和热相关疾病风险。训练期间补水指南：训练前2-3小时饮水500-600ml，训练中每15-20分钟饮水150-250ml，训练后补充体重差x1.5的水分量（即每减少1kg体重补充1.5L水）。普通健身者不需要运动饮料——白水即可满足需求。训练超过90分钟或高温大量出汗时可考虑含电解质的饮品。",
+    "tags": ["hydration", "performance", "safety"],
+    "source": "internal_seed_v2",
+    "safety_level": "general"
+  },
+
+  {
+    "knowledge_id": "exp_female_training_cycle_001",
+    "topic": "menstrual_cycle_and_training",
+    "content": "月经周期对训练表现和恢复的影响因人而异，但存在一般规律。卵泡期（经期结束至排卵前，约第5-14天）：雌激素较高有利于肌肉恢复和力量输出，是进行高强度训练和尝试新PR的好时机。排卵期（约第14-16天）：力量峰值可能出现在此期附近，但部分人可能因排卵痛而不适。黄体期（排卵后至经期前，约第15-28天）：孕酮升高可能导致核心温度升高0.3-0.5°C、疲劳感增强和运动耐力下降——此时适当降低训练强度（降1个RPE）不是退步，是合理的周期调整。经期（第1-5天）：因人而异，部分人完全不受影响，部分人需要降低强度或休息。关键是记录自身规律、灵活调整，不将生理周期波动误认为退步。",
+    "tags": ["female_physiology", "menstrual_cycle", "training", "programming"],
+    "source": "internal_seed_v2",
+    "safety_level": "general"
+  },
+  {
+    "knowledge_id": "exp_female_fat_loss_considerations_001",
+    "topic": "female_fat_loss_specifics",
+    "content": "女性减脂时一些常见误区需要澄清：1）力量训练不会让女性变壮——女性睾酮水平仅为男性的1/10-1/15，增肌困难得多，力量训练带来的是塑形和紧致而非大块肌肉；2）不应吃太低热量：低于BMR（基础代谢率）的热量摄入可能导致月经紊乱（功能性下丘脑性闭经）、骨密度下降和代谢损伤；3）女性在黄体期食欲可能自然增加，适度满足而非完全压制更可持续；4）女性天生体脂率高于男性（健康范围女性21-32% vs 男性8-19%），因而不应以男性体脂标准要求自己。",
+    "tags": ["female_physiology", "fat_loss", "nutrition", "strength_training"],
+    "source": "internal_seed_v2",
+    "safety_level": "general"
+  },
+
+  {
+    "knowledge_id": "exp_age_related_training_001",
+    "topic": "training_over_45",
+    "content": "45岁以上训练者仍然可以取得显著的肌肉和力量增长——年龄本身不是限制，但训练策略需要微调。关键调整包括：1）热身时间延长至10-15分钟，因为结缔组织和关节需要更长时间适应负荷；2）恢复时间延长：每块肌群每周训练1-2次可能优于3次以上，组间休息延长至2-3分钟；3）加入关节预康复训练：面拉、弹力带外旋、臀中肌训练等保护肩膝髋关节；4）渐进节奏放慢：每2-3周小步加重而非每周尝试突破；5）关注骨密度：力量训练是对抗骨质疏松的最有效手段之一，尤其女性。研究显示60-70岁仍可通过力量训练增加肌肉量和力量，关键是用适合的训练策略而非年轻人的方案。",
+    "tags": ["aging", "masters_training", "safety", "programming"],
+    "source": "internal_seed_v2",
+    "safety_level": "general"
+  },
+
+  {
+    "knowledge_id": "exp_beginner_adaptation_phase_001",
+    "topic": "beginner_adaptation",
+    "content": "训练新手的前6-12个月是神经适应期：力量增长主要来自神经系统的效率提升（更好的运动单位募集和协调性），而非肌肉量的大幅增长。这意味着：1）新手期进步很快是正常的——神经适应速度远超肌肉增长速度；2）不要急于模仿进阶训练者的分化方案——每周3次全身训练对新手最有效；3）不要频繁更换动作——动作模式需要通过大量重复来巩固，频繁换动作会干扰神经适应；4）酸痛（DOMS）不等于有效的训练——新手期酸痛可能很强烈，但不应用酸痛程度来衡量训练质量。耐心打好基础比急于求成更重要。",
+    "tags": ["beginner", "adaptation", "programming", "neural"],
+    "source": "internal_seed_v2",
+    "safety_level": "general"
+  },
+  {
+    "knowledge_id": "exp_injury_return_to_training_001",
+    "topic": "return_to_training_after_injury",
+    "content": "伤病后重返训练的原则：1）无痛范围训练是底线——任何引起疼痛（非训练酸痛）的动作应立即停止或调整；2）从低容量低强度重新建立基础——从原重量的40-50%、原容量的50%开始，每1-2周逐步提升；3）利用伤病恢复期改善弱项：如果下肢受伤，可以专注上肢训练和核心稳定；4）重建期比预期更长要有心理准备——通常需要受伤时长的1-2倍才能完全恢复到原有水平；5）不要急于回到伤前重量——重建动作质量和技术比恢复重量更重要。最重要的是在医生理疗师指导下进行。",
+    "tags": ["injury", "recovery", "rehabilitation", "safety"],
+    "source": "internal_seed_v2",
+    "safety_level": "caution"
+  },
+
+  {
+    "knowledge_id": "exp_core_training_basics_001",
+    "topic": "core_training_fundamentals",
+    "content": "核心训练不只是仰卧起坐。核心肌群的主要功能是抗动——在四肢运动时保持脊柱和骨盆稳定，而非反复弯曲脊柱。高效的核心训练包括：1）抗伸展（如平板支撑、健腹轮推出）——防止腰椎过度伸展；2）抗旋转（如Pallof推、单侧农夫行走）——防止躯干旋转；3）抗侧屈（如侧平板、单侧负重行走）——防止躯干侧向偏移。每天做几百个卷腹不仅效率低，还可能加重腰椎问题。将核心稳定训练融入热身（5-8分钟）和训练日的最后部分即可，不需要单独的核心训练日。",
+    "tags": ["core", "stability", "injury_prevention", "technique"],
+    "source": "internal_seed_v2",
+    "safety_level": "general"
+  }
+]
