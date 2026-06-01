@@ -36,6 +36,15 @@ class ChatSessionResponse(BaseModel):
     created_at: datetime
 
 
+class ChatHistoryMessageResponse(BaseModel):
+    id: UUID
+    session_id: UUID
+    user_id: UUID
+    role: str
+    content: str
+    created_at: datetime
+
+
 class ChatMessageRequest(BaseModel):
     session_id: UUID
     user_id: UUID | None = None

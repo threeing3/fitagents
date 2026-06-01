@@ -5,8 +5,6 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile
 from fastapi.responses import JSONResponse
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
@@ -17,7 +15,6 @@ from fast_api.app.services.model_provider import ModelProvider
 from fast_api.app.services.nutrition_service import NutritionService
 
 nutrition_router = APIRouter(prefix="/v1/nutrition", tags=["nutrition"])
-limiter = Limiter(key_func=get_remote_address)
 
 
 def get_nutrition_service(
@@ -30,7 +27,6 @@ def get_nutrition_service(
 # ---- Analyze food photo ----
 
 @nutrition_router.post("/recognize")
-@limiter.limit("10/minute")
 async def recognize_food_photo(
     image: UploadFile,
     request: Request,
@@ -71,7 +67,6 @@ async def recognize_food_photo(
 # ---- Save meal from analysis ----
 
 @nutrition_router.post("/meals/save")
-@limiter.limit("20/minute")
 def save_meal_from_analysis(
     analysis: dict[str, Any],
     request: Request,

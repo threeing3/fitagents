@@ -5,6 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
+from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
 from fast_api.app.core.auth import get_current_user
@@ -12,6 +13,7 @@ from fast_api.app.db import models
 from fast_api.app.db.database import get_db
 from fast_api.app.schemas.agent import (
     AgentRunResponse,
+    ChatHistoryMessageResponse,
     ChatMessageRequest,
     ChatMessageResponse,
     ChatSessionCreate,
@@ -53,6 +55,69 @@ def create_chat_session(
         title=session.title,
         created_at=session.created_at,
     )
+
+
+@coach_router.get("/chat/sessions", response_model=list[ChatSessionResponse])
+def list_chat_sessions(
+    limit: int = 20,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    sessions = db.scalars(
+        select(models.ConversationSession)
+        .where(models.ConversationSession.user_id == current_user.id)
+        .order_by(desc(models.ConversationSession.updated_at), desc(models.ConversationSession.created_at))
+        .limit(max(1, min(limit, 100)))
+    ).all()
+    return [
+        ChatSessionResponse(
+            session_id=session.id,
+            user_id=session.user_id,
+            title=session.title,
+            created_at=session.created_at,
+        )
+        for session in sessions
+    ]
+
+
+@coach_router.get(
+    "/chat/sessions/{session_id}/messages",
+    response_model=list[ChatHistoryMessageResponse],
+)
+def list_chat_messages(
+    session_id: UUID,
+    limit: int = 200,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    session = db.get(models.ConversationSession, session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Conversation session not found.")
+    if session.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Cannot access another user's chat history.")
+
+    capped_limit = max(1, min(limit, 500))
+    messages = list(
+        db.scalars(
+            select(models.ChatMessage)
+            .where(models.ChatMessage.session_id == session_id)
+            .order_by(desc(models.ChatMessage.created_at))
+            .limit(capped_limit)
+        )
+    )
+    messages.reverse()
+    return [
+        ChatHistoryMessageResponse(
+            id=message.id,
+            session_id=message.session_id,
+            user_id=message.user_id,
+            role=message.role,
+            content=message.content,
+            created_at=message.created_at,
+        )
+        for message in messages
+        if message.role in {"user", "assistant"}
+    ]
 
 
 @coach_router.post("/chat/messages", response_model=ChatMessageResponse)
@@ -178,9 +243,12 @@ def agent_run_detail(
     current_user: models.User = Depends(get_current_user),
 ):
     try:
-        return service.agent_run(run_id)
+        detail = service.agent_run(run_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    if detail["user_id"] != current_user.id:
+        raise HTTPException(status_code=403, detail="Cannot access another user's agent run.")
+    return detail
 
 
 @coach_router.post("/evals/run", response_model=EvalRunResponse)

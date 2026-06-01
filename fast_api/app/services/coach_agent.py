@@ -154,9 +154,27 @@ class CoachAgentService:
                 )
             )
         else:
+            node_start = time.perf_counter()
+            context_packet = ContextBuilder(self.db, self.model_provider).build_context_packet(user.id, message)
+            nodes.append(run_logger.node("ContextBuilder", node_start, context_packet))
+
             active_plan = self.get_active_plan(user.id)
-            if active_plan is None:
+            should_generate_plan = self._should_generate_plan_for_context(context_packet)
+            plan_decision = {
+                "intent": context_packet.get("intent"),
+                "active_plan_exists": active_plan is not None,
+                "should_generate_plan": should_generate_plan,
+                "reason": (
+                    "current_message_explicitly_requests_plan"
+                    if should_generate_plan
+                    else "current_message_does_not_request_plan"
+                ),
+            }
+            nodes.append(run_logger.event("CurrentRequestPolicy", context_packet.get("current_request_policy", {})))
+            nodes.append(run_logger.event("PlanGenerationDecision", plan_decision))
+            if active_plan is None and should_generate_plan:
                 plan_result = self.generate_plan(PlanGenerateRequest(user_id=user.id))
+                context_packet["active_plan"] = self._plan_context_payload(plan_result)
                 state_updates["generated_plan_id"] = str(plan_result.id)
                 tool_calls.append(
                     {
@@ -165,9 +183,6 @@ class CoachAgentService:
                         "output": {"plan_id": str(plan_result.id)},
                     }
                 )
-            node_start = time.perf_counter()
-            context_packet = ContextBuilder(self.db, self.model_provider).build_context_packet(user.id, message)
-            nodes.append(run_logger.node("ContextBuilder", node_start, context_packet))
             knowledge_context = context_packet.get("knowledge_context") or {}
             nodes.append(run_logger.event("KnowledgeRetrieval", knowledge_context.get("debug", {})))
             nodes.append(
@@ -344,9 +359,27 @@ class CoachAgentService:
                     )
                 )
             else:
+                node_start = time.perf_counter()
+                context_packet = ContextBuilder(self.db, self.model_provider).build_context_packet(user.id, message)
+                nodes.append(run_logger.node("ContextBuilder", node_start, context_packet))
+
                 active_plan = self.get_active_plan(user.id)
-                if active_plan is None:
+                should_generate_plan = self._should_generate_plan_for_context(context_packet)
+                plan_decision = {
+                    "intent": context_packet.get("intent"),
+                    "active_plan_exists": active_plan is not None,
+                    "should_generate_plan": should_generate_plan,
+                    "reason": (
+                        "current_message_explicitly_requests_plan"
+                        if should_generate_plan
+                        else "current_message_does_not_request_plan"
+                    ),
+                }
+                nodes.append(run_logger.event("CurrentRequestPolicy", context_packet.get("current_request_policy", {})))
+                nodes.append(run_logger.event("PlanGenerationDecision", plan_decision))
+                if active_plan is None and should_generate_plan:
                     plan_result = self.generate_plan(PlanGenerateRequest(user_id=user.id))
+                    context_packet["active_plan"] = self._plan_context_payload(plan_result)
                     state_updates["generated_plan_id"] = str(plan_result.id)
                     tool_calls.append(
                         {
@@ -355,9 +388,6 @@ class CoachAgentService:
                             "output": {"plan_id": str(plan_result.id)},
                         }
                     )
-                node_start = time.perf_counter()
-                context_packet = ContextBuilder(self.db, self.model_provider).build_context_packet(user.id, message)
-                nodes.append(run_logger.node("ContextBuilder", node_start, context_packet))
                 knowledge_context = context_packet.get("knowledge_context") or {}
                 nodes.append(run_logger.event("KnowledgeRetrieval", knowledge_context.get("debug", {})))
                 nodes.append(
@@ -591,10 +621,37 @@ class CoachAgentService:
                 nodes.append(node)
                 yield step_event("CoachLLM", node, coach_payload)
             else:
+                node_start = time.perf_counter()
+                yield event("status", text="正在判断当前请求意图并构建上下文包")
+                context_packet = ContextBuilder(self.db, self.model_provider).build_context_packet(user.id, message)
+                node = run_logger.node("ContextBuilder", node_start, context_packet)
+                nodes.append(node)
+                yield step_event("ContextBuilder", node, context_packet)
+
                 active_plan = self.get_active_plan(user.id)
-                if active_plan is None:
-                    yield event("status", text="没有活跃计划，正在生成第一版训练计划")
+                should_generate_plan = self._should_generate_plan_for_context(context_packet)
+                plan_decision = {
+                    "intent": context_packet.get("intent"),
+                    "active_plan_exists": active_plan is not None,
+                    "should_generate_plan": should_generate_plan,
+                    "reason": (
+                        "current_message_explicitly_requests_plan"
+                        if should_generate_plan
+                        else "current_message_does_not_request_plan"
+                    ),
+                }
+                policy_payload = context_packet.get("current_request_policy", {})
+                policy_node = run_logger.event("CurrentRequestPolicy", policy_payload)
+                nodes.append(policy_node)
+                yield step_event("CurrentRequestPolicy", policy_node, policy_payload)
+                plan_node = run_logger.event("PlanGenerationDecision", plan_decision)
+                nodes.append(plan_node)
+                yield step_event("PlanGenerationDecision", plan_node, plan_decision)
+
+                if active_plan is None and should_generate_plan:
+                    yield event("status", text="当前消息明确请求计划，正在生成第一版训练计划")
                     plan_result = self.generate_plan(PlanGenerateRequest(user_id=user.id))
+                    context_packet["active_plan"] = self._plan_context_payload(plan_result)
                     state_updates["generated_plan_id"] = str(plan_result.id)
                     tool_call = {
                         "tool_name": "generate_training_plan",
@@ -609,13 +666,6 @@ class CoachAgentService:
                         summary=f"生成训练计划 {plan_result.id}",
                         metadata=tool_call["output"],
                     )
-
-                node_start = time.perf_counter()
-                yield event("status", text="正在构建上下文包：档案、长期记忆、知识和规则")
-                context_packet = ContextBuilder(self.db, self.model_provider).build_context_packet(user.id, message)
-                node = run_logger.node("ContextBuilder", node_start, context_packet)
-                nodes.append(node)
-                yield step_event("ContextBuilder", node, context_packet)
 
                 knowledge_context = context_packet.get("knowledge_context") or {}
                 knowledge_payload = knowledge_context.get("debug", {})
@@ -1325,6 +1375,25 @@ class CoachAgentService:
             .order_by(desc(models.TrainingPlan.created_at))
         )
 
+    def _should_generate_plan_for_context(self, context_packet: dict[str, Any]) -> bool:
+        policy = context_packet.get("current_request_policy") or {}
+        return bool(policy.get("should_generate_plan"))
+
+    def _allow_plan_content_for_context(self, context_packet: dict[str, Any] | None) -> bool:
+        if not context_packet:
+            return True
+        policy = context_packet.get("current_request_policy") or {}
+        return bool(policy.get("allow_plan_content"))
+
+    def _plan_context_payload(self, plan: models.TrainingPlan) -> dict[str, Any]:
+        return {
+            "id": str(plan.id),
+            "status": plan.status,
+            "week_start": plan.week_start.isoformat() if plan.week_start else None,
+            "plan": plan.plan_json,
+            "rationale": plan.rationale,
+        }
+
     def _active_plans(self, user_id: uuid.UUID) -> list[models.TrainingPlan]:
         return list(
             self.db.scalars(
@@ -1531,13 +1600,19 @@ class CoachAgentService:
         role: str,
         content: str,
     ) -> models.ChatMessage:
+        saved_at = datetime.utcnow()
         msg = models.ChatMessage(
             session_id=session_id,
             user_id=user_id,
             role=role,
             content=content,
+            created_at=saved_at,
+            updated_at=saved_at,
         )
         self.db.add(msg)
+        session = self.db.get(models.ConversationSession, session_id)
+        if session is not None:
+            session.updated_at = saved_at
         self.db.flush()
         return msg
 
@@ -2334,7 +2409,8 @@ class CoachAgentService:
         plan = self.get_active_plan(user_id)
         context_packet = context_packet or ContextBuilder(self.db, self.model_provider).build_context_packet(user_id, message)
         today_plan = None
-        if plan and isinstance(plan.plan_json, dict):
+        allow_plan_content = self._allow_plan_content_for_context(context_packet)
+        if allow_plan_content and plan and isinstance(plan.plan_json, dict):
             training_days = plan.plan_json.get("training_days") or []
             if training_days:
                 today_plan = training_days[0]
@@ -2345,9 +2421,15 @@ class CoachAgentService:
                 "canonical_profile": self._profile_payload(profile),
                 "today_plan": today_plan,
                 "context_packet": context_packet,
+                "current_request_policy": context_packet.get("current_request_policy", {}),
                 "memory_policy": (
                     "Use the context_packet as the only retrieved memory context. "
-                    "Do not request or assume full history. Prioritize active_risk_notes."
+                    "Do not request or assume full history. Prioritize active_risk_notes. "
+                    "Treat previous user commands as completed or historical unless the current user_message repeats them."
+                ),
+                "response_policy": (
+                    "Answer only the current user_message. Do not append, continue, or regenerate a training plan "
+                    "unless current_request_policy.should_generate_plan or current_request_policy.allow_plan_content is true."
                 ),
             },
             ensure_ascii=False,
@@ -2382,7 +2464,8 @@ class CoachAgentService:
         plan = self.get_active_plan(user_id)
         context_packet = context_packet or ContextBuilder(self.db, self.model_provider).build_context_packet(user_id, message)
         today_plan = None
-        if plan and isinstance(plan.plan_json, dict):
+        allow_plan_content = self._allow_plan_content_for_context(context_packet)
+        if allow_plan_content and plan and isinstance(plan.plan_json, dict):
             training_days = plan.plan_json.get("training_days") or []
             if training_days:
                 today_plan = training_days[0]
@@ -2393,9 +2476,15 @@ class CoachAgentService:
                 "canonical_profile": self._profile_payload(profile),
                 "today_plan": today_plan,
                 "context_packet": context_packet,
+                "current_request_policy": context_packet.get("current_request_policy", {}),
                 "memory_policy": (
                     "Use the context_packet as the only retrieved memory context. "
-                    "Do not request or assume full history. Prioritize active_risk_notes."
+                    "Do not request or assume full history. Prioritize active_risk_notes. "
+                    "Treat previous user commands as completed or historical unless the current user_message repeats them."
+                ),
+                "response_policy": (
+                    "Answer only the current user_message. Do not append, continue, or regenerate a training plan "
+                    "unless current_request_policy.should_generate_plan or current_request_policy.allow_plan_content is true."
                 ),
             },
             ensure_ascii=False,
@@ -2435,6 +2524,13 @@ class CoachAgentService:
         plan: models.TrainingPlan | None,
         context_packet: dict[str, Any] | None = None,
     ) -> str:
+        if not self._allow_plan_content_for_context(context_packet):
+            return (
+                "我会把前面关于训练计划的内容当作历史背景，不会在这轮继续执行旧指令。"
+                "你当前这条消息更像普通问答或澄清问题，我会优先围绕当前问题回答；"
+                "如果你确实想重新生成或调整训练计划，请在当前消息里明确说“帮我生成计划”或“调整计划”。"
+            )
+
         if not plan or not isinstance(plan.plan_json, dict):
             missing = self.missing_onboarding_slots(profile)
             if missing:

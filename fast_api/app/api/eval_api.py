@@ -4,8 +4,6 @@ import uuid
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
@@ -16,7 +14,6 @@ from fast_api.app.services.eval_service import EvalService
 from fast_api.app.services.model_provider import ModelProvider
 
 eval_router = APIRouter(prefix="/v1/eval", tags=["evaluation"])
-limiter = Limiter(key_func=get_remote_address)
 
 
 def get_eval_service(
@@ -30,7 +27,6 @@ def get_eval_service(
 # ---- Evaluate a single response ----
 
 @eval_router.post("/evaluate")
-@limiter.limit("10/minute")
 async def evaluate_response(
     request_body: dict[str, Any],
     request: Any,  # Request for limiter
@@ -70,7 +66,6 @@ async def evaluate_response(
 # ---- Run an evaluation suite ----
 
 @eval_router.post("/suite")
-@limiter.limit("5/minute")
 async def run_eval_suite(
     request_body: dict[str, Any],
     request: Any,
@@ -106,7 +101,6 @@ async def run_eval_suite(
 # ---- Run the built-in eval suite (from eval_cases.json) ----
 
 @eval_router.post("/suite/builtin")
-@limiter.limit("3/minute")
 async def run_builtin_suite(
     request: Any,
     service: EvalService = Depends(get_eval_service),

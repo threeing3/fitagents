@@ -3,6 +3,8 @@
 export type SessionState = {
   session_id: string;
   user_id: string;
+  title?: string;
+  created_at?: string;
 };
 
 export type Dashboard = {
@@ -26,8 +28,19 @@ export type AgentTraceItem = {
 };
 
 export type ChatMessage = {
+  id?: string;
   role: "user" | "assistant";
   content: string;
+  created_at?: string;
+};
+
+export type AuthUser = {
+  user_id: string;
+  email: string;
+  username?: string | null;
+  display_name: string;
+  avatar_url?: string | null;
+  created_at?: string;
 };
 
 export type PlanResponse = {
@@ -45,4 +58,4 @@ export type CheckinResult = {
 
 // ---- UI view state ----
 
-export type ViewName = "chat" | "dashboard" | "checkin" | "workout";
+export type ViewName = "chat" | "dashboard" | "checkin" | "workout" | "account";

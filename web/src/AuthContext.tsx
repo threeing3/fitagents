@@ -1,18 +1,14 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { api } from "./api";
-
-type AuthUser = {
-  user_id: string;
-  email: string;
-  display_name: string;
-};
+import { api, updateAccount } from "./api";
+import type { AuthUser } from "./types";
 
 type AuthState = {
   user: AuthUser | null;
   token: string | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, displayName: string) => Promise<void>;
+  login: (identifier: string, password: string) => Promise<void>;
+  register: (email: string, password: string, displayName: string, username?: string) => Promise<void>;
+  updateProfile: (payload: { display_name?: string; username?: string; avatar_url?: string }) => Promise<void>;
   logout: () => void;
 };
 
@@ -22,6 +18,7 @@ const AuthContext = createContext<AuthState>({
   loading: true,
   login: async () => {},
   register: async () => {},
+  updateProfile: async () => {},
   logout: () => {},
 });
 
@@ -33,7 +30,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Restore session from localStorage on mount
   useEffect(() => {
     const savedToken = localStorage.getItem(TOKEN_KEY);
     const savedUser = localStorage.getItem(USER_KEY);
@@ -49,11 +45,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(false);
   }, []);
 
-  // Persist to localStorage
   const persist = useCallback((t: string, u: AuthUser) => {
     localStorage.setItem(TOKEN_KEY, t);
     localStorage.setItem(USER_KEY, JSON.stringify(u));
     setToken(t);
+    setUser(u);
+  }, []);
+
+  const persistUser = useCallback((u: AuthUser) => {
+    localStorage.setItem(USER_KEY, JSON.stringify(u));
     setUser(u);
   }, []);
 
@@ -64,46 +64,59 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const result = await api<{
-      access_token: string;
-      user_id: string;
-      email: string;
-      display_name: string;
-    }>("/v1/auth/login", {
+  const login = useCallback(async (identifier: string, password: string) => {
+    const result = await api<AuthUser & { access_token: string }>("/v1/auth/login", {
       method: "POST",
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ identifier, password }),
     });
     persist(result.access_token, {
       user_id: result.user_id,
       email: result.email,
+      username: result.username,
       display_name: result.display_name,
+      avatar_url: result.avatar_url,
     });
   }, [persist]);
 
-  const register = useCallback(async (email: string, password: string, displayName: string) => {
-    const result = await api<{
-      access_token: string;
-      user_id: string;
-      email: string;
-      display_name: string;
-    }>("/v1/auth/register", {
+  const register = useCallback(async (
+    email: string,
+    password: string,
+    displayName: string,
+    username?: string,
+  ) => {
+    const result = await api<AuthUser & { access_token: string }>("/v1/auth/register", {
       method: "POST",
-      body: JSON.stringify({ email, password, display_name: displayName }),
+      body: JSON.stringify({
+        email,
+        password,
+        display_name: displayName,
+        username: username || undefined,
+      }),
     });
     persist(result.access_token, {
       user_id: result.user_id,
       email: result.email,
+      username: result.username,
       display_name: result.display_name,
+      avatar_url: result.avatar_url,
     });
   }, [persist]);
+
+  const updateProfile = useCallback(async (payload: {
+    display_name?: string;
+    username?: string;
+    avatar_url?: string;
+  }) => {
+    const updated = await updateAccount(payload);
+    persistUser(updated);
+  }, [persistUser]);
 
   const logout = useCallback(() => {
     clear();
   }, [clear]);
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, updateProfile, logout }}>
       {children}
     </AuthContext.Provider>
   );

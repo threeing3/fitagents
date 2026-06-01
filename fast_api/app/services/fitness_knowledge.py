@@ -135,7 +135,7 @@ class FitnessKnowledgeService:
         context_packet: dict[str, Any],
         limit: int = 3,
     ) -> list[dict[str, Any]]:
-        if intent not in {"training_plan", "general_chat", "nutrition_advice", "recovery_check", "progression_decision"}:
+        if intent not in {"training_plan", "nutrition_advice", "progression_decision"}:
             return []
         profile = context_packet.get("core_profile") or {}
         goal = profile.get("goal")
@@ -275,8 +275,6 @@ class FitnessKnowledgeService:
         aliases = {intent}
         if intent == "injury_or_risk":
             aliases.add("training_plan")
-        if intent == "general_chat":
-            aliases.update({"training_plan", "nutrition_advice", "progression_decision"})
         return [rule for rule in rules if rule.get("intent") in aliases]
 
     def _load_templates(self) -> list[dict[str, Any]]:

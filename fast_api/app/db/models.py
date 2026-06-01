@@ -40,8 +40,10 @@ class User(Base, TimestampMixin):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    username: Mapped[str | None] = mapped_column(String(80), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     display_name: Mapped[str] = mapped_column(String(120), default="Fitness User")
+    avatar_url: Mapped[str | None] = mapped_column(Text)
     timezone: Mapped[str] = mapped_column(String(64), default="Asia/Shanghai")
 
     profile: Mapped["UserProfile"] = relationship(back_populates="user", uselist=False)
@@ -537,8 +539,11 @@ class PlanTemplate(Base, TimestampMixin):
     days_per_week: Mapped[int | None] = mapped_column(Integer, index=True)
     equipment: Mapped[list[str]] = mapped_column(JSONB, default=list)
     template_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    constraints: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     rationale: Mapped[str] = mapped_column(Text, default="")
     tags: Mapped[list[str]] = mapped_column(JSONB, default=list)
+    version: Mapped[str] = mapped_column(String(40), default="v1")
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     status: Mapped[str] = mapped_column(String(32), default="active", index=True)
 
 
@@ -548,9 +553,13 @@ class CoachingCase(Base, TimestampMixin):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     case_id: Mapped[str] = mapped_column(String(120), index=True)
+    case_type: Mapped[str] = mapped_column(String(80), default="general", index=True)
     title: Mapped[str] = mapped_column(String(200))
+    profile_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     scenario: Mapped[str] = mapped_column(Text)
+    situation: Mapped[str] = mapped_column(Text, default="")
     approach: Mapped[str] = mapped_column(Text)
+    coach_response_pattern: Mapped[str] = mapped_column(Text, default="")
     key_principles: Mapped[list[str]] = mapped_column(JSONB, default=list)
     tags: Mapped[list[str]] = mapped_column(JSONB, default=list)
     source: Mapped[str] = mapped_column(String(160), default="seed")

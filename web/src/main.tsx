@@ -8,28 +8,29 @@ import {
   Sparkles,
   Zap,
   LogOut,
+  UserCircle,
 } from "lucide-react";
 import type { SessionState, Dashboard, ChatMessage, AgentTraceItem, ViewName } from "./types";
-import { createSession, fetchDashboard, pause, streamChat } from "./api";
+import { createSession, fetchDashboard, fetchSessionMessages, listSessions, pause, streamChat } from "./api";
 import { ChatView } from "./ChatView";
 import { DashboardView } from "./DashboardView";
 import { CheckinView } from "./CheckinView";
+import { AccountView } from "./AccountView";
 import { AuthProvider, useAuth } from "./AuthContext";
 import { LoginView } from "./LoginView";
 import "./styles.css";
 
 const TYPEWRITER_DELAY_MS = 16;
+const INTRO_MESSAGE: ChatMessage = {
+  role: "assistant",
+  content: "Hi, I'm your AI fitness coach. Tell me your age, height, weight, goals, training experience, and available equipment - I'll build your profile and create a personalized plan.",
+};
 
 function AppContent() {
   const auth = useAuth();
   const [session, setSession] = useState<SessionState | null>(null);
   const [activeView, setActiveView] = useState<ViewName>("chat");
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      role: "assistant",
-      content: "Hi, I'm your AI fitness coach. Tell me your age, height, weight, goals, training experience, and available equipment — I'll build your profile and create a personalized plan.",
-    },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([INTRO_MESSAGE]);
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
@@ -41,9 +42,47 @@ function AppContent() {
   // ---- session init (runs after auth is ready) ----
   useEffect(() => {
     if (!auth.user) return;
-    createSession(auth.user.display_name)
-      .then((created) => setSession({ session_id: created.session_id, user_id: created.user_id }))
-      .catch((error) => setNotice(`Backend unavailable: ${error.message}`));
+    let cancelled = false;
+    const storageKey = `ai_fitness_active_session_${auth.user.user_id}`;
+
+    async function restoreSession() {
+      try {
+        setNotice("");
+        const sessions = await listSessions();
+        const savedSessionId = localStorage.getItem(storageKey);
+        let active =
+          sessions.find((item) => item.session_id === savedSessionId) ||
+          sessions[0] ||
+          null;
+
+        if (!active) {
+          active = await createSession(auth.user?.display_name || "Fitness User");
+        }
+
+        if (cancelled) return;
+        localStorage.setItem(storageKey, active.session_id);
+        setSession({
+          session_id: active.session_id,
+          user_id: active.user_id,
+          title: active.title,
+          created_at: active.created_at,
+        });
+
+        const history = await fetchSessionMessages(active.session_id);
+        if (cancelled) return;
+        setMessages(history.length > 0 ? history : [INTRO_MESSAGE]);
+        if (history.length > 0) {
+          setNotice(`Loaded ${history.length} saved messages from your last session.`);
+        }
+      } catch (error: any) {
+        if (!cancelled) setNotice(`Backend unavailable: ${error.message}`);
+      }
+    }
+
+    restoreSession();
+    return () => {
+      cancelled = true;
+    };
   }, [auth.user]);
 
   useEffect(() => {
@@ -200,6 +239,7 @@ function AppContent() {
           <NavItem icon={<MessageCircle size={20} />} label="Chat" active={activeView === "chat"} onClick={() => setActiveView("chat")} collapsed={!sidebarOpen} />
           <NavItem icon={<LayoutDashboard size={20} />} label="Dashboard" active={activeView === "dashboard"} onClick={() => setActiveView("dashboard")} collapsed={!sidebarOpen} />
           <NavItem icon={<ClipboardCheck size={20} />} label="Check-in" active={activeView === "checkin"} onClick={() => setActiveView("checkin")} collapsed={!sidebarOpen} />
+          <NavItem icon={<UserCircle size={20} />} label="Account" active={activeView === "account"} onClick={() => setActiveView("account")} collapsed={!sidebarOpen} />
         </nav>
 
         <div className="sidebar-footer">
@@ -209,7 +249,19 @@ function AppContent() {
           </div>
           {sidebarOpen && (
             <div className="sidebar-user">
-              <span className="sidebar-user-name">{auth.user.display_name}</span>
+              <button className="sidebar-user-profile" onClick={() => setActiveView("account")}>
+                <span className="sidebar-avatar">
+                  {auth.user.avatar_url ? (
+                    <img src={auth.user.avatar_url} alt="" />
+                  ) : (
+                    auth.user.display_name.slice(0, 2).toUpperCase()
+                  )}
+                </span>
+                <span className="sidebar-user-copy">
+                  <span className="sidebar-user-name">{auth.user.display_name}</span>
+                  <span className="sidebar-user-email">{auth.user.email}</span>
+                </span>
+              </button>
               <button className="logout-btn" onClick={auth.logout} title="Sign out">
                 <LogOut size={14} />
               </button>
@@ -265,6 +317,8 @@ function AppContent() {
             onRefresh={() => session && refreshDashboard(session.user_id)}
           />
         )}
+
+        {activeView === "account" && <AccountView />}
       </div>
     </div>
   );
@@ -285,7 +339,12 @@ function NavItem({
   collapsed: boolean;
 }) {
   return (
-    <button className={`nav-item ${active ? "active" : ""}`} onClick={onClick} title={collapsed ? label : undefined}>
+    <button
+      className={`nav-item ${active ? "active" : ""}`}
+      onClick={onClick}
+      title={collapsed ? label : undefined}
+      aria-label={label}
+    >
       <span className="nav-icon">{icon}</span>
       {!collapsed && <span className="nav-label">{label}</span>}
     </button>

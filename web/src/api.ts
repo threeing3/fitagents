@@ -1,4 +1,4 @@
-import type { Dashboard, PlanResponse, CheckinResult, SessionState } from "./types";
+import type { AuthUser, ChatMessage, Dashboard, PlanResponse, CheckinResult, SessionState } from "./types";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "http://localhost:1015").replace(/\/$/, "");
 const TOKEN_KEY = "ai_fitness_token";
@@ -42,6 +42,35 @@ export async function createSession(displayName: string = "Fitness User"): Promi
     method: "POST",
     body: JSON.stringify({ display_name: displayName, title: "AI Coach Session" }),
   });
+}
+
+export async function updateAccount(payload: {
+  display_name?: string;
+  username?: string;
+  avatar_url?: string;
+}): Promise<AuthUser> {
+  return api("/v1/auth/me", {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function listSessions(): Promise<Array<SessionState & { title: string; created_at: string }>> {
+  return api("/v1/chat/sessions");
+}
+
+export async function fetchSessionMessages(sessionId: string): Promise<ChatMessage[]> {
+  const rows = await api<Array<ChatMessage & { session_id: string; user_id: string }>>(
+    `/v1/chat/sessions/${sessionId}/messages?limit=500`,
+  );
+  return rows
+    .filter((message) => message.role === "user" || message.role === "assistant")
+    .map((message) => ({
+      id: message.id,
+      role: message.role,
+      content: message.content,
+      created_at: message.created_at,
+    }));
 }
 
 export async function fetchDashboard(userId: string): Promise<Dashboard> {

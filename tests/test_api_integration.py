@@ -120,6 +120,7 @@ def test_register_creates_user_and_returns_jwt():
     assert data["token_type"] == "bearer"
     assert data["email"] == "test@example.com"
     assert data["display_name"] == "Test User"
+    assert data["username"] == "test.user"
     assert data["user_id"]
 
 
@@ -189,6 +190,28 @@ def test_login_with_valid_credentials_returns_jwt():
     assert data["display_name"] == "Login User"
 
 
+def test_login_with_username_returns_jwt():
+    client, _ = _create_client_and_db()
+
+    client.post("/v1/auth/register", json={
+        "email": "username-login@example.com",
+        "username": "coach_dev",
+        "password": "mypassword",
+        "display_name": "Coach Dev",
+    })
+
+    response = client.post("/v1/auth/login", json={
+        "identifier": "coach_dev",
+        "password": "mypassword",
+    })
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "access_token" in data
+    assert data["email"] == "username-login@example.com"
+    assert data["username"] == "coach_dev"
+
+
 def test_login_wrong_password_returns_401():
     client, _ = _create_client_and_db()
 
@@ -236,6 +259,33 @@ def test_me_returns_user_info_with_valid_token():
     data = response.json()
     assert data["email"] == "me@example.com"
     assert data["display_name"] == "Me User"
+
+
+def test_update_me_updates_username_and_avatar():
+    client, _ = _create_client_and_db()
+
+    register_resp = client.post("/v1/auth/register", json={
+        "email": "profile@example.com",
+        "password": "secure123",
+        "display_name": "Profile User",
+    })
+    token = register_resp.json()["access_token"]
+
+    response = client.patch(
+        "/v1/auth/me",
+        json={
+            "display_name": "Updated User",
+            "username": "updated_user",
+            "avatar_url": "https://example.com/avatar.png",
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["display_name"] == "Updated User"
+    assert data["username"] == "updated_user"
+    assert data["avatar_url"] == "https://example.com/avatar.png"
 
 
 def test_me_without_token_returns_401():
@@ -327,6 +377,50 @@ def test_dashboard_returns_403_for_other_users_data():
         headers={"Authorization": f"Bearer {token2}"},
     )
 
+    assert response.status_code == 403
+
+
+def test_chat_sessions_and_agent_runs_are_user_isolated():
+    client, session_factory = _create_client_and_db()
+
+    r1 = client.post("/v1/auth/register", json={
+        "email": "isolated1@example.com", "password": "secure123",
+    })
+    token1 = r1.json()["access_token"]
+    r2 = client.post("/v1/auth/register", json={
+        "email": "isolated2@example.com", "password": "secure456",
+    })
+    token2 = r2.json()["access_token"]
+
+    session = client.post(
+        "/v1/chat/sessions",
+        json={"display_name": "One", "title": "Private Session"},
+        headers={"Authorization": f"Bearer {token1}"},
+    ).json()
+
+    response = client.get(
+        f"/v1/chat/sessions/{session['session_id']}/messages",
+        headers={"Authorization": f"Bearer {token2}"},
+    )
+    assert response.status_code == 403
+
+    with session_factory() as db:
+        run = models.AgentRun(
+            user_id=uuid.UUID(r1.json()["user_id"]),
+            session_id=uuid.UUID(session["session_id"]),
+            run_type="chat",
+            status="completed",
+            nodes=[],
+        )
+        db.add(run)
+        db.commit()
+        db.refresh(run)
+        run_id = run.id
+
+    response = client.get(
+        f"/v1/agent-runs/{run_id}",
+        headers={"Authorization": f"Bearer {token2}"},
+    )
     assert response.status_code == 403
 
 

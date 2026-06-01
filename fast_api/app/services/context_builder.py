@@ -12,8 +12,30 @@ from fast_api.app.services.model_provider import ModelProvider
 
 
 class IntentRouter:
-    """Small rule-first intent classifier for the fitness coach MVP."""
+    """Rule-first intent classifier. Current user message always wins over older chat history."""
 
+    PLAN_REQUEST_TERMS = [
+        "训练计划",
+        "健身计划",
+        "生成计划",
+        "制定计划",
+        "做个计划",
+        "出个计划",
+        "给我计划",
+        "帮我计划",
+        "安排训练",
+        "安排一下",
+        "今天练什么",
+        "今天应该练什么",
+        "今天应该干什么",
+        "今天干什么",
+        "今日训练",
+        "练什么",
+        "workout plan",
+        "training plan",
+        "what should i do today",
+        "what should i train",
+    ]
     TRAINING_LOG_TERMS = ["完成", "做完", "练了", "kg", "公斤", "rpe", "组", "次数", "bench", "squat", "deadlift"]
     PROGRESSION_TERMS = ["加重", "重量", "进步", "下次", "progress", "increase", "deload", "降载"]
     NUTRITION_TERMS = ["吃", "热量", "蛋白", "碳水", "脂肪", "外卖", "外食", "calorie", "protein", "diet"]
@@ -28,6 +50,8 @@ class IntentRouter:
             return "injury_or_risk"
         if self._contains(lowered, self.REVIEW_TERMS):
             return "monthly_review" if "月" in lowered or "monthly" in lowered else "weekly_review"
+        if self.is_plan_request(message):
+            return "training_plan"
         if self._contains(lowered, self.PROGRESSION_TERMS):
             return "progression_decision"
         if self._contains(lowered, self.TRAINING_LOG_TERMS):
@@ -42,6 +66,14 @@ class IntentRouter:
 
     def _contains(self, lowered: str, terms: list[str]) -> bool:
         return any(term in lowered for term in terms)
+
+    def is_plan_request(self, message: str) -> bool:
+        lowered = message.lower()
+        negative_terms = ["不要", "不需要", "不用", "别", "不要给", "别给", "不要生成", "不要带", "不要再"]
+        plan_terms = ["计划", "训练计划", "健身计划", "workout plan", "training plan"]
+        if any(neg in lowered for neg in negative_terms) and any(term in lowered for term in plan_terms):
+            return False
+        return self._contains(lowered, self.PLAN_REQUEST_TERMS)
 
 
 class FitnessRetrievalService:
@@ -299,12 +331,30 @@ class ContextBuilder:
     ) -> dict[str, Any]:
         selected_intent = intent or self.intent_router.classify(user_message)
         category = self.CATEGORY_BY_INTENT.get(selected_intent)
+        allow_plan_content = selected_intent in {
+            "training_plan",
+            "training_log",
+            "progression_decision",
+            "recovery_check",
+            "weekly_review",
+            "monthly_review",
+        }
+        current_request_policy = {
+            "current_intent": selected_intent,
+            "should_generate_plan": selected_intent == "training_plan",
+            "allow_plan_content": allow_plan_content,
+            "history_scope": (
+                "Use prior conversation, memories, and active plans only as background. "
+                "Do not continue or execute older user commands unless the current user_message explicitly asks for it."
+            ),
+        }
 
         packet: dict[str, Any] = {
             "intent": selected_intent,
+            "current_request_policy": current_request_policy,
             "core_profile": self.retrieval.get_core_profile(user_id),
             "memory_catalog": self.retrieval.get_memory_catalog(user_id, category=category),
-            "active_plan": self.retrieval.get_active_plan(user_id),
+            "active_plan": self.retrieval.get_active_plan(user_id) if allow_plan_content else None,
             "active_risk_notes": self.retrieval.get_active_risk_notes(user_id),
             "recent_training": [],
             "exercise_history": [],
@@ -322,6 +372,7 @@ class ContextBuilder:
                 "intent": selected_intent,
                 "memory_category_filter": category,
                 "memory_top_k": 6,
+                "current_request_policy": current_request_policy,
                 "knowledge_sources": {},
             },
             "agent_decision_history": [],
@@ -352,11 +403,11 @@ class ContextBuilder:
 
     def _extract_exercise_name(self, message: str) -> str | None:
         mapping = {
-            "bench_press": ["卧推", "bench"],
-            "squat": ["深蹲", "squat"],
-            "deadlift": ["硬拉", "deadlift"],
-            "pull_up": ["引体", "pull-up", "pullup"],
-            "overhead_press": ["推肩", "shoulder press"],
+            "bench_press": ["鍗ф帹", "bench"],
+            "squat": ["娣辫共", "squat"],
+            "deadlift": ["纭媺", "deadlift"],
+            "pull_up": ["寮曚綋", "pull-up", "pullup"],
+            "overhead_press": ["鎺ㄨ偐", "shoulder press"],
         }
         lowered = message.lower()
         for normalized, terms in mapping.items():
