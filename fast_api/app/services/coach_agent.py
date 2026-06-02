@@ -4,6 +4,7 @@ import time
 import uuid
 from datetime import date, datetime
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 from sqlalchemy import desc, func, select
@@ -23,7 +24,17 @@ from fast_api.app.services.fitness_math import (
 )
 from fast_api.app.services.context_builder import ContextBuilder
 from fast_api.app.services.agent_observability import AgentRunLogger
+from fast_api.app.services.agent_runtime import (
+    AgentExecutor,
+    AgentPlanner,
+    AgentTaskTimeline,
+    TaskStep,
+    ToolRegistry,
+    ToolSpec,
+)
+from fast_api.app.services.agent_verifier import AgentVerifier
 from fast_api.app.services.decision_logger import DecisionLogger
+from fast_api.app.services.memory_verifier import MemoryVerifier
 from fast_api.app.core.guardrails import run_guardrails, Severity as GuardrailSeverity
 from fast_api.app.core.prompts import registry
 from fast_api.app.services.fitness_knowledge import FitnessKnowledgeService, KNOWLEDGE_DIR
@@ -250,7 +261,9 @@ class CoachAgentService:
                 models.ToolCall(
                     agent_run_id=run.id,
                     tool_name=call["tool_name"],
+                    input_json=call.get("input", {}),
                     output_json=call.get("output", {}),
+                    latency_ms=call.get("latency_ms", 0),
                     status=call.get("status", "success"),
                 )
             )
@@ -467,7 +480,9 @@ class CoachAgentService:
                 models.ToolCall(
                     agent_run_id=run.id,
                     tool_name=call["tool_name"],
+                    input_json=call.get("input", {}),
                     output_json=call.get("output", {}),
+                    latency_ms=call.get("latency_ms", 0),
                     status=call.get("status", "success"),
                 )
             )
@@ -491,6 +506,33 @@ class CoachAgentService:
             return json.dumps({"type": event_type, **payload}, ensure_ascii=False, default=str) + "\n"
 
         def step_summary(name: str, payload: dict[str, Any]) -> str:
+            if name == "AgentTaskTimeline":
+                steps = payload.get("steps") or []
+                return f"规划执行时间线 {len(steps)} 步"
+            if name == "ToolRegistry":
+                tools = payload.get("tools") or []
+                return f"注册 Agent 工具 {len(tools)} 个"
+            if name == "AgentPlanner":
+                steps = payload.get("steps") or []
+                intent = payload.get("intent") or "general_chat"
+                return f"Planner 识别意图 {intent}，本轮计划 {len(steps)} 个步骤"
+            if name == "ToolExecutor":
+                extra = ""
+                if payload.get("attempts", 1) and payload.get("attempts", 1) > 1:
+                    extra += f"，重试 {payload.get('attempts')} 次"
+                if payload.get("repaired"):
+                    extra += "，已执行 schema repair"
+                return f"执行工具 {payload.get('tool_name') or 'unknown'}: {payload.get('status') or 'unknown'}{extra}"
+            if name == "TaskStep":
+                return f"{payload.get('name') or '任务步骤'}: {payload.get('status') or 'unknown'}"
+            if name == "PlanVerifier":
+                return f"计划自检：{'通过' if payload.get('passed') else '需修复'}，问题 {payload.get('issue_count', 0)} 个"
+            if name == "PlanRepair":
+                return f"计划修复：{'已修复' if payload.get('repaired') else '无需修复'}"
+            if name == "ResponseVerifier":
+                return f"回复自检：{'通过' if payload.get('passed') else '需修复'}，问题 {payload.get('issue_count', 0)} 个"
+            if name == "ResponseRepair":
+                return f"回复修复：{'已补充' if payload.get('repaired') else '无需补充'}"
             if name == "ProfileExtractorAgent":
                 patch = payload.get("profile_patch") or {}
                 corrections = payload.get("corrections") or []
@@ -499,6 +541,11 @@ class CoachAgentService:
                 return "未发现新的档案字段"
             if name == "MemoryAgent":
                 return f"写入长期记忆 {len(payload.get('written') or [])} 条"
+            if name == "MemoryVerifier":
+                return (
+                    f"记忆校验：通过 {payload.get('accepted_count', 0)} 条，"
+                    f"拒绝 {payload.get('rejected_count', 0)} 条，问题 {payload.get('issue_count', 0)} 个"
+                )
             if name == "IntentRouter":
                 missing = payload.get("missing_slots") or []
                 if missing:
@@ -539,6 +586,49 @@ class CoachAgentService:
                 metadata=self._public_trace_metadata(name, payload),
             )
 
+        def timeline_event(step: TaskStep) -> str:
+            payload = timeline.step_event(step)
+            node = run_logger.event("TaskStep", payload)
+            nodes.append(node)
+            return step_event("TaskStep", node, payload)
+
+        def planned_or_new_step(key: str, name: str, tool_name: str, reason: str) -> TaskStep:
+            return timeline_steps.get(key) or timeline.add_step(name, tool_name, reason)
+
+        async def execute_tool(tool_name: str, input_json: dict[str, Any], timeline_step: TaskStep):
+            emitted_events: list[str] = []
+            execution = await executor.execute(tool_registry, timeline, timeline_step, input_json)
+            step_started_node = run_logger.event("TaskStep", execution.started_event)
+            nodes.append(step_started_node)
+            emitted_events.append(step_event("TaskStep", step_started_node, execution.started_event))
+            result = execution.result
+            tool_payload = self._summarize_tool_execution(result.to_trace())
+            tool_calls.append(
+                {
+                    "tool_name": result.tool_name,
+                    "status": result.status,
+                    "input": tool_payload.get("input_json", {}),
+                    "output": tool_payload.get("output_json", {}),
+                    "latency_ms": result.latency_ms,
+                    "attempts": result.attempts,
+                    "validation_errors": result.validation_errors,
+                    "repaired": result.repaired,
+                    "repair_actions": result.repair_actions,
+                }
+            )
+            tool_node = run_logger.event("ToolExecutor", tool_payload)
+            nodes.append(tool_node)
+            emitted_events.append(step_event("ToolExecutor", tool_node, tool_payload))
+            timeline_step.output_summary = tool_payload.get("output_json", {})
+            completed_event = dict(execution.completed_event)
+            completed_event["output_summary"] = tool_payload.get("output_json", {})
+            step_completed_node = run_logger.event("TaskStep", completed_event)
+            nodes.append(step_completed_node)
+            emitted_events.append(step_event("TaskStep", step_completed_node, execution.completed_event))
+            if result.status != "success":
+                raise RuntimeError(result.error or f"Tool failed: {tool_name}")
+            return result.output_json, emitted_events
+
         session = self.db.get(models.ConversationSession, session_id)
         if not session:
             yield event("error", message="Conversation session not found")
@@ -547,6 +637,23 @@ class CoachAgentService:
         user = self.ensure_user(user_id)
         profile = self._get_or_create_profile(user.id)
         run_logger = AgentRunLogger("chat_stream", user.id, session.id)
+        timeline = AgentTaskTimeline(message, request_id=run_logger.request_id)
+        tool_registry = self._build_chat_tool_registry(user.id, session.id, profile, message)
+        executor = AgentExecutor()
+        execution_plan = AgentPlanner().plan_chat_turn(message, tool_registry.list_specs())
+        timeline_steps = {
+            planned.key: timeline.add_step(planned.name, planned.tool_name, planned.reason)
+            for planned in execution_plan.steps
+        }
+        registry_node = run_logger.event("ToolRegistry", {"tools": tool_registry.list_specs()})
+        nodes.append(registry_node)
+        yield step_event("ToolRegistry", registry_node, registry_node.get("output", {}))
+        planner_node = run_logger.event("AgentPlanner", execution_plan.to_dict())
+        nodes.append(planner_node)
+        yield step_event("AgentPlanner", planner_node, planner_node.get("output", {}))
+        timeline_node = run_logger.event("AgentTaskTimeline", timeline.to_dict())
+        nodes.append(timeline_node)
+        yield step_event("AgentTaskTimeline", timeline_node, timeline_node.get("output", {}))
         request_event = run_logger.event(
             "RequestReceived",
             {
@@ -570,7 +677,13 @@ class CoachAgentService:
 
         node_start = time.perf_counter()
         yield event("status", text="正在抽取档案字段和纠错信息")
-        extraction = await self.profile_extractor_agent(profile, message)
+        extraction, emitted = await execute_tool(
+            "profile.extract",
+            {"message_chars": len(message)},
+            timeline_steps["profile_extract"],
+        )
+        for item in emitted:
+            yield item
         if extraction["profile_patch"] or extraction["corrections"]:
             self._apply_profile_extraction(profile, extraction)
             self._refresh_macro_targets(profile)
@@ -581,8 +694,29 @@ class CoachAgentService:
         yield step_event("ProfileExtractorAgent", node, extraction)
 
         node_start = time.perf_counter()
-        yield event("status", text="正在写入长期记忆")
-        memories_written = self.write_memories_from_message(user.id, message, extraction)
+        yield event("status", text="正在校验长期记忆候选")
+        memory_verify_output, emitted = await execute_tool(
+            "memory.verify",
+            {"extraction": extraction},
+            timeline_steps["memory_verify"],
+        )
+        for item in emitted:
+            yield item
+        state_updates["memory_verification"] = memory_verify_output
+        memory_verify_node = run_logger.event("MemoryVerifier", memory_verify_output)
+        nodes.append(memory_verify_node)
+        yield step_event("MemoryVerifier", memory_verify_node, memory_verify_output)
+
+        node_start = time.perf_counter()
+        yield event("status", text="正在写入已校验的长期记忆")
+        memory_output, emitted = await execute_tool(
+            "memory.write",
+            {"extraction": extraction, "verification": memory_verify_output},
+            timeline_steps["memory_write"],
+        )
+        for item in emitted:
+            yield item
+        memories_written = memory_output.get("written") or []
         memory_payload = {"written": memories_written}
         node = run_logger.node("MemoryAgent", node_start, memory_payload)
         nodes.append(node)
@@ -623,23 +757,26 @@ class CoachAgentService:
             else:
                 node_start = time.perf_counter()
                 yield event("status", text="正在判断当前请求意图并构建上下文包")
-                context_packet = ContextBuilder(self.db, self.model_provider).build_context_packet(user.id, message)
+                context_packet, emitted = await execute_tool(
+                    "context.build",
+                    {"message_chars": len(message)},
+                    timeline_steps["context_build"],
+                )
+                for item in emitted:
+                    yield item
                 node = run_logger.node("ContextBuilder", node_start, context_packet)
                 nodes.append(node)
                 yield step_event("ContextBuilder", node, context_packet)
 
                 active_plan = self.get_active_plan(user.id)
-                should_generate_plan = self._should_generate_plan_for_context(context_packet)
-                plan_decision = {
-                    "intent": context_packet.get("intent"),
-                    "active_plan_exists": active_plan is not None,
-                    "should_generate_plan": should_generate_plan,
-                    "reason": (
-                        "current_message_explicitly_requests_plan"
-                        if should_generate_plan
-                        else "current_message_does_not_request_plan"
-                    ),
-                }
+                plan_decision, emitted = await execute_tool(
+                    "plan.decide",
+                    {"context_packet": context_packet},
+                    timeline_steps["plan_decision"],
+                )
+                for item in emitted:
+                    yield item
+                should_generate_plan = bool(plan_decision.get("should_generate_plan"))
                 policy_payload = context_packet.get("current_request_policy", {})
                 policy_node = run_logger.event("CurrentRequestPolicy", policy_payload)
                 nodes.append(policy_node)
@@ -650,20 +787,74 @@ class CoachAgentService:
 
                 if active_plan is None and should_generate_plan:
                     yield event("status", text="当前消息明确请求计划，正在生成第一版训练计划")
-                    plan_result = self.generate_plan(PlanGenerateRequest(user_id=user.id))
-                    context_packet["active_plan"] = self._plan_context_payload(plan_result)
-                    state_updates["generated_plan_id"] = str(plan_result.id)
+                    plan_output, emitted = await execute_tool(
+                        "plan.generate",
+                        {"reason": plan_decision.get("reason")},
+                        planned_or_new_step(
+                            "plan_generate",
+                            "Generate first active plan",
+                            "plan.generate",
+                            "The current message explicitly requested a plan.",
+                        ),
+                    )
+                    for item in emitted:
+                        yield item
+                    context_packet["active_plan"] = plan_output.get("active_plan")
+                    state_updates["generated_plan_id"] = plan_output.get("plan_id")
+                    plan_verify_output, emitted = await execute_tool(
+                        "plan.verify",
+                        {
+                            "plan_payload": plan_output.get("active_plan") or {},
+                            "context_packet": context_packet,
+                        },
+                        planned_or_new_step(
+                            "plan_verify",
+                            "Verify generated plan constraints",
+                            "plan.verify",
+                            "Check generated plan before it is used by the coach response.",
+                        ),
+                    )
+                    for item in emitted:
+                        yield item
+                    state_updates["plan_verification"] = plan_verify_output
+                    verify_node = run_logger.event("PlanVerifier", plan_verify_output)
+                    nodes.append(verify_node)
+                    yield step_event("PlanVerifier", verify_node, plan_verify_output)
+                    if plan_verify_output.get("repair_actions"):
+                        plan_repair_output, emitted = await execute_tool(
+                            "plan.repair",
+                            {
+                                "plan_id": plan_output.get("plan_id"),
+                                "plan_payload": plan_output.get("active_plan") or {},
+                                "verification": plan_verify_output,
+                                "context_packet": context_packet,
+                            },
+                            planned_or_new_step(
+                                "plan_repair",
+                                "Repair generated plan constraints",
+                                "plan.repair",
+                                "Apply deterministic repairs for verifier findings.",
+                            ),
+                        )
+                        for item in emitted:
+                            yield item
+                        if plan_repair_output.get("active_plan"):
+                            context_packet["active_plan"] = plan_repair_output.get("active_plan")
+                        state_updates["plan_repair"] = plan_repair_output
+                        repair_node = run_logger.event("PlanRepair", plan_repair_output)
+                        nodes.append(repair_node)
+                        yield step_event("PlanRepair", repair_node, plan_repair_output)
                     tool_call = {
                         "tool_name": "generate_training_plan",
                         "status": "success",
-                        "output": {"plan_id": str(plan_result.id)},
+                        "output": {"plan_id": plan_output.get("plan_id")},
                     }
                     tool_calls.append(tool_call)
                     yield event(
                         "tool_call",
                         name=tool_call["tool_name"],
                         status="success",
-                        summary=f"生成训练计划 {plan_result.id}",
+                        summary=f"生成训练计划 {plan_output.get('plan_id')}",
                         metadata=tool_call["output"],
                     )
 
@@ -693,6 +884,8 @@ class CoachAgentService:
                 state_updates["knowledge_debug"] = knowledge_context.get("debug", {})
                 node_start = time.perf_counter()
                 yield event("status", text="正在生成最终教练回复")
+                timeline.start(timeline_steps["coach_reply"])
+                yield timeline_event(timeline_steps["coach_reply"])
                 async for chunk in self._coaching_reply_stream(user.id, message, context_packet):
                     chunks.append(chunk)
                     yield event("answer_delta", text=chunk)
@@ -701,6 +894,12 @@ class CoachAgentService:
                     "live_model": self.model_provider.has_live_model(),
                     "response_chars": len("".join(chunks)),
                 }
+                timeline.complete(
+                    timeline_steps["coach_reply"],
+                    {"response_chars": coach_payload["response_chars"], "live_model": coach_payload["live_model"]},
+                    round((time.perf_counter() - node_start) * 1000),
+                )
+                yield timeline_event(timeline_steps["coach_reply"])
                 node = run_logger.node("CoachLLM", node_start, coach_payload)
                 nodes.append(node)
                 yield step_event("CoachLLM", node, coach_payload)
@@ -716,22 +915,71 @@ class CoachAgentService:
             assistant_message = registry.get("error_coach_stream_empty")
             yield event("answer_delta", text=assistant_message)
 
+        response_verify_output, emitted = await execute_tool(
+            "response.verify",
+            {
+                "assistant_message": assistant_message[:6000],
+                "context_packet": context_packet if "context_packet" in locals() else {},
+            },
+            timeline_steps["response_verify"],
+        )
+        for item in emitted:
+            yield item
+        state_updates["response_verification"] = response_verify_output
+        response_verify_node = run_logger.event("ResponseVerifier", response_verify_output)
+        nodes.append(response_verify_node)
+        yield step_event("ResponseVerifier", response_verify_node, response_verify_output)
+        if response_verify_output.get("repair_actions"):
+            response_repair_output, emitted = await execute_tool(
+                "response.repair",
+                {
+                    "verification": response_verify_output,
+                    "context_packet": context_packet if "context_packet" in locals() else {},
+                },
+                planned_or_new_step(
+                    "response_repair",
+                    "Repair coach response constraints",
+                    "response.repair",
+                    "Append deterministic repair text when verifier finds fixable issues.",
+                ),
+            )
+            for item in emitted:
+                yield item
+            repair_text = response_repair_output.get("repair_text") or ""
+            if repair_text:
+                assistant_message = (assistant_message + repair_text).strip()
+                chunks.append(repair_text)
+                yield event("answer_delta", text=repair_text)
+            state_updates["response_repair"] = response_repair_output
+            response_repair_node = run_logger.event("ResponseRepair", response_repair_output)
+            nodes.append(response_repair_node)
+            yield step_event("ResponseRepair", response_repair_node, response_repair_output)
+
         # ---- Safety guardrail check ----
-        guardrail_result = run_guardrails(assistant_message, user_message=message, profile=profile)
+        guardrail_output, emitted = await execute_tool(
+            "guardrail.check",
+            {"assistant_message": assistant_message[:4000]},
+            timeline_steps["guardrail"],
+        )
+        for item in emitted:
+            yield item
         guardrail_payload = {
-            "action": guardrail_result.action.value,
-            "flag_count": len(guardrail_result.flags),
-            "flags": [{"rule_id": f.rule_id, "severity": f.severity.value, "category": f.category} for f in guardrail_result.flags],
+            "action": guardrail_output.get("action"),
+            "flag_count": guardrail_output.get("flag_count", 0),
+            "flags": guardrail_output.get("flags", []),
         }
         guardrail_node = run_logger.event("GuardrailCheck", guardrail_payload)
         nodes.append(guardrail_node)
         yield step_event("GuardrailCheck", guardrail_node, guardrail_payload)
-        if guardrail_result.action == GuardrailSeverity.BLOCK:
-            assistant_message = guardrail_result.blocked_replacement or assistant_message
+        if guardrail_output.get("action") == GuardrailSeverity.BLOCK.value:
+            assistant_message = guardrail_output.get("replacement") or assistant_message
             yield event("guardrail_block", replacement=assistant_message[:200])
 
+        timeline.start(timeline_steps["persist"])
         self._save_message(session.id, user.id, "assistant", assistant_message)
         response_payload = {"response_chars": len(assistant_message)}
+        timeline.complete(timeline_steps["persist"], response_payload)
+        yield timeline_event(timeline_steps["persist"])
         response_node = run_logger.event("ResponsePersisted", response_payload)
         nodes.append(response_node)
         yield step_event("ResponsePersisted", response_node, response_payload)
@@ -753,7 +1001,9 @@ class CoachAgentService:
                 models.ToolCall(
                     agent_run_id=run.id,
                     tool_name=call["tool_name"],
+                    input_json=call.get("input", {}),
                     output_json=call.get("output", {}),
+                    latency_ms=call.get("latency_ms", 0),
                     status=call.get("status", "success"),
                 )
             )
@@ -1026,10 +1276,36 @@ class CoachAgentService:
             "summary": run.summary,
             "error": run.error,
             "log_path": run.log_path,
-            "tool_calls": [self._model_dict(call) for call in calls],
+            "tool_calls": [self._tool_call_payload(call) for call in calls],
             "started_at": run.started_at,
             "completed_at": run.completed_at,
         }
+
+    def _tool_call_payload(self, call: models.ToolCall) -> dict[str, Any]:
+        return {
+            "id": str(call.id),
+            "agent_run_id": str(call.agent_run_id),
+            "tool_name": call.tool_name,
+            "input_json": call.input_json or {},
+            "output_json": call.output_json or {},
+            "latency_ms": call.latency_ms,
+            "status": call.status,
+            "created_at": call.created_at.isoformat() if call.created_at else None,
+            "updated_at": call.updated_at.isoformat() if call.updated_at else None,
+        }
+
+    def _model_dict(self, model: Any) -> dict[str, Any]:
+        if model is None:
+            return {}
+        payload: dict[str, Any] = {}
+        for column in model.__table__.columns:
+            value = getattr(model, column.name)
+            if isinstance(value, uuid.UUID):
+                value = str(value)
+            elif isinstance(value, (datetime, date)):
+                value = value.isoformat()
+            payload[column.name] = value
+        return payload
 
     def _get_or_create_profile(self, user_id: uuid.UUID) -> models.UserProfile:
         profile = self.db.get(models.UserProfile, user_id)
@@ -1142,6 +1418,8 @@ class CoachAgentService:
                 if 0.5 < number < 3.5:
                     number = round(number * 100)
                 return number if 90 <= number <= 240 else None
+            if not self._source_text_supports_body_weight(source_text, number):
+                return None
             return number if 25 <= number <= 300 else None
         if key in {"dietary_preferences", "equipment_available", "injuries"}:
             items = value if isinstance(value, list) else [value]
@@ -1374,6 +1652,468 @@ class CoachAgentService:
             .where(models.TrainingPlan.user_id == user_id, models.TrainingPlan.status == "active")
             .order_by(desc(models.TrainingPlan.created_at))
         )
+
+    def _repair_profile_extract_tool(self, payload: dict[str, Any]) -> dict[str, Any]:
+        output = dict(payload.get("output_json") or {})
+        if payload.get("phase") == "input_validation":
+            return {"input_json": {"message_chars": len(str(payload.get("input_json") or ""))}}
+        output.setdefault("profile_patch", {})
+        output.setdefault("corrections", [])
+        output.setdefault("ignored_candidates", [])
+        output.setdefault("model_used", False)
+        return {"output_json": output}
+
+    def _repair_memory_verify_tool(self, payload: dict[str, Any]) -> dict[str, Any]:
+        output = dict(payload.get("output_json") or {})
+        output.setdefault("passed", False)
+        output.setdefault("accepted_candidates", [])
+        output.setdefault("accepted_corrections", [])
+        output.setdefault("rejected_candidates", [])
+        output.setdefault("issues", [])
+        output.setdefault("repair_actions", ["schema_repair_memory_verify"])
+        return {"output_json": output}
+
+    def _repair_context_build_tool(self, payload: dict[str, Any]) -> dict[str, Any]:
+        output = dict(payload.get("output_json") or {})
+        output.setdefault("intent", "general_chat")
+        output.setdefault(
+            "current_request_policy",
+            {
+                "active_instruction_source": "current_user_message",
+                "history_is_background_only": True,
+                "allow_plan_generation": False,
+            },
+        )
+        output.setdefault("knowledge_context", {})
+        return {"output_json": output}
+
+    def _repair_plan_decide_tool(self, payload: dict[str, Any]) -> dict[str, Any]:
+        output = dict(payload.get("output_json") or {})
+        context_packet = (payload.get("input_json") or {}).get("context_packet") or {}
+        output.setdefault("intent", context_packet.get("intent"))
+        output.setdefault("active_plan_exists", True)
+        output.setdefault("should_generate_plan", False)
+        output.setdefault("reason", "schema_repair_default_no_generation")
+        return {"output_json": output}
+
+    def _build_chat_tool_registry(
+        self,
+        user_id: uuid.UUID,
+        session_id: uuid.UUID,
+        profile: models.UserProfile,
+        message: str,
+    ) -> ToolRegistry:
+        registry = ToolRegistry()
+
+        registry.register(
+            ToolSpec(
+                name="profile.extract",
+                description="Extract structured profile patch, open memories, and corrections from the current message.",
+                input_schema={
+                    "type": "object",
+                    "required": ["message_chars"],
+                    "properties": {"message_chars": {"type": "integer", "minimum": 0}},
+                },
+                output_schema={
+                    "type": "object",
+                    "required": ["profile_patch", "corrections", "ignored_candidates"],
+                    "properties": {
+                        "profile_patch": {"type": "object"},
+                        "corrections": {"type": "array"},
+                        "ignored_candidates": {"type": "array"},
+                        "model_used": {"type": "boolean"},
+                    },
+                },
+                permission_level="write_candidate",
+                side_effects=False,
+                retry_count=1,
+            ),
+            lambda _: self.profile_extractor_agent(profile, message),
+            repair_handler=self._repair_profile_extract_tool,
+        )
+        registry.register(
+            ToolSpec(
+                name="memory.verify",
+                description="Verify long-term memory candidates before durable write.",
+                input_schema={
+                    "type": "object",
+                    "required": ["extraction"],
+                    "properties": {"extraction": {"type": "object"}},
+                },
+                output_schema={
+                    "type": "object",
+                    "required": ["passed", "accepted_candidates", "accepted_corrections", "rejected_candidates"],
+                    "properties": {
+                        "passed": {"type": "boolean"},
+                        "accepted_candidates": {"type": "array"},
+                        "accepted_corrections": {"type": "array"},
+                        "rejected_candidates": {"type": "array"},
+                        "issues": {"type": "array"},
+                        "repair_actions": {"type": "array"},
+                    },
+                },
+                permission_level="read",
+                side_effects=False,
+                retry_count=1,
+            ),
+            lambda payload: self._verify_memory_tool(
+                user_id,
+                message,
+                payload.get("extraction") or {},
+                profile,
+            ),
+            repair_handler=self._repair_memory_verify_tool,
+        )
+        registry.register(
+            ToolSpec(
+                name="memory.write",
+                description="Write verified stable long-term memory candidates after profile extraction.",
+                input_schema={
+                    "type": "object",
+                    "required": ["extraction", "verification"],
+                    "properties": {"extraction": {"type": "object"}, "verification": {"type": "object"}},
+                },
+                output_schema={
+                    "type": "object",
+                    "required": ["written"],
+                    "properties": {"written": {"type": "array", "items": {"type": "string"}}},
+                },
+                permission_level="write",
+                side_effects=True,
+            ),
+            lambda payload: {
+                "written": self.write_memories_from_message(
+                    user_id,
+                    message,
+                    payload.get("extraction") or {},
+                    payload.get("verification"),
+                )
+            },
+        )
+        registry.register(
+            ToolSpec(
+                name="context.build",
+                description="Build a current-intent context packet from profile, memory, knowledge, rules, and templates.",
+                input_schema={
+                    "type": "object",
+                    "required": ["message_chars"],
+                    "properties": {"message_chars": {"type": "integer", "minimum": 0}},
+                },
+                output_schema={
+                    "type": "object",
+                    "required": ["intent", "current_request_policy"],
+                    "properties": {
+                        "intent": {"type": "string"},
+                        "current_request_policy": {"type": "object"},
+                        "knowledge_context": {"type": "object"},
+                    },
+                },
+                permission_level="read",
+                side_effects=False,
+                retry_count=1,
+            ),
+            lambda _: ContextBuilder(self.db, self.model_provider).build_context_packet(user_id, message),
+            repair_handler=self._repair_context_build_tool,
+        )
+        registry.register(
+            ToolSpec(
+                name="plan.decide",
+                description="Decide whether this turn may generate or show plan content.",
+                input_schema={
+                    "type": "object",
+                    "required": ["context_packet"],
+                    "properties": {"context_packet": {"type": "object"}},
+                },
+                output_schema={
+                    "type": "object",
+                    "required": ["intent", "active_plan_exists", "should_generate_plan", "reason"],
+                    "properties": {
+                        "intent": {"type": ["string", "null"]},
+                        "active_plan_exists": {"type": "boolean"},
+                        "should_generate_plan": {"type": "boolean"},
+                        "reason": {"type": "string"},
+                    },
+                },
+                permission_level="read",
+                side_effects=False,
+                retry_count=1,
+            ),
+            lambda payload: self._plan_generation_decision(payload.get("context_packet") or {}, user_id),
+            repair_handler=self._repair_plan_decide_tool,
+        )
+        registry.register(
+            ToolSpec(
+                name="plan.generate",
+                description="Generate and persist the first active plan when the current request explicitly asks for it.",
+                input_schema={
+                    "type": "object",
+                    "properties": {"reason": {"type": ["string", "null"]}},
+                },
+                output_schema={
+                    "type": "object",
+                    "required": ["plan_id", "active_plan"],
+                    "properties": {"plan_id": {"type": "string"}, "active_plan": {"type": "object"}},
+                },
+                permission_level="write",
+                side_effects=True,
+            ),
+            lambda _: self._generate_plan_tool(user_id),
+        )
+        registry.register(
+            ToolSpec(
+                name="plan.verify",
+                description="Verify generated plan constraints before the plan is used in the coach response.",
+                input_schema={
+                    "type": "object",
+                    "required": ["plan_payload", "context_packet"],
+                    "properties": {"plan_payload": {"type": "object"}, "context_packet": {"type": "object"}},
+                },
+                output_schema={
+                    "type": "object",
+                    "required": ["passed", "issues", "repair_actions"],
+                    "properties": {
+                        "passed": {"type": "boolean"},
+                        "issues": {"type": "array"},
+                        "repair_actions": {"type": "array"},
+                    },
+                },
+                permission_level="read",
+                side_effects=False,
+                retry_count=1,
+            ),
+            lambda payload: self._verify_plan_tool(
+                payload.get("plan_payload") or {},
+                payload.get("context_packet") or {},
+                profile,
+            ),
+        )
+        registry.register(
+            ToolSpec(
+                name="plan.repair",
+                description="Apply deterministic repairs for verifier findings on a generated plan.",
+                input_schema={
+                    "type": "object",
+                    "required": ["plan_payload", "verification", "context_packet"],
+                    "properties": {
+                        "plan_id": {"type": ["string", "null"]},
+                        "plan_payload": {"type": "object"},
+                        "verification": {"type": "object"},
+                        "context_packet": {"type": "object"},
+                    },
+                },
+                permission_level="write",
+                side_effects=True,
+            ),
+            lambda payload: self._repair_plan_tool(
+                payload.get("plan_id"),
+                payload.get("plan_payload") or {},
+                payload.get("verification") or {},
+                payload.get("context_packet") or {},
+                profile,
+            ),
+        )
+        registry.register(
+            ToolSpec(
+                name="response.verify",
+                description="Verify the assistant response against current-message policy and retrieved context.",
+                input_schema={
+                    "type": "object",
+                    "required": ["assistant_message", "context_packet"],
+                    "properties": {"assistant_message": {"type": "string"}, "context_packet": {"type": "object"}},
+                },
+                output_schema={
+                    "type": "object",
+                    "required": ["passed", "issues", "repair_actions"],
+                    "properties": {
+                        "passed": {"type": "boolean"},
+                        "issues": {"type": "array"},
+                        "repair_actions": {"type": "array"},
+                    },
+                },
+                permission_level="read",
+                side_effects=False,
+                retry_count=1,
+            ),
+            lambda payload: self._verify_response_tool(
+                payload.get("assistant_message") or "",
+                message,
+                payload.get("context_packet") or {},
+            ),
+        )
+        registry.register(
+            ToolSpec(
+                name="response.repair",
+                description="Append deterministic repair text when response verification finds fixable issues.",
+                input_schema={
+                    "type": "object",
+                    "required": ["verification", "context_packet"],
+                    "properties": {"verification": {"type": "object"}, "context_packet": {"type": "object"}},
+                },
+                output_schema={
+                    "type": "object",
+                    "required": ["repaired", "repair_text"],
+                    "properties": {"repaired": {"type": "boolean"}, "repair_text": {"type": "string"}},
+                },
+                permission_level="write_candidate",
+                side_effects=False,
+            ),
+            lambda payload: self._repair_response_tool(
+                payload.get("verification") or {},
+                payload.get("context_packet") or {},
+            ),
+        )
+        registry.register(
+            ToolSpec(
+                name="guardrail.check",
+                description="Run safety guardrails over the draft assistant response.",
+                input_schema={
+                    "type": "object",
+                    "required": ["assistant_message"],
+                    "properties": {"assistant_message": {"type": "string"}},
+                },
+                output_schema={
+                    "type": "object",
+                    "required": ["action", "flag_count"],
+                    "properties": {"action": {"type": "string"}, "flag_count": {"type": "integer"}},
+                },
+                permission_level="read",
+                side_effects=False,
+                retry_count=1,
+            ),
+            lambda payload: self._guardrail_tool(payload.get("assistant_message") or "", message, profile),
+        )
+        registry.register(
+            ToolSpec(
+                name="response.persist",
+                description="Persist assistant message, agent run, tool calls, and readable log path.",
+                input_schema={
+                    "type": "object",
+                    "required": ["assistant_message"],
+                    "properties": {"assistant_message": {"type": "string"}},
+                },
+                output_schema={
+                    "type": "object",
+                    "required": ["session_id", "response_chars"],
+                    "properties": {"session_id": {"type": "string"}, "response_chars": {"type": "integer"}},
+                },
+                permission_level="write",
+                side_effects=True,
+            ),
+            lambda payload: {
+                "session_id": str(session_id),
+                "response_chars": len(payload.get("assistant_message") or ""),
+            },
+        )
+        return registry
+
+    def _plan_generation_decision(self, context_packet: dict[str, Any], user_id: uuid.UUID) -> dict[str, Any]:
+        active_plan = self.get_active_plan(user_id)
+        should_generate_plan = self._should_generate_plan_for_context(context_packet)
+        return {
+            "intent": context_packet.get("intent"),
+            "active_plan_exists": active_plan is not None,
+            "should_generate_plan": should_generate_plan,
+            "reason": (
+                "current_message_explicitly_requests_plan"
+                if should_generate_plan
+                else "current_message_does_not_request_plan"
+            ),
+        }
+
+    def _generate_plan_tool(self, user_id: uuid.UUID) -> dict[str, Any]:
+        plan = self.generate_plan(PlanGenerateRequest(user_id=user_id))
+        return {
+            "plan_id": str(plan.id),
+            "active_plan": self._plan_context_payload(plan),
+        }
+
+    def _verify_plan_tool(
+        self,
+        plan_payload: dict[str, Any],
+        context_packet: dict[str, Any],
+        profile: models.UserProfile,
+    ) -> dict[str, Any]:
+        return AgentVerifier().verify_plan(
+            plan_payload,
+            self._profile_payload(profile),
+            context_packet,
+        ).to_dict()
+
+    def _repair_plan_tool(
+        self,
+        plan_id: str | None,
+        plan_payload: dict[str, Any],
+        verification: dict[str, Any],
+        context_packet: dict[str, Any],
+        profile: models.UserProfile,
+    ) -> dict[str, Any]:
+        repaired_payload = AgentVerifier().repair_plan(
+            plan_payload,
+            verification,
+            self._profile_payload(profile),
+            context_packet,
+        )
+        repaired = bool(repaired_payload != plan_payload)
+        if repaired and plan_id:
+            try:
+                plan = self.db.get(models.TrainingPlan, uuid.UUID(str(plan_id)))
+            except ValueError:
+                plan = None
+            if plan is not None:
+                active_plan = repaired_payload.get("plan") if "plan" in repaired_payload else repaired_payload
+                if isinstance(active_plan, dict) and "plan" in active_plan:
+                    active_plan = active_plan.get("plan")
+                if isinstance(active_plan, dict):
+                    plan.plan_json = active_plan
+                    self.db.flush()
+                    repaired_payload = self._plan_context_payload(plan)
+        return {
+            "repaired": repaired,
+            "repair_actions": verification.get("repair_actions") or [],
+            "active_plan": repaired_payload,
+        }
+
+    def _verify_response_tool(
+        self,
+        assistant_message: str,
+        user_message: str,
+        context_packet: dict[str, Any],
+    ) -> dict[str, Any]:
+        return AgentVerifier().verify_response(
+            assistant_message,
+            user_message,
+            context_packet,
+        ).to_dict()
+
+    def _repair_response_tool(
+        self,
+        verification: dict[str, Any],
+        context_packet: dict[str, Any],
+    ) -> dict[str, Any]:
+        return AgentVerifier().repair_response(verification, context_packet)
+
+    def _guardrail_tool(
+        self,
+        assistant_message: str,
+        user_message: str,
+        profile: models.UserProfile,
+    ) -> dict[str, Any]:
+        result = run_guardrails(assistant_message, user_message=user_message, profile=profile)
+        return {
+            "action": result.action.value,
+            "passed": result.passed,
+            "flag_count": len(result.flags),
+            "replacement": result.blocked_replacement,
+            "flags": [
+                {
+                    "rule_id": flag.rule_id,
+                    "severity": flag.severity.value,
+                    "category": flag.category,
+                    "message": flag.message,
+                }
+                for flag in result.flags
+            ],
+        }
 
     def _should_generate_plan_for_context(self, context_packet: dict[str, Any]) -> bool:
         policy = context_packet.get("current_request_policy") or {}
@@ -1902,16 +2642,10 @@ class CoachAgentService:
             if 90 <= value <= 240:
                 updates["height_cm"] = value
 
-        weight = self._first_number(
-            text,
-            [
-                r"weight\s*[:=]?\s*(\d{2,3}(?:\.\d+)?)\s*kg",
-                r"体重\s*[：:=\s\-]*\s*(\d{2,3}(?:\.\d+)?)\s*kg",
-                r"(\d{2,3}(?:\.\d+)?)\s*(?:kg|公斤)",
-            ],
-        )
+        weight, ignored_weight_candidates = self._extract_body_weight_kg(text)
         if weight:
             updates["weight_kg"] = float(weight)
+        ignored_candidates.extend(ignored_weight_candidates)
 
         if any(keyword in lowered for keyword in ["muscle", "bulk", "\u589e\u808c"]):
             updates["goal"] = "muscle_gain"
@@ -2002,6 +2736,74 @@ class CoachAgentService:
         if any(keyword in lowered for keyword in ["\u5065\u8eab\u623f", "\u5546\u4e1a\u5065\u8eab\u623f", "\u5668\u68b0\u9f50\u5168", "gym"]):
             equipment.extend(["gym", "barbell", "dumbbells", "machines", "cables", "cardio"])
         return sorted(set(equipment))
+
+    def _extract_body_weight_kg(self, text: str) -> tuple[float | None, list[dict[str, Any]]]:
+        ignored: list[dict[str, Any]] = []
+        explicit_patterns = [
+            r"(?:体重|当前体重|现在体重|身体体重)[^\d]{0,16}(\d{2,3}(?:\.\d+)?)\s*(?:kg|公斤)",
+            r"\b(?:weight|body weight|weigh)\s*[:=]?\s*(\d{2,3}(?:\.\d+)?)\s*kg",
+            r"(?:身高[^\d]{0,8})?\d{2,3}\s*cm[^\d]{0,16}(?:体重[^\d]{0,8})?(\d{2,3}(?:\.\d+)?)\s*(?:kg|公斤)",
+        ]
+        for pattern in explicit_patterns:
+            match = re.search(pattern, text, flags=re.IGNORECASE)
+            if match:
+                return float(match.group(1)), ignored
+
+        for match in re.finditer(r"(\d{2,3}(?:\.\d+)?)\s*(?:kg|公斤)", text, flags=re.IGNORECASE):
+            value = float(match.group(1))
+            window = text[max(0, match.start() - 24) : min(len(text), match.end() + 24)]
+            ignored.append(
+                {
+                    "field": "weight_kg",
+                    "candidate": value,
+                    "reason": (
+                        "training_load_not_body_weight"
+                        if self._is_training_load_context(window)
+                        else "kg_without_body_weight_context"
+                    ),
+                    "evidence": window,
+                }
+            )
+        return None, ignored
+
+    def _source_text_supports_body_weight(self, source_text: str | None, value: Any) -> bool:
+        if not source_text:
+            return True
+        number = self._coerce_float(value)
+        if number is None:
+            return False
+        weight, _ignored = self._extract_body_weight_kg(source_text)
+        if weight is not None and abs(weight - number) < 0.01:
+            return True
+        return False
+
+    def _is_training_load_context(self, text: str) -> bool:
+        lowered = text.lower()
+        training_terms = [
+            "卧推",
+            "深蹲",
+            "硬拉",
+            "推肩",
+            "划船",
+            "弯举",
+            "上胸",
+            "下胸",
+            "固定器械",
+            "做组",
+            "组",
+            "次数",
+            "rpe",
+            "bench",
+            "squat",
+            "deadlift",
+            "press",
+            "row",
+            "curl",
+            "set",
+            "sets",
+            "reps",
+        ]
+        return any(term in lowered for term in training_terms)
 
     def _extract_injury_state(self, text: str) -> dict[str, Any]:
         lowered = text.lower()
@@ -2188,10 +2990,35 @@ class CoachAgentService:
         user_id: uuid.UUID,
         message: str,
         extraction: dict[str, Any] | None = None,
-    ) -> list[str]:
+        verification: dict[str, Any] | None = None,
+        ) -> list[str]:
         written = []
         extraction = extraction or self._rule_profile_extraction(message)
-        for correction in extraction.get("corrections", []):
+        profile = (
+            self._get_or_create_profile(user_id)
+            if self.db is not None
+            else SimpleNamespace(
+                user_id=user_id,
+                age=None,
+                sex=None,
+                height_cm=None,
+                weight_kg=None,
+                goal=None,
+                experience_level=None,
+                workout_frequency=None,
+                equipment_available=[],
+                injuries=[],
+                dietary_preferences=[],
+                allergies=[],
+            )
+        )
+        verification = verification or self._verify_memory_tool(user_id, message, extraction, profile)
+        corrections_to_write = verification.get("accepted_corrections") or extraction.get("corrections", [])
+        candidates_to_write = verification.get("accepted_candidates")
+        if candidates_to_write is None:
+            candidates_to_write = self._memory_candidates_from_message(message, extraction)
+
+        for correction in corrections_to_write:
             written.append(
                 self._write_memory(
                     user_id=user_id,
@@ -2207,7 +3034,7 @@ class CoachAgentService:
                 )
             )
 
-        for candidate in self._memory_candidates_from_message(message, extraction):
+        for candidate in candidates_to_write:
             written.append(
                 self._write_memory(
                     user_id=user_id,
@@ -2220,6 +3047,39 @@ class CoachAgentService:
                 )
             )
         return [str(item) for item in written if item]
+
+    def _verify_memory_tool(
+        self,
+        user_id: uuid.UUID,
+        message: str,
+        extraction: dict[str, Any],
+        profile: models.UserProfile,
+    ) -> dict[str, Any]:
+        candidates = self._memory_candidates_from_message(message, extraction)
+        corrections = extraction.get("corrections") or []
+        result = MemoryVerifier().verify(
+            candidates=candidates,
+            corrections=corrections,
+            profile_snapshot=self._profile_snapshot(profile),
+            message=message,
+        )
+        return result.to_dict()
+
+    def _profile_snapshot(self, profile: models.UserProfile) -> dict[str, Any]:
+        return {
+            "user_id": str(profile.user_id),
+            "age": profile.age,
+            "sex": profile.sex,
+            "height_cm": profile.height_cm,
+            "weight_kg": profile.weight_kg,
+            "goal": profile.goal,
+            "experience_level": profile.experience_level,
+            "workout_frequency": profile.workout_frequency,
+            "equipment_available": profile.equipment_available or [],
+            "injuries": profile.injuries or [],
+            "dietary_preferences": profile.dietary_preferences or [],
+            "allergies": profile.allergies or [],
+        }
 
     async def _live_onboarding_reply(
         self,
@@ -2273,12 +3133,184 @@ class CoachAgentService:
         case_count = len(payload.get("matched_case_ids") or [])
         return f"召回解释知识 {knowledge_count} 条，教练案例 {case_count} 条"
 
+    def _summarize_tool_execution(self, payload: dict[str, Any]) -> dict[str, Any]:
+        tool_name = payload.get("tool_name")
+        return {
+            "tool_name": tool_name,
+            "status": payload.get("status"),
+            "latency_ms": payload.get("latency_ms"),
+            "attempts": payload.get("attempts", 1),
+            "validation_errors": payload.get("validation_errors") or [],
+            "repaired": payload.get("repaired", False),
+            "repair_actions": payload.get("repair_actions") or [],
+            "input_json": self._summarize_tool_payload(tool_name, payload.get("input_json") or {}),
+            "output_json": self._summarize_tool_payload(tool_name, payload.get("output_json") or {}),
+            "error": payload.get("error"),
+        }
+
+    def _summarize_tool_payload(self, tool_name: str | None, payload: dict[str, Any]) -> dict[str, Any]:
+        if not isinstance(payload, dict):
+            return {"value_type": type(payload).__name__}
+        if tool_name == "profile.extract":
+            return {
+                "message_chars": payload.get("message_chars"),
+                "profile_patch": payload.get("profile_patch") or {},
+                "open_memories_count": len(payload.get("open_memories") or []),
+                "corrections": payload.get("corrections") or [],
+                "ignored_candidates": payload.get("ignored_candidates") or [],
+                "model_used": payload.get("model_used", False),
+            }
+        if tool_name == "memory.write":
+            extraction = payload.get("extraction") or {}
+            return {
+                "has_extraction": bool(extraction),
+                "open_memories_count": len(extraction.get("open_memories") or []),
+                "verification_present": bool(payload.get("verification")),
+                "written": payload.get("written") or [],
+                "written_count": len(payload.get("written") or []),
+            }
+        if tool_name == "memory.verify":
+            return {
+                "passed": payload.get("passed"),
+                "accepted_count": payload.get("accepted_count", 0),
+                "rejected_count": payload.get("rejected_count", 0),
+                "issue_count": payload.get("issue_count", len(payload.get("issues") or [])),
+                "repair_actions": payload.get("repair_actions") or [],
+                "issues": [
+                    {
+                        "issue_id": issue.get("issue_id"),
+                        "severity": issue.get("severity"),
+                        "action": issue.get("action"),
+                    }
+                    for issue in (payload.get("issues") or [])[:6]
+                    if isinstance(issue, dict)
+                ],
+            }
+        if tool_name == "context.build":
+            knowledge_context = payload.get("knowledge_context") or {}
+            return {
+                "message_chars": payload.get("message_chars"),
+                "intent": payload.get("intent"),
+                "current_request_policy": payload.get("current_request_policy") or {},
+                "context_summary": payload.get("context_summary"),
+                "relevant_memory_count": len(payload.get("relevant_memories") or []),
+                "active_risk_count": len(payload.get("active_risk_notes") or []),
+                "knowledge_debug": knowledge_context.get("debug", {}),
+            }
+        if tool_name == "plan.decide":
+            context_packet = payload.get("context_packet") or {}
+            return {
+                "intent": payload.get("intent") or context_packet.get("intent"),
+                "current_request_policy": payload.get("current_request_policy")
+                or context_packet.get("current_request_policy")
+                or {},
+                "should_generate_plan": payload.get("should_generate_plan"),
+                "reason": payload.get("reason"),
+                "context_summary": context_packet.get("context_summary"),
+            }
+        if tool_name == "plan.generate":
+            active_plan = payload.get("active_plan") or {}
+            return {
+                "reason": payload.get("reason"),
+                "plan_id": payload.get("plan_id"),
+                "status": payload.get("status") or active_plan.get("status"),
+                "has_active_plan": bool(active_plan),
+            }
+        if tool_name in {"plan.verify", "response.verify"}:
+            return {
+                "passed": payload.get("passed"),
+                "issue_count": payload.get("issue_count", len(payload.get("issues") or [])),
+                "repair_actions": payload.get("repair_actions") or [],
+                "issues": [
+                    {
+                        "issue_id": issue.get("issue_id"),
+                        "severity": issue.get("severity"),
+                        "message": issue.get("message"),
+                    }
+                    for issue in (payload.get("issues") or [])[:8]
+                    if isinstance(issue, dict)
+                ],
+                "has_plan_payload": bool(payload.get("plan_payload")),
+                "assistant_message_chars": len(payload.get("assistant_message") or ""),
+            }
+        if tool_name == "plan.repair":
+            active_plan = payload.get("active_plan") or {}
+            return {
+                "plan_id": payload.get("plan_id") or active_plan.get("id"),
+                "repaired": payload.get("repaired"),
+                "repair_actions": payload.get("repair_actions") or [],
+                "has_active_plan": bool(active_plan),
+            }
+        if tool_name == "response.repair":
+            return {
+                "repaired": payload.get("repaired"),
+                "repair_actions": payload.get("repair_actions") or [],
+                "repair_text_chars": len(payload.get("repair_text") or ""),
+            }
+        if tool_name == "guardrail.check":
+            return {
+                "assistant_message_chars": len(payload.get("assistant_message") or ""),
+                "action": payload.get("action"),
+                "flag_count": payload.get("flag_count", 0),
+                "flags": payload.get("flags") or [],
+            }
+        return self._truncate_trace_payload(payload)
+
+    def _truncate_trace_payload(self, value: Any, depth: int = 0) -> Any:
+        if depth > 3:
+            return "[truncated]"
+        if isinstance(value, dict):
+            result: dict[str, Any] = {}
+            for index, (key, item) in enumerate(value.items()):
+                if index >= 12:
+                    result["_truncated_keys"] = len(value) - index
+                    break
+                result[str(key)] = self._truncate_trace_payload(item, depth + 1)
+            return result
+        if isinstance(value, list):
+            items = [self._truncate_trace_payload(item, depth + 1) for item in value[:8]]
+            if len(value) > 8:
+                items.append({"_truncated_items": len(value) - 8})
+            return items
+        if isinstance(value, str) and len(value) > 500:
+            return value[:500] + "...[truncated]"
+        if isinstance(value, (uuid.UUID, datetime, date)):
+            return value.isoformat() if hasattr(value, "isoformat") else str(value)
+        return value
+
     def _public_trace_metadata(self, name: str, payload: dict[str, Any]) -> dict[str, Any]:
         if name == "RequestReceived":
             return {
                 "provider": payload.get("provider"),
                 "chat_model": payload.get("chat_model"),
                 "embedding_mode": payload.get("embedding_mode"),
+            }
+        if name == "AgentPlanner":
+            return {
+                "plan_id": payload.get("plan_id"),
+                "strategy": payload.get("strategy"),
+                "intent": payload.get("intent"),
+                "step_count": len(payload.get("steps") or []),
+                "steps": [
+                    {
+                        "key": step.get("key"),
+                        "tool_name": step.get("tool_name"),
+                        "stage": step.get("stage"),
+                        "required": step.get("required"),
+                    }
+                    for step in (payload.get("steps") or [])
+                    if isinstance(step, dict)
+                ],
+            }
+        if name == "ToolExecutor":
+            return {
+                "tool_name": payload.get("tool_name"),
+                "status": payload.get("status"),
+                "latency_ms": payload.get("latency_ms"),
+                "attempts": payload.get("attempts", 1),
+                "validation_errors": payload.get("validation_errors") or [],
+                "repaired": payload.get("repaired", False),
+                "repair_actions": payload.get("repair_actions") or [],
             }
         if name == "ProfileExtractorAgent":
             return {
@@ -2289,6 +3321,15 @@ class CoachAgentService:
             }
         if name == "MemoryAgent":
             return {"memory_ids": payload.get("written") or []}
+        if name == "MemoryVerifier":
+            return {
+                "passed": payload.get("passed"),
+                "accepted_count": payload.get("accepted_count", 0),
+                "rejected_count": payload.get("rejected_count", 0),
+                "issue_count": payload.get("issue_count", len(payload.get("issues") or [])),
+                "repair_actions": payload.get("repair_actions") or [],
+                "issues": payload.get("issues") or [],
+            }
         if name == "IntentRouter":
             return {
                 "onboarding_complete": payload.get("onboarding_complete"),
@@ -2351,6 +3392,18 @@ class CoachAgentService:
                 "action": payload.get("action"),
                 "flag_count": payload.get("flag_count"),
                 "flags": payload.get("flags") or [],
+            }
+        if name in {"PlanVerifier", "ResponseVerifier"}:
+            return {
+                "passed": payload.get("passed"),
+                "issue_count": payload.get("issue_count"),
+                "repair_actions": payload.get("repair_actions") or [],
+                "issues": payload.get("issues") or [],
+            }
+        if name in {"PlanRepair", "ResponseRepair"}:
+            return {
+                "repaired": payload.get("repaired"),
+                "repair_actions": payload.get("repair_actions") or [],
             }
         return {}
 

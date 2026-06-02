@@ -27,6 +27,21 @@ export type AgentTraceItem = {
   metadata?: Record<string, any>;
 };
 
+export type AgentRunDetail = {
+  id: string;
+  user_id: string;
+  session_id?: string | null;
+  run_type: string;
+  status: string;
+  nodes: Array<Record<string, any>>;
+  summary?: string | null;
+  error?: string | null;
+  log_path?: string | null;
+  tool_calls: Array<Record<string, any>>;
+  started_at?: string;
+  completed_at?: string | null;
+};
+
 export type ChatMessage = {
   id?: string;
   role: "user" | "assistant";

@@ -1,4 +1,4 @@
-import json
+﻿import json
 import time
 from pathlib import Path
 from uuid import uuid4
@@ -25,7 +25,12 @@ def test_agent_run_logger_redacts_secrets_and_writes_readable_log(tmp_path):
     content = Path(path).read_text(encoding="utf-8")
 
     assert event["output"]["api_key"] == "[REDACTED]"
-    assert "Timeline" in content
+    assert "AI 私教 Agent 运行日志" in content
+    assert "一、执行时间线" in content
+    assert "输入摘要" in content
+    assert "输出摘要" in content
+    assert "二、完整 JSON（用于深度调试）" in content
     assert "CoachLLM" in content
     assert "secret" not in content
-    assert json.loads(content.split("Full JSON", 1)[1])["status"] == "completed"
+    json_payload = content.split("二、完整 JSON（用于深度调试）", 1)[1].split("\n", 2)[2]
+    assert json.loads(json_payload)["status"] == "completed"

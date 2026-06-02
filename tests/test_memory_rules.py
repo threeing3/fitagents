@@ -229,6 +229,50 @@ def test_height_extraction_with_cm_suffix_still_works():
     assert extraction["profile_patch"]["height_cm"] == 178
 
 
+def test_training_load_kg_is_not_extracted_as_body_weight():
+    service = CoachAgentService(db=None)
+
+    extraction = service._rule_profile_extraction(
+        "今天练胸，我尝试了卧推55KG做组，做了3x5组，然后50kg做2x8组，上胸采用固定器械。"
+    )
+
+    assert "weight_kg" not in extraction["profile_patch"]
+    ignored_weights = [
+        item
+        for item in extraction["ignored_candidates"]
+        if item.get("field") == "weight_kg"
+    ]
+    assert ignored_weights
+    assert {item["candidate"] for item in ignored_weights} == {55.0, 50.0}
+    assert all(item["reason"] == "training_load_not_body_weight" for item in ignored_weights)
+
+
+def test_llm_weight_patch_rejected_when_source_text_only_mentions_training_load():
+    service = CoachAgentService(db=None)
+    extraction = {"profile_patch": {}, "corrections": [], "ignored_candidates": []}
+
+    service._merge_llm_profile_patch(
+        extraction,
+        {"profile_patch": {"weight_kg": 55}},
+        "今天卧推55kg做组，后面50kg做2x8组。",
+    )
+
+    assert "weight_kg" not in extraction["profile_patch"]
+
+
+def test_llm_weight_patch_accepted_when_source_text_mentions_body_weight():
+    service = CoachAgentService(db=None)
+    extraction = {"profile_patch": {}, "corrections": [], "ignored_candidates": []}
+
+    service._merge_llm_profile_patch(
+        extraction,
+        {"profile_patch": {"weight_kg": 80}},
+        "我现在体重80kg，卧推55kg做组。",
+    )
+
+    assert extraction["profile_patch"]["weight_kg"] == 80
+
+
 def test_height_extraction_rejects_out_of_range():
     """Values like '5000' (clearly not a height) should be rejected."""
     service = CoachAgentService(db=None)

@@ -1,4 +1,4 @@
-import type { AuthUser, ChatMessage, Dashboard, PlanResponse, CheckinResult, SessionState } from "./types";
+import type { AuthUser, ChatMessage, Dashboard, PlanResponse, CheckinResult, SessionState, AgentRunDetail } from "./types";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "http://localhost:1015").replace(/\/$/, "");
 const TOKEN_KEY = "ai_fitness_token";
@@ -75,6 +75,10 @@ export async function fetchSessionMessages(sessionId: string): Promise<ChatMessa
 
 export async function fetchDashboard(userId: string): Promise<Dashboard> {
   return api(`/v1/users/${userId}/dashboard`);
+}
+
+export async function fetchAgentRun(runId: string): Promise<AgentRunDetail> {
+  return api(`/v1/agent-runs/${runId}`);
 }
 
 export async function generatePlan(userId: string): Promise<PlanResponse> {
