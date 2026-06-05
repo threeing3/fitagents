@@ -114,6 +114,7 @@ class DashboardResponse(BaseModel):
     today_plan: dict[str, Any]
     latest_checkin: dict[str, Any] | None
     recent_memories: list[dict[str, Any]]
+    active_tasks: list[dict[str, Any]] = Field(default_factory=list)
     progress: dict[str, Any]
     coach_suggestions: list[str]
 

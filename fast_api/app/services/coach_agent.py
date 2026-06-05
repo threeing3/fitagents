@@ -1,4 +1,4 @@
-﻿import json
+import json
 import re
 import time
 import uuid
@@ -40,8 +40,13 @@ from fast_api.app.core.prompts import registry
 from fast_api.app.services.fitness_knowledge import FitnessKnowledgeService, KNOWLEDGE_DIR
 from fast_api.app.services.memory_system import MemoryManager
 from fast_api.app.core.metrics import track_llm_call
+from fast_api.app.core.config import get_settings
 from fast_api.app.services.model_provider import ModelProvider
 from fast_api.app.services.semantic_cache import SemanticCacheService
+from fast_api.app.services.feedback_learner_integration import get_adaptive_system_prompt
+from fast_api.app.services.llm_agent import LLMAgentService as LLMAgent
+from fast_api.app.services.agent_task_state import AgentTaskStateService
+from fast_api.app.services.memory_conflict_resolver import MemoryConflictResolver
 
 
 REQUIRED_ONBOARDING_SLOTS = [
@@ -101,10 +106,22 @@ class CoachAgentService:
         user_id: uuid.UUID,
         message: str,
     ) -> dict[str, Any]:
+        """Dispatch to LLM-driven agent or code-driven pipeline based on config."""
+        settings = get_settings()
+        if settings.use_llm_driven_agent:
+            return await self._handle_chat_llm_agent(session_id, user_id, message)
+        return await self._handle_chat_code_driven(session_id, user_id, message)
+
+    async def _handle_chat_code_driven(
+        self,
+        session_id: uuid.UUID,
+        user_id: uuid.UUID,
+        message: str,
+    ) -> dict[str, Any]:
+        """Legacy code-driven pipeline: ToolRegistry -> AgentPlanner -> AgentExecutor."""
         started_at = datetime.utcnow()
         nodes: list[dict[str, Any]] = []
         tool_calls: list[dict[str, Any]] = []
-        memories_written: list[str] = []
         state_updates: dict[str, Any] = {}
 
         session = self.db.get(models.ConversationSession, session_id)
@@ -113,6 +130,25 @@ class CoachAgentService:
         user = self.ensure_user(user_id)
         profile = self._get_or_create_profile(user.id)
         run_logger = AgentRunLogger("chat", user.id, session.id)
+        timeline = AgentTaskTimeline(message, request_id=run_logger.request_id)
+        tool_registry = self._build_chat_tool_registry(user.id, session.id, profile, message)
+        executor = AgentExecutor()
+        execution_plan = AgentPlanner().plan_chat_turn(message, tool_registry.list_specs())
+        timeline_steps = {
+            planned.key: timeline.add_step(planned.name, planned.tool_name, planned.reason)
+            for planned in execution_plan.steps
+        }
+
+        # ---- Register runtime environment ----
+        registry_node = run_logger.event("ToolRegistry", {"tools": tool_registry.list_specs()})
+        nodes.append(registry_node)
+        contract_issues = tool_registry.validate_contracts()
+        nodes.append(run_logger.event("ToolContractAudit", {"issues": contract_issues}))
+        state_updates["tool_contract_issues"] = contract_issues
+        planner_node = run_logger.event("AgentPlanner", execution_plan.to_dict())
+        nodes.append(planner_node)
+        timeline_node = run_logger.event("AgentTaskTimeline", timeline.to_dict())
+        nodes.append(timeline_node)
         run_logger.event(
             "RequestReceived",
             {
@@ -125,8 +161,44 @@ class CoachAgentService:
 
         self._save_message(session.id, user.id, "user", message)
 
+        # ---- Tool helper (non-streaming: collect instead of yield) ----
+        def planned_or_new_step(key: str, name: str, tool_name: str, reason: str) -> TaskStep:
+            return timeline_steps.get(key) or timeline.add_step(name, tool_name, reason)
+
+        async def execute_tool(tool_name: str, input_json: dict[str, Any], timeline_step: TaskStep):
+            execution = await executor.execute(tool_registry, timeline, timeline_step, input_json)
+            nodes.append(run_logger.event("TaskStep", execution.started_event))
+            result = execution.result
+            tool_payload = self._summarize_tool_execution(result.to_trace())
+            tool_calls.append({
+                "tool_name": result.tool_name,
+                "status": result.status,
+                "input": tool_payload.get("input_json", {}),
+                "output": tool_payload.get("output_json", {}),
+                "latency_ms": result.latency_ms,
+                "attempts": result.attempts,
+                "validation_errors": result.validation_errors,
+                "repaired": result.repaired,
+                "repair_actions": result.repair_actions,
+                "contract": result.contract,
+                "idempotency_key": result.idempotency_key,
+            })
+            nodes.append(run_logger.event("ToolExecutor", tool_payload))
+            timeline_step.output_summary = tool_payload.get("output_json", {})
+            completed_event = dict(execution.completed_event)
+            completed_event["output_summary"] = tool_payload.get("output_json", {})
+            nodes.append(run_logger.event("TaskStep", completed_event))
+            if result.status != "success":
+                raise RuntimeError(result.error or f"Tool failed: {tool_name}")
+            return result.output_json
+
+        # ---- Execute: profile extract -> memory verify -> memory write ----
         node_start = time.perf_counter()
-        extraction = await self.profile_extractor_agent(profile, message)
+        extraction = await execute_tool(
+            "profile.extract",
+            {"message_chars": len(message)},
+            timeline_steps["profile_extract"],
+        )
         if extraction["profile_patch"] or extraction["corrections"]:
             self._apply_profile_extraction(profile, extraction)
             self._refresh_macro_targets(profile)
@@ -134,113 +206,205 @@ class CoachAgentService:
             state_updates["corrections"] = extraction["corrections"]
         nodes.append(run_logger.node("ProfileExtractorAgent", node_start, extraction, {"message": message[:240]}))
 
-        node_start = time.perf_counter()
-        memories_written = self.write_memories_from_message(user.id, message, extraction)
-        nodes.append(run_logger.node("MemoryAgent", node_start, {"written": memories_written}))
+        memory_verify_output = await execute_tool(
+            "memory.verify",
+            {"extraction": extraction},
+            timeline_steps["memory_verify"],
+        )
+        state_updates["memory_verification"] = memory_verify_output
+        nodes.append(run_logger.event("MemoryVerifier", memory_verify_output))
 
+        node_start_mem = time.perf_counter()
+        memory_output = await execute_tool(
+            "memory.write",
+            {"extraction": extraction, "verification": memory_verify_output},
+            timeline_steps["memory_write"],
+        )
+        memories_written = memory_output.get("written") or []
+        nodes.append(run_logger.node("MemoryAgent", node_start_mem, {"written": memories_written}))
+
+        # ---- Intent routing ----
         missing_slots = self.missing_onboarding_slots(profile)
         onboarding_complete = not missing_slots
-        nodes.append(
-            run_logger.event(
-                "IntentRouter",
-                {"onboarding_complete": onboarding_complete, "missing_slots": missing_slots},
+        nodes.append(run_logger.event(
+            "IntentRouter",
+            {"onboarding_complete": onboarding_complete, "missing_slots": missing_slots},
+        ))
+
+        # ---- Generate response through the appropriate path ----
+        chunks: list[str] = []
+        context_packet: dict[str, Any] = {}
+        try:
+            if self._requires_immediate_safety_reply(message):
+                assistant_message = self._safety_reply()
+                chunks.append(assistant_message)
+                nodes.append(run_logger.node("CoachLLM", time.perf_counter(), {"safety": True, "mode": "static_safety"}))
+            elif not onboarding_complete:
+                node_start_onb = time.perf_counter()
+                assistant_message = await self._live_onboarding_reply(profile, missing_slots, message)
+                chunks.append(assistant_message)
+                nodes.append(run_logger.node(
+                    "CoachLLM", node_start_onb,
+                    {"mode": "onboarding", "live_model": self.model_provider.has_live_model(), "missing_slots": missing_slots},
+                ))
+            else:
+                # Build context through tool pipeline
+                node_start_ctx = time.perf_counter()
+                context_packet = await execute_tool(
+                    "context.build",
+                    {"message_chars": len(message)},
+                    timeline_steps["context_build"],
+                )
+                nodes.append(run_logger.node("ContextBuilder", node_start_ctx, context_packet))
+
+                # Plan decision
+                plan_decision = await execute_tool(
+                    "plan.decide",
+                    {"context_packet": context_packet},
+                    timeline_steps["plan_decision"],
+                )
+                should_generate_plan = bool(plan_decision.get("should_generate_plan"))
+                nodes.append(run_logger.event("CurrentRequestPolicy", context_packet.get("current_request_policy", {})))
+                nodes.append(run_logger.event("PlanGenerationDecision", plan_decision))
+
+                active_plan = self.get_active_plan(user.id)
+                if active_plan is None and should_generate_plan:
+                    plan_output = await execute_tool(
+                        "plan.generate",
+                        {"reason": plan_decision.get("reason")},
+                        planned_or_new_step(
+                            "plan_generate", "Generate first active plan", "plan.generate",
+                            "The current message explicitly requested a plan.",
+                        ),
+                    )
+                    context_packet["active_plan"] = plan_output.get("active_plan")
+                    state_updates["generated_plan_id"] = plan_output.get("plan_id")
+
+                    # ---- Self-correction: role-play verification ----
+                    reflection_prompt = self._build_plan_reflection_prompt(
+                        plan_output, context_packet, profile
+                    )
+                    if reflection_prompt:
+                        plan_output["_reflection"] = "Requested"
+                        nodes.append(run_logger.event("PlanSelfCorrection", {
+                            "step": "reflection_requested",
+                            "plan_id": plan_output.get("plan_id"),
+                        }))
+
+                    # Plan verify -> repair
+                    plan_verify_output = await execute_tool(
+                        "plan.verify",
+                        {"plan_payload": plan_output.get("active_plan") or {}, "context_packet": context_packet},
+                        planned_or_new_step(
+                            "plan_verify", "Verify generated plan constraints", "plan.verify",
+                            "Check generated plan before it is used by the coach response.",
+                        ),
+                    )
+                    state_updates["plan_verification"] = plan_verify_output
+                    nodes.append(run_logger.event("PlanVerifier", plan_verify_output))
+
+                    if plan_verify_output.get("repair_actions"):
+                        plan_repair_output = await execute_tool(
+                            "plan.repair",
+                            {
+                                "plan_id": plan_output.get("plan_id"),
+                                "plan_payload": plan_output.get("active_plan") or {},
+                                "verification": plan_verify_output,
+                                "context_packet": context_packet,
+                            },
+                            planned_or_new_step(
+                                "plan_repair", "Repair generated plan constraints", "plan.repair",
+                                "Apply deterministic repairs for verifier findings.",
+                            ),
+                        )
+                        if plan_repair_output.get("active_plan"):
+                            context_packet["active_plan"] = plan_repair_output.get("active_plan")
+                        state_updates["plan_repair"] = plan_repair_output
+                        nodes.append(run_logger.event("PlanRepair", plan_repair_output))
+
+                # Knowledge + rules context
+                knowledge_context = context_packet.get("knowledge_context") or {}
+                nodes.append(run_logger.event("KnowledgeRetrieval", knowledge_context.get("debug", {})))
+                nodes.append(run_logger.event("DecisionRules", {
+                    "matched_rule_ids": knowledge_context.get("debug", {}).get("matched_rule_ids", []),
+                    "rules": knowledge_context.get("decision_rules", []),
+                }))
+                nodes.append(run_logger.event("TemplateSelector", {
+                    "matched_template_ids": knowledge_context.get("debug", {}).get("matched_template_ids", []),
+                    "templates": knowledge_context.get("plan_templates", []),
+                }))
+                state_updates["context_intent"] = context_packet.get("intent")
+                state_updates["knowledge_debug"] = knowledge_context.get("debug", {})
+                if "feedback_debug" in locals() and feedback_debug.get("enhanced"):
+                    state_updates["feedback_learning"] = feedback_debug
+
+                # Generate coach reply
+                node_start_reply = time.perf_counter()
+                timeline.start(timeline_steps["coach_reply"])
+                assistant_message = await self._coaching_reply(user.id, message, context_packet)
+                chunks.append(assistant_message)
+                timeline.complete(
+                    timeline_steps["coach_reply"],
+                    {"response_chars": len(assistant_message), "live_model": self.model_provider.has_live_model()},
+                    round((time.perf_counter() - node_start_reply) * 1000),
+                )
+                nodes.append(run_logger.node("CoachLLM", node_start_reply, {
+                    "safety": False,
+                    "live_model": self.model_provider.has_live_model(),
+                    "response_chars": len(assistant_message),
+                }))
+        except Exception as exc:
+            error_text = f"\n\n{self._model_call_error_message(exc)} 请稍后重试。"
+            chunks.append(error_text)
+            nodes.append(run_logger.event("RuntimeError", {"error": str(exc)}))
+        assistant_message = "".join(chunks).strip()
+
+        if not assistant_message:
+            assistant_message = registry.get("error_coach_stream_empty")
+
+        # ---- Response verify -> repair (when context exists) ----
+        if context_packet:
+            response_verify_output = await execute_tool(
+                "response.verify",
+                {"assistant_message": assistant_message[:6000], "context_packet": context_packet},
+                timeline_steps["response_verify"],
             )
+            state_updates["response_verification"] = response_verify_output
+            nodes.append(run_logger.event("ResponseVerifier", response_verify_output))
+            if response_verify_output.get("repair_actions"):
+                response_repair_output = await execute_tool(
+                    "response.repair",
+                    {"verification": response_verify_output, "context_packet": context_packet},
+                    planned_or_new_step(
+                        "response_repair", "Repair coach response constraints", "response.repair",
+                        "Append deterministic repair text when verifier finds fixable issues.",
+                    ),
+                )
+                repair_text = response_repair_output.get("repair_text") or ""
+                if repair_text:
+                    assistant_message = (assistant_message + repair_text).strip()
+                state_updates["response_repair"] = response_repair_output
+                nodes.append(run_logger.event("ResponseRepair", response_repair_output))
+
+        # ---- Guardrail check ----
+        guardrail_output = await execute_tool(
+            "guardrail.check",
+            {"assistant_message": assistant_message[:4000]},
+            timeline_steps["guardrail"],
         )
+        guardrail_payload = {
+            "action": guardrail_output.get("action"),
+            "flag_count": guardrail_output.get("flag_count", 0),
+            "flags": guardrail_output.get("flags", []),
+        }
+        nodes.append(run_logger.event("GuardrailCheck", guardrail_payload))
+        if guardrail_output.get("action") == GuardrailSeverity.BLOCK.value:
+            assistant_message = guardrail_output.get("replacement") or assistant_message
 
-        if self._requires_immediate_safety_reply(message):
-            assistant_message = self._safety_reply()
-            nodes.append(run_logger.node("CoachLLM", time.perf_counter(), {"safety": True, "mode": "static_safety"}))
-        elif not onboarding_complete:
-            node_start = time.perf_counter()
-            assistant_message = await self._live_onboarding_reply(profile, missing_slots, message)
-            nodes.append(
-                run_logger.node(
-                    "CoachLLM",
-                    node_start,
-                    {
-                        "mode": "onboarding",
-                        "live_model": self.model_provider.has_live_model(),
-                        "missing_slots": missing_slots,
-                    },
-                )
-            )
-        else:
-            node_start = time.perf_counter()
-            context_packet = ContextBuilder(self.db, self.model_provider).build_context_packet(user.id, message)
-            nodes.append(run_logger.node("ContextBuilder", node_start, context_packet))
-
-            active_plan = self.get_active_plan(user.id)
-            should_generate_plan = self._should_generate_plan_for_context(context_packet)
-            plan_decision = {
-                "intent": context_packet.get("intent"),
-                "active_plan_exists": active_plan is not None,
-                "should_generate_plan": should_generate_plan,
-                "reason": (
-                    "current_message_explicitly_requests_plan"
-                    if should_generate_plan
-                    else "current_message_does_not_request_plan"
-                ),
-            }
-            nodes.append(run_logger.event("CurrentRequestPolicy", context_packet.get("current_request_policy", {})))
-            nodes.append(run_logger.event("PlanGenerationDecision", plan_decision))
-            if active_plan is None and should_generate_plan:
-                plan_result = self.generate_plan(PlanGenerateRequest(user_id=user.id))
-                context_packet["active_plan"] = self._plan_context_payload(plan_result)
-                state_updates["generated_plan_id"] = str(plan_result.id)
-                tool_calls.append(
-                    {
-                        "tool_name": "generate_training_plan",
-                        "status": "success",
-                        "output": {"plan_id": str(plan_result.id)},
-                    }
-                )
-            knowledge_context = context_packet.get("knowledge_context") or {}
-            nodes.append(run_logger.event("KnowledgeRetrieval", knowledge_context.get("debug", {})))
-            nodes.append(
-                run_logger.event(
-                    "DecisionRules",
-                    {
-                        "matched_rule_ids": knowledge_context.get("debug", {}).get("matched_rule_ids", []),
-                        "rules": knowledge_context.get("decision_rules", []),
-                    },
-                )
-            )
-            nodes.append(
-                run_logger.event(
-                    "TemplateSelector",
-                    {
-                        "matched_template_ids": knowledge_context.get("debug", {}).get("matched_template_ids", []),
-                        "templates": knowledge_context.get("plan_templates", []),
-                    },
-                )
-            )
-            state_updates["context_intent"] = context_packet.get("intent")
-            state_updates["knowledge_debug"] = knowledge_context.get("debug", {})
-            node_start = time.perf_counter()
-            assistant_message = await self._coaching_reply(user.id, message, context_packet)
-            nodes.append(
-                run_logger.node(
-                    "CoachLLM",
-                    node_start,
-                    {
-                        "safety": False,
-                        "live_model": self.model_provider.has_live_model(),
-                        "response_chars": len(assistant_message),
-                    },
-                )
-            )
-
-        # ---- Safety guardrail check ----
-        guardrail_result = run_guardrails(assistant_message, user_message=message, profile=profile)
-        nodes.append(run_logger.event("GuardrailCheck", {
-            "action": guardrail_result.action.value,
-            "flag_count": len(guardrail_result.flags),
-            "flags": [{"rule_id": f.rule_id, "severity": f.severity.value, "category": f.category} for f in guardrail_result.flags],
-        }))
-        if guardrail_result.action == GuardrailSeverity.BLOCK:
-            assistant_message = guardrail_result.blocked_replacement or assistant_message
-
+        # ---- Persist ----
+        timeline.start(timeline_steps["persist"])
         assistant_msg = self._save_message(session.id, user.id, "assistant", assistant_message)
+        timeline.complete(timeline_steps["persist"], {"response_chars": len(assistant_message)})
         nodes.append(run_logger.event("ResponsePersisted", {"response_chars": len(assistant_message)}))
 
         run = models.AgentRun(
@@ -256,17 +420,59 @@ class CoachAgentService:
         self.db.add(run)
         self.db.flush()
 
+        task_service = AgentTaskStateService(self.db)
+        long_term_tasks = task_service.update_from_chat_turn(
+            user_id=user.id,
+            message=message,
+            profile=profile,
+            context_packet=context_packet,
+            state_updates=state_updates,
+            agent_run_id=run.id,
+        )
+        state_updates["long_term_tasks"] = long_term_tasks
+        task_node = run_logger.event("LongTermTaskState", {"tasks": long_term_tasks})
+        nodes.append(task_node)
+        run.nodes = nodes
+        task_service.record_replay_snapshot(
+            agent_run=run,
+            request_json={
+                "session_id": str(session.id),
+                "message": message,
+                "message_chars": len(message),
+            },
+            state_snapshot={
+                "profile": self._profile_snapshot(profile),
+                "context_packet": self._truncate_trace_payload(context_packet),
+                "state_updates": self._truncate_trace_payload(state_updates),
+                "active_tasks": long_term_tasks,
+            },
+            tool_plan_json={
+                "execution_plan": execution_plan.to_dict(),
+                "timeline": timeline.to_dict(),
+                "tool_contracts": tool_registry.list_specs(),
+                "contract_issues": contract_issues,
+            },
+            response_snapshot={
+                "assistant_message": assistant_message,
+                "guardrail": guardrail_payload,
+                "tool_calls": tool_calls,
+            },
+            config_snapshot={
+                "llm_provider": self.model_provider.settings.llm_provider,
+                "chat_model": self.model_provider.settings.chat_model,
+                "embedding_mode": self.model_provider.embedding_mode(),
+            },
+        )
+
         for call in tool_calls:
-            self.db.add(
-                models.ToolCall(
-                    agent_run_id=run.id,
-                    tool_name=call["tool_name"],
-                    input_json=call.get("input", {}),
-                    output_json=call.get("output", {}),
-                    latency_ms=call.get("latency_ms", 0),
-                    status=call.get("status", "success"),
-                )
-            )
+            self.db.add(models.ToolCall(
+                agent_run_id=run.id,
+                tool_name=call["tool_name"],
+                input_json=call.get("input", {}),
+                output_json=call.get("output", {}),
+                latency_ms=call.get("latency_ms", 0),
+                status=call.get("status", "success"),
+            ))
 
         self.db.commit()
         self.db.refresh(run)
@@ -276,7 +482,6 @@ class CoachAgentService:
         state_updates["agent_log_path"] = log_path
 
         return {
-            "session_id": session.id,
             "user_id": user.id,
             "assistant_message": assistant_message,
             "agent_run_id": run.id,
@@ -287,11 +492,12 @@ class CoachAgentService:
             "tool_calls": tool_calls,
             "state_updates": state_updates,
             "guardrail": {
-                "action": guardrail_result.action.value,
-                "passed": guardrail_result.passed,
-                "flags": [{"rule_id": f.rule_id, "severity": f.severity.value, "category": f.category, "message": f.message} for f in guardrail_result.flags],
+                "action": guardrail_payload.get("action"),
+                "passed": guardrail_payload.get("action") != "block",
+                "flags": guardrail_payload.get("flags", []),
             },
         }
+
 
     async def stream_chat_message(
         self,
@@ -423,6 +629,8 @@ class CoachAgentService:
                 )
                 state_updates["context_intent"] = context_packet.get("intent")
                 state_updates["knowledge_debug"] = knowledge_context.get("debug", {})
+                if "feedback_debug" in locals() and feedback_debug.get("enhanced"):
+                    state_updates["feedback_learning"] = feedback_debug
                 node_start = time.perf_counter()
                 async for chunk in self._coaching_reply_stream(user.id, message, context_packet):
                     chunks.append(chunk)
@@ -475,22 +683,104 @@ class CoachAgentService:
         )
         self.db.add(run)
         self.db.flush()
+        task_service = AgentTaskStateService(self.db)
+        long_term_tasks = task_service.update_from_chat_turn(
+            user_id=user.id,
+            message=message,
+            profile=profile,
+            context_packet=context_packet if "context_packet" in locals() else {},
+            state_updates=state_updates,
+            agent_run_id=run.id,
+        )
+        state_updates["long_term_tasks"] = long_term_tasks
+        task_node = run_logger.event("LongTermTaskState", {"tasks": long_term_tasks})
+        nodes.append(task_node)
+        yield step_event("LongTermTaskState", task_node, task_node.get("output", {}))
+        run.nodes = nodes
+        task_service.record_replay_snapshot(
+            agent_run=run,
+            request_json={
+                "session_id": str(session.id),
+                "message": message,
+                "message_chars": len(message),
+                "stream": True,
+            },
+            state_snapshot={
+                "profile": self._profile_snapshot(profile),
+                "context_packet": self._truncate_trace_payload(context_packet if "context_packet" in locals() else {}),
+                "state_updates": self._truncate_trace_payload(state_updates),
+                "active_tasks": long_term_tasks,
+            },
+            tool_plan_json={
+                "execution_plan": execution_plan.to_dict(),
+                "timeline": timeline.to_dict(),
+                "tool_contracts": tool_registry.list_specs(),
+                "contract_issues": contract_issues,
+            },
+            response_snapshot={
+                "assistant_message": assistant_message,
+                "guardrail": guardrail_payload,
+                "tool_calls": tool_calls,
+            },
+            config_snapshot={
+                "llm_provider": self.model_provider.settings.llm_provider,
+                "chat_model": self.model_provider.settings.chat_model,
+                "embedding_mode": self.model_provider.embedding_mode(),
+            },
+        )
         for call in tool_calls:
             self.db.add(
                 models.ToolCall(
                     agent_run_id=run.id,
                     tool_name=call["tool_name"],
                     input_json=call.get("input", {}),
-                    output_json=call.get("output", {}),
-                    latency_ms=call.get("latency_ms", 0),
-                    status=call.get("status", "success"),
-                )
-            )
+                output_json=call.get("output", {}),
+                latency_ms=call.get("latency_ms", 0),
+                status=call.get("status", "success"),
+            ))
+
         self.db.commit()
+        self.db.refresh(run)
         run.log_path = run_logger.write_run_log(run.id, "completed", assistant_message[:500])
         self.db.commit()
 
     async def stream_chat_events(
+        self,
+        session_id: uuid.UUID,
+        user_id: uuid.UUID,
+        message: str,
+    ):
+        """Dispatch streaming to LLM-driven or code-driven pipeline."""
+        settings = get_settings()
+        if settings.use_llm_driven_agent:
+            async for chunk in self._stream_chat_llm_agent(session_id, user_id, message):
+                yield chunk
+            return
+        async for chunk in self._stream_chat_code_driven(session_id, user_id, message):
+            yield chunk
+
+    async def _stream_chat_llm_agent(
+        self,
+        session_id: uuid.UUID,
+        user_id: uuid.UUID,
+        message: str,
+    ):
+        def event(event_type: str, **payload):
+            return json.dumps({"type": event_type, **payload}, ensure_ascii=False, default=str) + "\n"
+
+        yield event("status", text="正在思考")
+        result = await self._handle_chat_llm_agent(session_id, user_id, message)
+        assistant_message = result.get("assistant_message") or ""
+        for index in range(0, len(assistant_message), 3):
+            yield event("answer_delta", text=assistant_message[index : index + 3])
+        yield event(
+            "done",
+            run_id=str(result.get("agent_run_id")),
+            state_updates=result.get("state_updates") or {},
+            tool_calls=result.get("tool_calls") or [],
+        )
+
+    async def _stream_chat_code_driven(
         self,
         session_id: uuid.UUID,
         user_id: uuid.UUID,
@@ -614,6 +904,8 @@ class CoachAgentService:
                     "validation_errors": result.validation_errors,
                     "repaired": result.repaired,
                     "repair_actions": result.repair_actions,
+                    "contract": result.contract,
+                    "idempotency_key": result.idempotency_key,
                 }
             )
             tool_node = run_logger.event("ToolExecutor", tool_payload)
@@ -648,6 +940,11 @@ class CoachAgentService:
         registry_node = run_logger.event("ToolRegistry", {"tools": tool_registry.list_specs()})
         nodes.append(registry_node)
         yield step_event("ToolRegistry", registry_node, registry_node.get("output", {}))
+        contract_issues = tool_registry.validate_contracts()
+        contract_node = run_logger.event("ToolContractAudit", {"issues": contract_issues})
+        nodes.append(contract_node)
+        state_updates["tool_contract_issues"] = contract_issues
+        yield step_event("ToolContractAudit", contract_node, contract_node.get("output", {}))
         planner_node = run_logger.event("AgentPlanner", execution_plan.to_dict())
         nodes.append(planner_node)
         yield step_event("AgentPlanner", planner_node, planner_node.get("output", {}))
@@ -882,6 +1179,8 @@ class CoachAgentService:
 
                 state_updates["context_intent"] = context_packet.get("intent")
                 state_updates["knowledge_debug"] = knowledge_context.get("debug", {})
+                if "feedback_debug" in locals() and feedback_debug.get("enhanced"):
+                    state_updates["feedback_learning"] = feedback_debug
                 node_start = time.perf_counter()
                 yield event("status", text="正在生成最终教练回复")
                 timeline.start(timeline_steps["coach_reply"])
@@ -1056,11 +1355,12 @@ class CoachAgentService:
             self.adjust_plan(PlanAdjustRequest(user_id=user.id, reason="daily check-in signals"))
             auto_adjusted = True
 
+        task_update = AgentTaskStateService(self.db).update_from_checkin(user.id, checkin, auto_adjusted)
         self.db.commit()
         return {
-            "status": "recorded",
             "checkin_id": str(checkin.id),
             "auto_adjusted": auto_adjusted,
+            "long_term_task": task_update,
         }
 
     def record_workout_log(self, request: WorkoutLogRequest) -> models.WorkoutLog:
@@ -1232,6 +1532,7 @@ class CoachAgentService:
         active_plan = self.get_active_plan(user.id)
         latest_checkin = self.latest_checkin(user.id)
         memories = self.recent_memories(user.id, limit=5)
+        active_tasks = AgentTaskStateService(self.db).list_active(user.id, limit=6)
         workout_count = self.db.scalar(
             select(func.count(models.WorkoutLog.id)).where(models.WorkoutLog.user_id == user.id)
         )
@@ -1251,6 +1552,7 @@ class CoachAgentService:
             "today_plan": today_plan,
             "latest_checkin": self._model_dict(latest_checkin) if latest_checkin else None,
             "recent_memories": [self._model_dict(memory) for memory in memories],
+            "active_tasks": active_tasks,
             "progress": {
                 "workouts_logged": workout_count or 0,
                 "active_plan": bool(active_plan),
@@ -1727,6 +2029,8 @@ class CoachAgentService:
                 permission_level="write_candidate",
                 side_effects=False,
                 retry_count=1,
+                risk_level="medium",
+                tags=["profile", "extraction"],
             ),
             lambda _: self.profile_extractor_agent(profile, message),
             repair_handler=self._repair_profile_extract_tool,
@@ -1755,6 +2059,8 @@ class CoachAgentService:
                 permission_level="read",
                 side_effects=False,
                 retry_count=1,
+                risk_level="medium",
+                tags=["memory", "verifier"],
             ),
             lambda payload: self._verify_memory_tool(
                 user_id,
@@ -1780,6 +2086,9 @@ class CoachAgentService:
                 },
                 permission_level="write",
                 side_effects=True,
+                risk_level="high",
+                idempotency_key_fields=["extraction"],
+                tags=["memory", "write"],
             ),
             lambda payload: {
                 "written": self.write_memories_from_message(
@@ -1811,6 +2120,8 @@ class CoachAgentService:
                 permission_level="read",
                 side_effects=False,
                 retry_count=1,
+                risk_level="low",
+                tags=["context"],
             ),
             lambda _: ContextBuilder(self.db, self.model_provider).build_context_packet(user_id, message),
             repair_handler=self._repair_context_build_tool,
@@ -1837,6 +2148,8 @@ class CoachAgentService:
                 permission_level="read",
                 side_effects=False,
                 retry_count=1,
+                risk_level="low",
+                tags=["planner"],
             ),
             lambda payload: self._plan_generation_decision(payload.get("context_packet") or {}, user_id),
             repair_handler=self._repair_plan_decide_tool,
@@ -1856,6 +2169,9 @@ class CoachAgentService:
                 },
                 permission_level="write",
                 side_effects=True,
+                risk_level="high",
+                idempotency_key_fields=["reason"],
+                tags=["plan", "write"],
             ),
             lambda _: self._generate_plan_tool(user_id),
         )
@@ -1880,6 +2196,8 @@ class CoachAgentService:
                 permission_level="read",
                 side_effects=False,
                 retry_count=1,
+                risk_level="medium",
+                tags=["plan", "verifier"],
             ),
             lambda payload: self._verify_plan_tool(
                 payload.get("plan_payload") or {},
@@ -1903,6 +2221,9 @@ class CoachAgentService:
                 },
                 permission_level="write",
                 side_effects=True,
+                risk_level="high",
+                idempotency_key_fields=["plan_id", "verification"],
+                tags=["plan", "repair"],
             ),
             lambda payload: self._repair_plan_tool(
                 payload.get("plan_id"),
@@ -1933,6 +2254,8 @@ class CoachAgentService:
                 permission_level="read",
                 side_effects=False,
                 retry_count=1,
+                risk_level="medium",
+                tags=["response", "verifier"],
             ),
             lambda payload: self._verify_response_tool(
                 payload.get("assistant_message") or "",
@@ -1956,6 +2279,8 @@ class CoachAgentService:
                 },
                 permission_level="write_candidate",
                 side_effects=False,
+                risk_level="medium",
+                tags=["response", "repair"],
             ),
             lambda payload: self._repair_response_tool(
                 payload.get("verification") or {},
@@ -1979,6 +2304,8 @@ class CoachAgentService:
                 permission_level="read",
                 side_effects=False,
                 retry_count=1,
+                risk_level="critical",
+                tags=["safety", "guardrail"],
             ),
             lambda payload: self._guardrail_tool(payload.get("assistant_message") or "", message, profile),
         )
@@ -1998,6 +2325,9 @@ class CoachAgentService:
                 },
                 permission_level="write",
                 side_effects=True,
+                risk_level="medium",
+                idempotency_key_fields=["assistant_message"],
+                tags=["response", "persist"],
             ),
             lambda payload: {
                 "session_id": str(session_id),
@@ -3018,6 +3348,11 @@ class CoachAgentService:
         if candidates_to_write is None:
             candidates_to_write = self._memory_candidates_from_message(message, extraction)
 
+        conflict_resolution = MemoryConflictResolver(self.db).apply_corrections(
+            user_id,
+            corrections_to_write,
+            message,
+        )
         for correction in corrections_to_write:
             written.append(
                 self._write_memory(
@@ -3029,7 +3364,7 @@ class CoachAgentService:
                     ),
                     source="chat_correction",
                     importance=0.92,
-                    memory_metadata=correction,
+                    memory_metadata={**correction, "conflict_resolution": conflict_resolution},
                     confidence=0.95,
                 )
             )
@@ -3143,6 +3478,14 @@ class CoachAgentService:
             "validation_errors": payload.get("validation_errors") or [],
             "repaired": payload.get("repaired", False),
             "repair_actions": payload.get("repair_actions") or [],
+            "contract": {
+                "contract_id": (payload.get("contract") or {}).get("contract_id"),
+                "risk_level": (payload.get("contract") or {}).get("risk_level"),
+                "permission_level": (payload.get("contract") or {}).get("permission_level"),
+                "input_schema_version": (payload.get("contract") or {}).get("input_schema_version"),
+                "output_schema_version": (payload.get("contract") or {}).get("output_schema_version"),
+            },
+            "idempotency_key": payload.get("idempotency_key"),
             "input_json": self._summarize_tool_payload(tool_name, payload.get("input_json") or {}),
             "output_json": self._summarize_tool_payload(tool_name, payload.get("output_json") or {}),
             "error": payload.get("error"),
@@ -3151,6 +3494,7 @@ class CoachAgentService:
     def _summarize_tool_payload(self, tool_name: str | None, payload: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(payload, dict):
             return {"value_type": type(payload).__name__}
+
         if tool_name == "profile.extract":
             return {
                 "message_chars": payload.get("message_chars"),
@@ -3405,8 +3749,7 @@ class CoachAgentService:
                 "repaired": payload.get("repaired"),
                 "repair_actions": payload.get("repair_actions") or [],
             }
-        return {}
-
+        return self._truncate_trace_payload(payload)
     async def _live_onboarding_reply_stream(
         self,
         profile: models.UserProfile,
@@ -3467,6 +3810,9 @@ class CoachAgentService:
             training_days = plan.plan_json.get("training_days") or []
             if training_days:
                 today_plan = training_days[0]
+        _, feedback_debug = get_adaptive_system_prompt(
+            self.db, user_id, "coach_coaching_reply", registry
+        )
         system_prompt = registry.get("coach_coaching_reply")
         user_prompt = json.dumps(
             {
@@ -3522,6 +3868,9 @@ class CoachAgentService:
             training_days = plan.plan_json.get("training_days") or []
             if training_days:
                 today_plan = training_days[0]
+        _, feedback_debug = get_adaptive_system_prompt(
+            self.db, user_id, "coach_coaching_reply_stream", registry
+        )
         system_prompt = registry.get("coach_coaching_reply_stream")
         user_prompt = json.dumps(
             {
@@ -3683,6 +4032,33 @@ class CoachAgentService:
     def _safety_reply(self) -> str:
         return registry.get("fallback_safety_reply")
 
+    def _build_plan_reflection_prompt(
+        self,
+        plan_output: dict[str, Any],
+        context_packet: dict[str, Any],
+        profile: Any,
+    ) -> str | None:
+        plan = plan_output.get("active_plan") or {}
+        if not plan:
+            return None
+        profile_text = json.dumps(
+            self._profile_payload(profile), ensure_ascii=False, default=str
+        )
+        plan_text = json.dumps(plan, ensure_ascii=False, default=str)[:3000]
+        return (
+            "Before finalizing this plan, role-play as the user with this profile:\n"
+            + profile_text
+            + "\n\nReview the generated plan and identify:\n"
+            "1. Any exercise that could aggravate their listed injuries\n"
+            "2. Volume or intensity mismatched to their experience level\n"
+            "3. Missing warmup/cooldown or safety notes\n"
+            "4. Equipment requirements they don't have\n\n"
+            "If you find issues, revise the plan. If the plan looks safe, "
+            "confirm it's ready. Keep your response concise — list issues "
+            "or say 'Plan verified: no issues found.'\n\n"
+            "Generated plan:\n" + plan_text
+        )
+
     def _contains_medical_risk(self, message: str) -> bool:
         lowered = message.lower()
         return any(
@@ -3742,3 +4118,166 @@ class CoachAgentService:
                 return True
 
         return False
+
+    def _build_adaptive_prompt_wrapper(self, original_builder, preferences):
+        """Wrap the system prompt builder to inject learned user preferences."""
+        def wrapper():
+            prompt = original_builder()
+            if preferences.get("behavioral_guidance"):
+                parts = []
+                for g in preferences["behavioral_guidance"]:
+                    parts.append("- " + g)
+                guidance = "\n".join(parts)
+                conf_pct = str(int(preferences.get("confidence", 0) * 100))
+                evidence = str(preferences.get("evidence_summary", ""))
+                prompt = (
+                    prompt
+                    + "\n\n## Learned User Preferences (from feedback history)\n"
+                    + guidance
+                    + "\n\nConfidence: " + conf_pct + "%. Evidence: " + evidence
+                )
+            return prompt
+        return wrapper
+
+    async def _handle_chat_llm_agent(
+        self,
+        session_id: uuid.UUID,
+        user_id: uuid.UUID,
+        message: str,
+    ) -> dict[str, Any]:
+        """LLM-driven agent: LLM selects tools iteratively, host executes them."""
+        started_at = datetime.utcnow()
+
+        session = self.db.get(models.ConversationSession, session_id)
+        if not session:
+            raise ValueError("Conversation session not found")
+        user = self.ensure_user(user_id)
+        profile = self._get_or_create_profile(user.id)
+
+        self._save_message(session.id, user.id, "user", message)
+
+        tool_registry = self._build_chat_tool_registry(user.id, session.id, profile, message)
+
+        agent = LLMAgent(
+            db=self.db,
+            model_provider=self.model_provider,
+            tool_registry=tool_registry,
+            user_id=user.id,
+            session_id=session.id,
+            profile=profile,
+            message=message,
+        )
+
+        # ---- Inject learned user preferences into system prompt ----
+        from fast_api.app.services.feedback_learner import (
+            FeedbackCollector, PreferenceLearner, PromptEnhancer,
+        )
+        try:
+            collector = FeedbackCollector(self.db)
+            learner = PreferenceLearner(collector)
+            enhancer = PromptEnhancer(learner)
+            preferences = learner.learn(user.id)
+            if preferences.get("behavioral_guidance"):
+                agent._build_system_prompt = self._build_adaptive_prompt_wrapper(
+                    agent._build_system_prompt, preferences
+                )
+            self.nodes_extra = getattr(agent, 'nodes', [])
+        except Exception:
+            pass  # Feedback enhancement is best-effort
+
+        result = await agent.run()
+
+        if result.error:
+            assistant_message = f"I encountered an issue: {result.error}. Please try again."
+        else:
+            assistant_message = result.final_response
+
+        # Apply guardrail
+        guardrail_result = run_guardrails(assistant_message, user_message=message, profile=profile)
+        if guardrail_result.action == GuardrailSeverity.BLOCK:
+            assistant_message = guardrail_result.blocked_replacement or assistant_message
+
+        assistant_msg = self._save_message(session.id, user.id, "assistant", assistant_message)
+
+        # Persist run
+        run = models.AgentRun(
+            user_id=user.id,
+            session_id=session.id,
+            run_type="chat_llm_agent",
+            status="completed",
+            nodes=result.nodes,
+            started_at=started_at,
+            completed_at=datetime.utcnow(),
+            summary=assistant_message[:500],
+        )
+        self.db.add(run)
+        self.db.flush()
+        state_updates = {"agent_mode": "llm_driven", "iterations": result.iterations}
+        task_service = AgentTaskStateService(self.db)
+        long_term_tasks = task_service.update_from_chat_turn(
+            user_id=user.id,
+            message=message,
+            profile=profile,
+            context_packet={},
+            state_updates=state_updates,
+            agent_run_id=run.id,
+        )
+        state_updates["long_term_tasks"] = long_term_tasks
+        result.nodes.append({"node": "LongTermTaskState", "output": {"tasks": long_term_tasks}})
+        run.nodes = result.nodes
+        task_service.record_replay_snapshot(
+            agent_run=run,
+            request_json={
+                "session_id": str(session.id),
+                "message": message,
+                "message_chars": len(message),
+                "agent_mode": "llm_driven",
+            },
+            state_snapshot={
+                "profile": self._profile_snapshot(profile),
+                "state_updates": state_updates,
+                "active_tasks": long_term_tasks,
+            },
+            tool_plan_json={
+                "tool_contracts": tool_registry.list_specs(),
+                "contract_issues": tool_registry.validate_contracts(),
+                "llm_iterations": result.iterations,
+            },
+            response_snapshot={
+                "assistant_message": assistant_message,
+                "guardrail": result.guardrail,
+                "tool_calls": result.tool_calls,
+            },
+            config_snapshot={
+                "llm_provider": self.model_provider.settings.llm_provider,
+                "chat_model": self.model_provider.settings.chat_model,
+                "embedding_mode": self.model_provider.embedding_mode(),
+            },
+        )
+
+        for call in result.tool_calls:
+            self.db.add(models.ToolCall(
+                agent_run_id=run.id,
+                tool_name=call["tool_name"],
+                input_json=call.get("input", {}),
+                output_json=call.get("output", {}),
+                latency_ms=call.get("latency_ms", 0),
+                status=call.get("status", "success"),
+            ))
+
+        self.db.commit()
+        self.db.refresh(run)
+
+        return {
+            "session_id": session.id,
+            "user_id": user.id,
+            "assistant_message": assistant_message,
+            "agent_run_id": run.id,
+            "feedback_message_id": assistant_msg.id,
+            "onboarding_complete": not self.missing_onboarding_slots(profile),
+            "missing_slots": self.missing_onboarding_slots(profile),
+            "memories_written": [],
+            "tool_calls": result.tool_calls,
+            "state_updates": state_updates,
+            "guardrail": result.guardrail,
+        }

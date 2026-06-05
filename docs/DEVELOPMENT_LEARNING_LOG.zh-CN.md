@@ -921,3 +921,144 @@ logs/experiments/20260602-193854-memory-verify-run-detail.log
 - 还没有把训练日志抽成独立 `training_log.extract` 工具。
 
 但这轮已经让项目从“固定 Agent 流水线”推进到“有显式工具协议、动态工具选择、schema 校验和可观测 retry/repair 的领域 Agent runtime”。
+
+## 19. 2026-06-05：长期任务状态 + 工具协议硬化 + 记忆冲突解决 + Replay Packet
+
+### 19.1 本轮目标
+
+上一轮 Agent 已经有单轮 `AgentTaskTimeline`、Planner、ToolRegistry、Verifier 和 Repair，但仍偏“每一轮对话内部可解释”。这轮目标是继续模仿 Claude Code 的工程模式，把能力推进到：
+
+- Agent 能知道自己跨多轮正在推进什么长期任务。
+- 工具协议不只是 name/schema，而是可审计 contract。
+- 用户纠错不只更新 canonical profile，也处理旧长期记忆冲突。
+- 每次 Agent run 都能留下 replay packet，方便复盘、对比和后续重放。
+
+### 19.2 长期任务状态
+
+新增三张表：
+
+- `agent_task_states`：保存用户级长期任务，例如减脂周期、训练质量调整实验、恢复状态监控。
+- `agent_task_events`：保存任务状态的 created/updated 事件。
+- `agent_run_replays`：保存某次 Agent run 的可重放输入、状态快照、工具计划、回复和配置。
+
+新增服务：
+
+```text
+fast_api/app/services/agent_task_state.py
+```
+
+核心设计：
+
+- `AgentTaskTimeline` 继续负责“本轮做了哪些步骤”。
+- `AgentTaskState` 负责“跨多轮还在持续推进什么目标”。
+- 用户有明确 profile.goal 时，会维护 `fitness_cycle`。
+- 用户提到“卧推后没力、质量不好、疲劳、RPE”等训练问题时，会维护 `training_experiment`。
+- 用户提交 daily check-in 时，会维护 `recovery_monitor`。
+
+这让项目从单轮 Agent 走向长期陪跑 Agent。
+
+### 19.3 工具协议硬化
+
+修改：
+
+```text
+fast_api/app/services/agent_runtime.py
+```
+
+`ToolSpec` 新增：
+
+- `contract_id`
+- `input_schema_version`
+- `output_schema_version`
+- `risk_level`
+- `idempotency_key_fields`
+- `timeout_ms`
+- `owner`
+- `tags`
+
+`ToolExecutionResult` 新增：
+
+- `contract`
+- `idempotency_key`
+
+`ToolRegistry` 新增：
+
+- `validate_contracts()`
+
+现在日志里不只看到工具名，还能看到工具 contract、风险等级、权限、schema 版本、是否有幂等键和 repair handler。
+
+### 19.4 记忆冲突解决
+
+新增：
+
+```text
+fast_api/app/services/memory_conflict_resolver.py
+```
+
+之前 `MemoryVerifier` 负责阻止新的错误记忆写入，但旧记忆可能还留在库里。这轮新增 resolver：
+
+- 当用户纠正 `injuries`，例如“我没有肩伤”时：
+  - 新 correction memory 照常写入。
+  - 与 shoulder/injury/risk 相关的旧 active memory 标记为 `superseded`。
+  - 相关 active risk note 标记为 `corrected`。
+- 不删除历史消息和旧记忆，而是保留审计轨迹。
+
+### 19.5 Replay Packet
+
+每次 code-driven / stream / LLM-driven chat run 都会记录 replay packet：
+
+- 原始请求：session、message、message_chars。
+- 状态快照：profile、context packet、state updates、active tasks。
+- 工具计划：execution plan、timeline、tool contracts、contract audit issues。
+- 回复快照：assistant message、guardrail、tool calls。
+- 配置快照：llm provider、chat model、embedding mode。
+
+新增接口：
+
+```text
+GET /v1/agent/tasks
+GET /v1/agent-runs/{run_id}/replay
+```
+
+### 19.6 为什么这更接近 Claude Code
+
+Claude Code 的核心不是“会聊天”，而是：
+
+```text
+目标 -> 计划 -> 工具 -> 观察 -> 验证 -> 修复 -> 记录 -> 可复盘
+```
+
+本轮补的是其中“长期目标”和“可复盘”的部分：
+
+- 单轮目标：`AgentExecutionPlan.objective`
+- 单轮步骤：`AgentTaskTimeline`
+- 长期目标：`AgentTaskState`
+- 工具协议：`ToolSpec contract`
+- 纠错审计：`MemoryConflictResolver`
+- 可复盘：`AgentRunReplay`
+
+### 19.7 测试与验证
+
+新增/更新测试：
+
+```text
+tests/test_agent_runtime.py
+tests/test_agent_task_state.py
+tests/test_memory_conflict_resolver.py
+```
+
+验证命令：
+
+```powershell
+python -m compileall fast_api\app tests
+docker exec fast_api_ai_fitness_planner pytest tests/test_agent_runtime.py tests/test_agent_task_state.py tests/test_memory_conflict_resolver.py tests/test_agent_observability.py tests/test_memory_verifier.py tests/test_memory_rules.py tests/test_context_window.py tests/test_approval_and_feedback_loop.py -q
+docker exec web_ai_fitness_planner npm run build
+```
+
+结果：
+
+```text
+容器关键测试：91 passed
+前端 build：通过
+Docker 服务：FastAPI / Web / PostgreSQL 正常运行
+```

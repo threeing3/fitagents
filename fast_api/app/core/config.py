@@ -62,6 +62,11 @@ class Settings(BaseSettings):
         alias="CORS_ORIGINS",
     )
 
+    # Agent architecture: toggle between LLM-driven tool-use and code-driven pipeline
+    use_llm_driven_agent: bool = Field(
+        default=False, alias="USE_LLM_DRIVEN_AGENT"
+    )
+
     # JWT auth
     jwt_secret_key: str = Field(
         default="change-me-in-production-use-a-random-64-char-string",

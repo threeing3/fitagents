@@ -27,6 +27,7 @@ def test_tool_registry_executes_and_records_metadata():
     assert result.output_json["goal"] == "fat_loss"
     assert result.latency_ms >= 0
     assert registry.list_specs()[0]["name"] == "profile.read"
+    assert registry.list_specs()[0]["contract_id"]
 
 
 def test_tool_registry_captures_tool_errors():
@@ -190,3 +191,44 @@ def test_agent_executor_runs_tool_and_updates_timeline():
     assert execution.started_event["status"] == "running"
     assert execution.completed_event["status"] == "completed"
     assert timeline.to_dict()["steps"][0]["output_summary"]["intent"] == "training_plan"
+
+
+def test_tool_contract_audit_flags_side_effect_without_idempotency():
+    registry = ToolRegistry()
+    registry.register(
+        ToolSpec(
+            name="memory.write",
+            description="Write memory",
+            permission_level="write",
+            side_effects=True,
+            risk_level="high",
+        ),
+        lambda _: {"written": []},
+    )
+
+    issues = registry.validate_contracts()
+
+    assert any(issue["issue"] == "side_effect_without_idempotency_key" for issue in issues)
+
+
+def test_tool_execution_trace_contains_contract_and_idempotency_key():
+    registry = ToolRegistry()
+    registry.register(
+        ToolSpec(
+            name="memory.write",
+            description="Write memory",
+            permission_level="write",
+            side_effects=True,
+            risk_level="high",
+            idempotency_key_fields=["memory_id"],
+        ),
+        lambda payload: {"written": [payload["memory_id"]]},
+    )
+
+    result = asyncio.run(registry.execute("memory.write", {"memory_id": "m1"}))
+    trace = result.to_trace()
+
+    assert result.status == "success"
+    assert trace["contract"]["contract_id"]
+    assert trace["contract"]["risk_level"] == "high"
+    assert trace["idempotency_key"]

@@ -1,4 +1,7 @@
 import inspect
+import hashlib
+import json
+import logging
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -24,10 +27,52 @@ class ToolSpec:
     description: str
     input_schema: dict[str, Any] = field(default_factory=dict)
     output_schema: dict[str, Any] = field(default_factory=dict)
+    input_schema_version: str = "v1"
+    output_schema_version: str = "v1"
     permission_level: str = "read"
     side_effects: bool = False
     retry_count: int = 0
     retry_backoff_ms: int = 0
+    risk_level: str = "low"
+    idempotency_key_fields: list[str] = field(default_factory=list)
+    timeout_ms: int | None = None
+    owner: str = "coach_agent"
+    tags: list[str] = field(default_factory=list)
+
+    @property
+    def contract_id(self) -> str:
+        payload = {
+            "name": self.name,
+            "input_schema": self.input_schema,
+            "output_schema": self.output_schema,
+            "input_schema_version": self.input_schema_version,
+            "output_schema_version": self.output_schema_version,
+            "permission_level": self.permission_level,
+            "side_effects": self.side_effects,
+            "risk_level": self.risk_level,
+        }
+        raw = json.dumps(payload, sort_keys=True, ensure_ascii=False, default=str)
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+
+    def to_contract(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "description": self.description,
+            "contract_id": self.contract_id,
+            "input_schema_version": self.input_schema_version,
+            "output_schema_version": self.output_schema_version,
+            "permission_level": self.permission_level,
+            "side_effects": self.side_effects,
+            "retry_count": self.retry_count,
+            "retry_backoff_ms": self.retry_backoff_ms,
+            "risk_level": self.risk_level,
+            "idempotency_key_fields": self.idempotency_key_fields,
+            "timeout_ms": self.timeout_ms,
+            "owner": self.owner,
+            "tags": self.tags,
+            "input_schema": self.input_schema,
+            "output_schema": self.output_schema,
+        }
 
 
 @dataclass
@@ -42,6 +87,8 @@ class ToolExecutionResult:
     validation_errors: list[str] = field(default_factory=list)
     repaired: bool = False
     repair_actions: list[str] = field(default_factory=list)
+    contract: dict[str, Any] = field(default_factory=dict)
+    idempotency_key: str | None = None
 
     def to_trace(self) -> dict[str, Any]:
         return {
@@ -55,6 +102,8 @@ class ToolExecutionResult:
             "validation_errors": self.validation_errors,
             "repaired": self.repaired,
             "repair_actions": self.repair_actions,
+            "contract": self.contract,
+            "idempotency_key": self.idempotency_key,
         }
 
 
@@ -79,19 +128,75 @@ class ToolRegistry:
 
     def list_specs(self) -> list[dict[str, Any]]:
         return [
-            {
-                "name": spec.name,
-                "description": spec.description,
-                "permission_level": spec.permission_level,
-                "side_effects": spec.side_effects,
-                "input_schema": spec.input_schema,
-                "output_schema": spec.output_schema,
-                "retry_count": spec.retry_count,
-                "retry_backoff_ms": spec.retry_backoff_ms,
-                "has_repair_handler": spec.name in self._repair_handlers,
-            }
+            {**spec.to_contract(), "has_repair_handler": spec.name in self._repair_handlers}
             for spec in self._specs.values()
         ]
+
+    def validate_contracts(self) -> list[dict[str, Any]]:
+        issues: list[dict[str, Any]] = []
+        for spec in self._specs.values():
+            if not spec.description.strip():
+                issues.append({"tool_name": spec.name, "severity": "error", "issue": "missing_description"})
+            if spec.side_effects and not spec.idempotency_key_fields:
+                issues.append({"tool_name": spec.name, "severity": "warn", "issue": "side_effect_without_idempotency_key"})
+            if spec.permission_level not in {"read", "write_candidate", "write", "admin"}:
+                issues.append({"tool_name": spec.name, "severity": "error", "issue": "invalid_permission_level"})
+            if spec.risk_level not in {"low", "medium", "high", "critical"}:
+                issues.append({"tool_name": spec.name, "severity": "error", "issue": "invalid_risk_level"})
+            if spec.retry_count > 0 and spec.side_effects:
+                issues.append({"tool_name": spec.name, "severity": "warn", "issue": "side_effect_tool_should_not_retry"})
+            if spec.input_schema and spec.input_schema.get("type") != "object":
+                issues.append({"tool_name": spec.name, "severity": "error", "issue": "input_schema_must_be_object"})
+            if spec.output_schema and spec.output_schema.get("type") != "object":
+                issues.append({"tool_name": spec.name, "severity": "error", "issue": "output_schema_must_be_object"})
+        return issues
+
+    async def execute_awaiting_approval(
+        self,
+        name: str,
+        input_json: dict[str, Any] | None = None,
+        approval_manager: "ApprovalManager | None" = None,
+    ) -> tuple[ToolExecutionResult, bool]:
+        """Execute with approval gate. Returns (result, was_approved).
+
+        When approval_manager is provided and the tool has side_effects:
+        1. Creates a pending approval
+        2. The caller must poll for approval status
+        3. Only executes when approved
+        """
+        if name not in self._handlers:
+            raise ValueError(f"Tool not registered: {name}")
+        spec = self._specs[name]
+
+        # Check if approval is needed
+        needs_approval = (
+            approval_manager is not None
+            and approval_manager.requires_approval(name, spec.permission_level, spec.side_effects)
+        )
+        if needs_approval:
+            from fast_api.app.services.approval_manager import summarize_tool_for_approval
+            approval = approval_manager.create_approval(
+                user_id=approval_manager._last_user_id,
+                session_id=approval_manager._last_session_id,
+                tool_name=name,
+                tool_description=spec.description,
+                permission_level=spec.permission_level,
+                input_summary=summarize_tool_for_approval(name, input_json or {}),
+            )
+            return ToolExecutionResult(
+                tool_name=name,
+                status="awaiting_approval",
+                latency_ms=0,
+                input_json=input_json or {},
+                output_json={"approval_id": approval.approval_id},
+                error=None,
+                contract=spec.to_contract(),
+                idempotency_key=self._idempotency_key(spec, input_json or {}),
+            ), False
+
+        # Execute normally
+        result = await self.execute(name, input_json)
+        return result, True
 
     async def execute(self, name: str, input_json: dict[str, Any] | None = None) -> ToolExecutionResult:
         if name not in self._handlers:
@@ -104,6 +209,8 @@ class ToolRegistry:
         repair_actions: list[str] = []
         repaired = False
         max_attempts = max(1, 1 + max(0, spec.retry_count))
+        contract = spec.to_contract()
+        idempotency_key = self._idempotency_key(spec, payload)
 
         input_errors = self._validate_schema(payload, spec.input_schema, "input")
         if input_errors:
@@ -134,6 +241,8 @@ class ToolRegistry:
                     validation_errors=input_errors,
                     repaired=repaired,
                     repair_actions=repair_actions,
+                    contract=contract,
+                    idempotency_key=idempotency_key,
                 )
 
         last_error: str | None = None
@@ -177,6 +286,8 @@ class ToolRegistry:
                                 validation_errors=output_errors,
                                 repaired=repaired,
                                 repair_actions=repair_actions,
+                                contract=contract,
+                                idempotency_key=idempotency_key,
                             )
                         await self._sleep_backoff(spec)
                         continue
@@ -190,6 +301,8 @@ class ToolRegistry:
                         validation_errors=validation_errors,
                         repaired=repaired,
                         repair_actions=repair_actions,
+                        contract=contract,
+                        idempotency_key=idempotency_key,
                     )
                 except Exception as exc:
                     last_error = str(exc)
@@ -207,6 +320,8 @@ class ToolRegistry:
                 validation_errors=validation_errors,
                 repaired=repaired,
                 repair_actions=repair_actions,
+                contract=contract,
+                idempotency_key=idempotency_key,
             )
         except Exception as exc:
             return ToolExecutionResult(
@@ -220,6 +335,8 @@ class ToolRegistry:
                 validation_errors=validation_errors,
                 repaired=repaired,
                 repair_actions=repair_actions,
+                contract=contract,
+                idempotency_key=idempotency_key,
             )
 
     async def _repair(self, name: str, payload: dict[str, Any]) -> Any:
@@ -298,6 +415,19 @@ class ToolRegistry:
         if expected_type == "null":
             return value is None
         return True
+
+    def _idempotency_key(self, spec: ToolSpec, payload: dict[str, Any]) -> str | None:
+        if not spec.idempotency_key_fields:
+            return None
+        material = {
+            field: payload.get(field)
+            for field in spec.idempotency_key_fields
+            if field in payload
+        }
+        if not material:
+            return None
+        raw = json.dumps(material, sort_keys=True, ensure_ascii=False, default=str)
+        return hashlib.sha256(f"{spec.name}:{raw}".encode("utf-8")).hexdigest()[:24]
 
 
 @dataclass

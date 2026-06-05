@@ -113,6 +113,76 @@ def _apply_compatibility_migrations() -> None:
                 UPDATE coaching_cases
                 SET title = COALESCE(NULLIF(title, ''), case_id)
                 WHERE title = '';
+
+                CREATE TABLE IF NOT EXISTS agent_task_states (
+                    id uuid PRIMARY KEY,
+                    user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    task_type varchar(80) NOT NULL,
+                    title varchar(200) NOT NULL,
+                    objective text NOT NULL,
+                    status varchar(32) NOT NULL DEFAULT 'active',
+                    phase varchar(80) NOT NULL DEFAULT 'observe',
+                    current_step text,
+                    success_metrics jsonb NOT NULL DEFAULT '{}'::jsonb,
+                    constraints jsonb NOT NULL DEFAULT '{}'::jsonb,
+                    next_actions jsonb NOT NULL DEFAULT '[]'::jsonb,
+                    progress_json jsonb NOT NULL DEFAULT '{}'::jsonb,
+                    source_run_id uuid REFERENCES agent_runs(id) ON DELETE SET NULL,
+                    last_observed_at timestamptz NOT NULL DEFAULT now(),
+                    created_at timestamptz DEFAULT now(),
+                    updated_at timestamptz DEFAULT now()
+                );
+                CREATE INDEX IF NOT EXISTS ix_agent_task_states_user_id
+                    ON agent_task_states(user_id);
+                CREATE INDEX IF NOT EXISTS ix_agent_task_states_task_type
+                    ON agent_task_states(task_type);
+                CREATE INDEX IF NOT EXISTS ix_agent_task_states_status
+                    ON agent_task_states(status);
+                CREATE INDEX IF NOT EXISTS ix_agent_task_states_source_run_id
+                    ON agent_task_states(source_run_id);
+
+                CREATE TABLE IF NOT EXISTS agent_task_events (
+                    id uuid PRIMARY KEY,
+                    task_id uuid NOT NULL REFERENCES agent_task_states(id) ON DELETE CASCADE,
+                    user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    agent_run_id uuid REFERENCES agent_runs(id) ON DELETE SET NULL,
+                    event_type varchar(80) NOT NULL,
+                    summary text NOT NULL,
+                    payload_json jsonb NOT NULL DEFAULT '{}'::jsonb,
+                    created_at timestamptz DEFAULT now(),
+                    updated_at timestamptz DEFAULT now()
+                );
+                CREATE INDEX IF NOT EXISTS ix_agent_task_events_task_id
+                    ON agent_task_events(task_id);
+                CREATE INDEX IF NOT EXISTS ix_agent_task_events_user_id
+                    ON agent_task_events(user_id);
+                CREATE INDEX IF NOT EXISTS ix_agent_task_events_agent_run_id
+                    ON agent_task_events(agent_run_id);
+                CREATE INDEX IF NOT EXISTS ix_agent_task_events_event_type
+                    ON agent_task_events(event_type);
+
+                CREATE TABLE IF NOT EXISTS agent_run_replays (
+                    id uuid PRIMARY KEY,
+                    agent_run_id uuid NOT NULL UNIQUE REFERENCES agent_runs(id) ON DELETE CASCADE,
+                    user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    session_id uuid REFERENCES conversation_sessions(id) ON DELETE SET NULL,
+                    request_json jsonb NOT NULL DEFAULT '{}'::jsonb,
+                    state_snapshot jsonb NOT NULL DEFAULT '{}'::jsonb,
+                    tool_plan_json jsonb NOT NULL DEFAULT '{}'::jsonb,
+                    response_snapshot jsonb NOT NULL DEFAULT '{}'::jsonb,
+                    config_snapshot jsonb NOT NULL DEFAULT '{}'::jsonb,
+                    replay_status varchar(32) NOT NULL DEFAULT 'recorded',
+                    created_at timestamptz DEFAULT now(),
+                    updated_at timestamptz DEFAULT now()
+                );
+                CREATE INDEX IF NOT EXISTS ix_agent_run_replays_agent_run_id
+                    ON agent_run_replays(agent_run_id);
+                CREATE INDEX IF NOT EXISTS ix_agent_run_replays_user_id
+                    ON agent_run_replays(user_id);
+                CREATE INDEX IF NOT EXISTS ix_agent_run_replays_session_id
+                    ON agent_run_replays(session_id);
+                CREATE INDEX IF NOT EXISTS ix_agent_run_replays_replay_status
+                    ON agent_run_replays(replay_status);
                 """
             )
         )

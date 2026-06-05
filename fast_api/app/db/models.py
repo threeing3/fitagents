@@ -411,6 +411,52 @@ class AgentRun(Base, TimestampMixin):
     log_path: Mapped[str | None] = mapped_column(Text)
 
 
+class AgentTaskState(Base, TimestampMixin):
+    __tablename__ = "agent_task_states"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    task_type: Mapped[str] = mapped_column(String(80), index=True)
+    title: Mapped[str] = mapped_column(String(200))
+    objective: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(32), default="active", index=True)
+    phase: Mapped[str] = mapped_column(String(80), default="observe")
+    current_step: Mapped[str | None] = mapped_column(Text)
+    success_metrics: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    constraints: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    next_actions: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
+    progress_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    source_run_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("agent_runs.id", ondelete="SET NULL"), index=True)
+    last_observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+
+
+class AgentTaskEvent(Base, TimestampMixin):
+    __tablename__ = "agent_task_events"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    task_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("agent_task_states.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    agent_run_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("agent_runs.id", ondelete="SET NULL"), index=True)
+    event_type: Mapped[str] = mapped_column(String(80), index=True)
+    summary: Mapped[str] = mapped_column(Text)
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+
+
+class AgentRunReplay(Base, TimestampMixin):
+    __tablename__ = "agent_run_replays"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    agent_run_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("agent_runs.id", ondelete="CASCADE"), unique=True, index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    session_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("conversation_sessions.id", ondelete="SET NULL"), index=True)
+    request_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    state_snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    tool_plan_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    response_snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    config_snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    replay_status: Mapped[str] = mapped_column(String(32), default="recorded", index=True)
+
+
 class ToolCall(Base, TimestampMixin):
     __tablename__ = "tool_calls"
 

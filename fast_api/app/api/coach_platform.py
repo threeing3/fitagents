@@ -29,6 +29,7 @@ from fast_api.app.schemas.agent import (
     WorkoutLogRequest,
 )
 from fast_api.app.services.coach_agent import CoachAgentService
+from fast_api.app.services.agent_task_state import AgentTaskStateService
 from fast_api.app.services.plan_reviewer import PlanReviewer
 
 coach_router = APIRouter()
@@ -249,6 +250,27 @@ def agent_run_detail(
     if detail["user_id"] != current_user.id:
         raise HTTPException(status_code=403, detail="Cannot access another user's agent run.")
     return detail
+
+
+@coach_router.get("/agent-runs/{run_id}/replay", response_model=dict[str, Any])
+def agent_run_replay_packet(
+    run_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    try:
+        return AgentTaskStateService(db).replay_packet(run_id, current_user.id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@coach_router.get("/agent/tasks", response_model=list[dict[str, Any]])
+def list_agent_tasks(
+    limit: int = 10,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    return AgentTaskStateService(db).list_active(current_user.id, limit=limit)
 
 
 @coach_router.post("/evals/run", response_model=EvalRunResponse)
