@@ -9,6 +9,82 @@ The new architecture is **LLM-driven**: the system prompt lists available tools 
 schemas, the LLM iteratively picks tools and observes results, until it decides to produce a final
 response. The host (code) executes the tools and injects results back into the conversation.
 
+## RuntimeRouter: Dynamic Runtime Selection
+
+The current product uses a lightweight `RuntimeRouter` before entering either
+runtime. This avoids using one global boolean for all requests.
+
+- `/v1/chat/messages` returns a complete non-streaming response. The backend
+  routes the current message first, calls either `_handle_chat_llm_agent(...)`
+  or `_handle_chat_code_driven(...)`, and appends `runtime_route` to the
+  response payload.
+- `/v1/chat/messages/stream` returns NDJSON streaming events. The backend emits
+  one `runtime_route` event before the existing `status`, `step`,
+  `answer_delta`, and `done` events. Existing frontend code can ignore this new
+  event without breaking the display.
+- Simple concept explanation, small talk, and motivation can use
+  `llm_driven`.
+- Training plans, nutrition logging, profile updates, long-term memory,
+  plan edits, recovery status, and safety or medical-risk messages use
+  `code_driven`.
+- Unknown cases default to `code_driven`, because this fitness agent should not
+  miss user state, plan changes, memory writes, or safety signals.
+- The first version does not call an LLM for routing. This avoids extra cost,
+  latency, and classifier instability. The route logic lives in
+  `fast_api/app/services/runtime_router.py` and is covered by unit tests.
+
+Runtime config:
+
+- `AGENT_RUNTIME_MODE=auto`: default, use RuntimeRouter.
+- `AGENT_RUNTIME_MODE=llm_driven`: force LLM-driven for debugging.
+- `AGENT_RUNTIME_MODE=code_driven`: force Code-driven for debugging.
+
+`USE_LLM_DRIVEN_AGENT` remains as a legacy compatibility flag. New development
+and debugging should prefer `AGENT_RUNTIME_MODE`.
+
+## LLM Planner for Code-Driven Runtime
+
+The code-driven runtime now has an agentic planner layer. It is no longer only
+a fixed keyword workflow.
+
+Flow:
+
+1. `RuntimeRouter` decides whether the turn enters `llm_driven` or
+   `code_driven`.
+2. For `code_driven`, `LLMPlanner` receives the current message, runtime route,
+   profile summary, active plan summary, available `ToolSpec` contracts, and
+   safety/write constraints.
+3. `LLMPlanner` returns structured JSON with `intent`, `selected_tools`,
+   `tool_order`, `write_intent`, `safety_level`, `plan_generation_allowed`, and
+   a visible `reasoning_summary`.
+4. `PlannerVerifier` validates and repairs the plan before any tool executes:
+   unknown tools are rejected, `memory.write` must follow `memory.verify`,
+   `plan.verify` must follow `plan.generate`, `guardrail.check` is enforced,
+   and `response.persist` is forced to the final step.
+5. `AgentExecutor` executes only registered host tools. The LLM planner never
+   touches the database directly and cannot bypass schema validation, retry,
+   repair, guardrails, replay snapshots, or logs.
+6. If the planner model is unavailable, returns invalid JSON, or chooses an
+   illegal tool, the runtime falls back to the existing rule planner and records
+   `planner_fallback=true`.
+
+Config:
+
+- `CODE_DRIVEN_PLANNER=llm`: default, use LLM Planner first.
+- `CODE_DRIVEN_PLANNER=rule`: force deterministic rule planner.
+- `CODE_DRIVEN_PLANNER_FALLBACK=rule`: default, fall back when LLM planning
+  fails.
+- `CODE_DRIVEN_PLANNER_FALLBACK=error`: useful for debugging planner failures.
+
+Observability:
+
+- Agent run nodes include `LLMPlanner`, `PlannerVerifier`, and
+  `PlannerFallback` when fallback occurs.
+- Replay snapshots include `llm_planner_raw`, `planner_verified_plan`,
+  `planner_repair_actions`, and `planner_fallback_reason`.
+- Logs show the visible tool decision summary. Hidden model chain-of-thought is
+  not exposed; only `reasoning_summary` is stored.
+
 ## Why this is smarter
 
 The old code-driven pipeline always runs the same 13 tools in the same order. If a user says

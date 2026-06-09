@@ -235,6 +235,12 @@ class AgentRunLogger:
                 "objective": self._truncate(value.get("objective")),
                 "strategy": value.get("strategy"),
                 "intent": value.get("intent"),
+                "planner_mode": value.get("planner_mode"),
+                "safety_level": value.get("safety_level"),
+                "plan_generation_allowed": value.get("plan_generation_allowed"),
+                "reasoning_summary": self._truncate(value.get("reasoning_summary")),
+                "planner_repair_actions": value.get("planner_repair_actions") or [],
+                "planner_fallback_reason": self._truncate(value.get("planner_fallback_reason")),
                 "assumptions": value.get("assumptions") or [],
                 "step_count": len(value.get("steps") or []),
                 "steps": [
@@ -249,6 +255,33 @@ class AgentRunLogger:
                     for step in (value.get("steps") or [])
                     if isinstance(step, dict)
                 ],
+            }
+        if node == "LLMPlanner":
+            raw = value.get("raw_output") or {}
+            return {
+                "planner_mode": value.get("planner_mode"),
+                "planner_fallback": value.get("planner_fallback", False),
+                "intent": raw.get("intent") if isinstance(raw, dict) else None,
+                "tool_order": raw.get("tool_order") if isinstance(raw, dict) else [],
+                "reasoning_summary": self._truncate(raw.get("reasoning_summary") if isinstance(raw, dict) else None),
+            }
+        if node == "PlannerVerifier":
+            plan = value.get("verified_plan") or {}
+            return {
+                "intent": plan.get("intent"),
+                "planner_mode": plan.get("planner_mode"),
+                "repair_actions": value.get("repair_actions") or [],
+                "step_count": len(plan.get("steps") or []),
+                "tool_order": [
+                    step.get("tool_name")
+                    for step in (plan.get("steps") or [])
+                    if isinstance(step, dict) and step.get("tool_name")
+                ],
+            }
+        if node == "PlannerFallback":
+            return {
+                "planner_fallback": value.get("planner_fallback", False),
+                "reason": self._truncate(value.get("reason")),
             }
         if node == "ToolRegistry":
             return {

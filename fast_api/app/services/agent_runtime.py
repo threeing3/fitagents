@@ -2,11 +2,14 @@ import inspect
 import hashlib
 import json
 import logging
+import re
 import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Awaitable, Callable
+
+from langchain_core.messages import HumanMessage, SystemMessage
 
 
 ToolHandler = Callable[[dict[str, Any]], Any | Awaitable[Any]]
@@ -474,6 +477,17 @@ class AgentExecutionPlan:
     intent: str = "general_chat"
     steps: list[PlannedStep] = field(default_factory=list)
     assumptions: list[str] = field(default_factory=list)
+    planner_mode: str = "rule"
+    selected_tools: list[str] = field(default_factory=list)
+    skipped_tools: list[dict[str, Any]] = field(default_factory=list)
+    required_context: list[str] = field(default_factory=list)
+    write_intent: bool = False
+    safety_level: str = "low"
+    plan_generation_allowed: bool = False
+    reasoning_summary: str = ""
+    planner_raw_output: dict[str, Any] | None = None
+    planner_repair_actions: list[str] = field(default_factory=list)
+    planner_fallback_reason: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -483,7 +497,446 @@ class AgentExecutionPlan:
             "intent": self.intent,
             "steps": [step.to_dict() for step in self.steps],
             "assumptions": self.assumptions,
+            "planner_mode": self.planner_mode,
+            "selected_tools": self.selected_tools,
+            "skipped_tools": self.skipped_tools,
+            "required_context": self.required_context,
+            "write_intent": self.write_intent,
+            "safety_level": self.safety_level,
+            "plan_generation_allowed": self.plan_generation_allowed,
+            "reasoning_summary": self.reasoning_summary,
+            "planner_raw_output": self.planner_raw_output,
+            "planner_repair_actions": self.planner_repair_actions,
+            "planner_fallback_reason": self.planner_fallback_reason,
         }
+
+
+TOOL_STEP_META: dict[str, dict[str, str]] = {
+    "profile.extract": {
+        "key": "profile_extract",
+        "name": "Extract profile patch and corrections",
+        "stage": "planner",
+    },
+    "memory.verify": {
+        "key": "memory_verify",
+        "name": "Verify long-term memory candidates",
+        "stage": "verifier",
+    },
+    "memory.write": {
+        "key": "memory_write",
+        "name": "Write verified long-term memories",
+        "stage": "executor",
+    },
+    "context.build": {
+        "key": "context_build",
+        "name": "Build intent-specific context packet",
+        "stage": "executor",
+    },
+    "plan.decide": {
+        "key": "plan_decision",
+        "name": "Decide whether plan generation is allowed",
+        "stage": "planner",
+    },
+    "plan.generate": {
+        "key": "plan_generate",
+        "name": "Generate first active plan when allowed",
+        "stage": "executor",
+    },
+    "plan.verify": {
+        "key": "plan_verify",
+        "name": "Verify generated plan constraints",
+        "stage": "verifier",
+    },
+    "plan.repair": {
+        "key": "plan_repair",
+        "name": "Repair generated plan constraints",
+        "stage": "repair",
+    },
+    "coach.reply": {
+        "key": "coach_reply",
+        "name": "Generate coach response",
+        "stage": "executor",
+    },
+    "response.verify": {
+        "key": "response_verify",
+        "name": "Verify coach response constraints",
+        "stage": "verifier",
+    },
+    "response.repair": {
+        "key": "response_repair",
+        "name": "Repair coach response constraints",
+        "stage": "repair",
+    },
+    "guardrail.check": {
+        "key": "guardrail",
+        "name": "Run safety guardrail",
+        "stage": "verifier",
+    },
+    "response.persist": {
+        "key": "persist",
+        "name": "Persist response and trace",
+        "stage": "executor",
+    },
+}
+
+
+@dataclass
+class PlannerDecision:
+    intent: str = "general_chat"
+    selected_tools: list[str] = field(default_factory=list)
+    skipped_tools: list[dict[str, Any]] = field(default_factory=list)
+    tool_order: list[str] = field(default_factory=list)
+    required_context: list[str] = field(default_factory=list)
+    write_intent: bool = False
+    safety_level: str = "low"
+    plan_generation_allowed: bool = False
+    reasoning_summary: str = ""
+    raw_output: dict[str, Any] = field(default_factory=dict)
+    repair_actions: list[str] = field(default_factory=list)
+    fallback_reason: str | None = None
+    planner_mode: str = "llm"
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> "PlannerDecision":
+        return cls(
+            intent=str(payload.get("intent") or "general_chat"),
+            selected_tools=_string_list(payload.get("selected_tools")),
+            skipped_tools=_skipped_tools(payload.get("skipped_tools")),
+            tool_order=_string_list(payload.get("tool_order")),
+            required_context=_string_list(payload.get("required_context")),
+            write_intent=bool(payload.get("write_intent", False)),
+            safety_level=str(payload.get("safety_level") or "low"),
+            plan_generation_allowed=bool(payload.get("plan_generation_allowed", False)),
+            reasoning_summary=str(payload.get("reasoning_summary") or ""),
+            raw_output=payload,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "intent": self.intent,
+            "selected_tools": self.selected_tools,
+            "skipped_tools": self.skipped_tools,
+            "tool_order": self.tool_order,
+            "required_context": self.required_context,
+            "write_intent": self.write_intent,
+            "safety_level": self.safety_level,
+            "plan_generation_allowed": self.plan_generation_allowed,
+            "reasoning_summary": self.reasoning_summary,
+            "repair_actions": self.repair_actions,
+            "fallback_reason": self.fallback_reason,
+            "planner_mode": self.planner_mode,
+            "raw_output": self.raw_output,
+        }
+
+    def to_execution_plan(self, objective: str) -> AgentExecutionPlan:
+        steps: list[PlannedStep] = []
+        for tool_name in self.tool_order:
+            meta = TOOL_STEP_META.get(tool_name)
+            if not meta:
+                continue
+            steps.append(
+                PlannedStep(
+                    key=meta["key"],
+                    name=meta["name"],
+                    tool_name=tool_name,
+                    reason=self.reasoning_summary or f"LLM planner selected {tool_name}.",
+                    required=tool_name not in {"plan.generate", "plan.verify", "plan.repair", "response.repair"},
+                    stage=meta["stage"],
+                )
+            )
+        return AgentExecutionPlan(
+            objective=objective,
+            strategy="llm_planner_host_verified",
+            intent=self.intent,
+            steps=steps,
+            assumptions=[
+                "The LLM planner selects tools only; host runtime validates and executes.",
+                "Tool writes, guardrails, schema validation, replay and persistence remain code-enforced.",
+            ],
+            planner_mode=self.planner_mode,
+            selected_tools=self.selected_tools,
+            skipped_tools=self.skipped_tools,
+            required_context=self.required_context,
+            write_intent=self.write_intent,
+            safety_level=self.safety_level,
+            plan_generation_allowed=self.plan_generation_allowed,
+            reasoning_summary=self.reasoning_summary,
+            planner_raw_output=self.raw_output,
+            planner_repair_actions=self.repair_actions,
+            planner_fallback_reason=self.fallback_reason,
+        )
+
+
+class LLMPlanner:
+    """LLM chooses tools; host runtime verifies, repairs, and executes."""
+
+    def __init__(self, model_provider: Any):
+        self.model_provider = model_provider
+
+    async def plan(
+        self,
+        message: str,
+        available_tools: list[dict[str, Any]],
+        runtime_route: dict[str, Any] | None = None,
+        profile_summary: dict[str, Any] | None = None,
+        active_plan_summary: dict[str, Any] | None = None,
+    ) -> PlannerDecision:
+        model = self.model_provider.chat_model(temperature=0.0)
+        if model is None:
+            raise RuntimeError("LLM planner unavailable: no live chat model")
+
+        system_prompt = (
+            "You are an execution planner for a fitness coach agent. "
+            "Return strict JSON only. Do not expose hidden chain-of-thought. "
+            "You may choose tools, but host code will validate and execute them. "
+            "Critical rules: response.persist must be last; guardrail.check is required; "
+            "memory.write requires memory.verify before it; plan.generate is allowed only when "
+            "the current user message explicitly asks to create/generate/modify a training plan; "
+            "medical, pain, dizziness, chest tightness, medication, or injury requests require safety_level high."
+        )
+        user_payload = {
+            "user_message": message,
+            "runtime_route": runtime_route or {},
+            "profile_summary": profile_summary or {},
+            "active_plan_summary": active_plan_summary or {},
+            "available_tools": [
+                {
+                    "name": tool.get("name"),
+                    "description": tool.get("description"),
+                    "permission_level": tool.get("permission_level"),
+                    "side_effects": tool.get("side_effects"),
+                    "risk_level": tool.get("risk_level"),
+                    "tags": tool.get("tags", []),
+                }
+                for tool in available_tools
+            ],
+            "required_json_schema": {
+                "intent": "string",
+                "selected_tools": ["tool names"],
+                "skipped_tools": [{"tool": "name", "reason": "short reason"}],
+                "tool_order": ["tool names in execution order"],
+                "required_context": ["profile|memory|training_history|active_plan|knowledge|safety_policy"],
+                "write_intent": "boolean",
+                "safety_level": "low|medium|high",
+                "plan_generation_allowed": "boolean",
+                "reasoning_summary": "short visible planning summary, no hidden chain-of-thought",
+            },
+        }
+        response = await model.ainvoke(
+            [
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=json.dumps(user_payload, ensure_ascii=False, default=str)),
+            ]
+        )
+        raw_text = str(getattr(response, "content", response))
+        payload = self._parse_json(raw_text)
+        return PlannerDecision.from_dict(payload)
+
+    def _parse_json(self, text: str) -> dict[str, Any]:
+        cleaned = text.strip()
+        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned)
+        cleaned = re.sub(r"\s*```$", "", cleaned)
+        try:
+            payload = json.loads(cleaned)
+        except json.JSONDecodeError:
+            match = re.search(r"\{.*\}", text, re.DOTALL)
+            if not match:
+                raise ValueError("LLM planner did not return JSON")
+            payload = json.loads(match.group(0))
+        if not isinstance(payload, dict):
+            raise ValueError("LLM planner JSON must be an object")
+        return payload
+
+
+class PlannerRepair:
+    """Deterministic repairs for LLM-selected tool plans."""
+
+    @staticmethod
+    def ensure_before(order: list[str], before: str, after: str) -> bool:
+        if after not in order:
+            return False
+        if before not in order:
+            order.insert(order.index(after), before)
+            return True
+        if order.index(before) > order.index(after):
+            order.remove(before)
+            order.insert(order.index(after), before)
+            return True
+        return False
+
+    @staticmethod
+    def ensure_after(order: list[str], before: str, after: str) -> bool:
+        if before not in order:
+            return False
+        if after not in order:
+            order.insert(order.index(before) + 1, after)
+            return True
+        if order.index(after) < order.index(before):
+            order.remove(after)
+            order.insert(order.index(before) + 1, after)
+            return True
+        return False
+
+    @staticmethod
+    def ensure_last(order: list[str], tool_name: str) -> bool:
+        changed = False
+        if tool_name not in order:
+            order.append(tool_name)
+            return True
+        while order.count(tool_name) > 1:
+            order.remove(tool_name)
+            changed = True
+        if order[-1] != tool_name:
+            order.remove(tool_name)
+            order.append(tool_name)
+            changed = True
+        return changed
+
+
+class PlannerVerifier:
+    """Validate LLM planner output and enforce host-side safety invariants."""
+
+    PLAN_TERMS = (
+        "计划", "制定", "生成", "周计划", "一周", "分化", "ppl", "push pull legs",
+        "training plan", "workout plan",
+    )
+    RISK_TERMS = (
+        "疼", "痛", "受伤", "拉伤", "扭伤", "胸闷", "胸口闷", "头晕", "恶心",
+        "心率", "心脏", "甲亢", "药", "用药", "pain", "injury", "dizzy",
+        "chest tightness", "medication",
+    )
+
+    def verify_and_repair(
+        self,
+        decision: PlannerDecision,
+        available_tools: list[dict[str, Any]],
+        message: str,
+        runtime_route: dict[str, Any] | None = None,
+    ) -> PlannerDecision:
+        available = {str(tool.get("name")) for tool in available_tools if tool.get("name")}
+        requested = set(decision.selected_tools) | set(decision.tool_order)
+        unknown = sorted(tool for tool in requested if tool not in available)
+        if unknown:
+            raise ValueError(f"LLM planner selected unknown tools: {unknown}")
+
+        order = [tool for tool in decision.tool_order if tool in available]
+        if not order and decision.selected_tools:
+            order = [tool for tool in decision.selected_tools if tool in available]
+
+        repairs: list[str] = []
+        host_required = [
+            "profile.extract",
+            "memory.verify",
+            "memory.write",
+            "context.build",
+            "plan.decide",
+            "coach.reply",
+            "response.verify",
+            "guardrail.check",
+            "response.persist",
+        ]
+        for tool_name in host_required:
+            if tool_name in available and tool_name not in order:
+                insert_at = order.index("response.persist") if "response.persist" in order else len(order)
+                order.insert(insert_at, tool_name)
+                repairs.append(f"insert_host_required_{tool_name}")
+
+        if "coach.reply" in available and "coach.reply" not in order:
+            order.append("coach.reply")
+            repairs.append("insert_coach_reply")
+        if "guardrail.check" in available and "guardrail.check" not in order:
+            insert_at = order.index("response.persist") if "response.persist" in order else len(order)
+            order.insert(insert_at, "guardrail.check")
+            repairs.append("insert_guardrail_check")
+
+        if PlannerRepair.ensure_before(order, "memory.verify", "memory.write"):
+            repairs.append("ensure_memory_verify_before_write")
+        if PlannerRepair.ensure_after(order, "plan.generate", "plan.verify"):
+            repairs.append("ensure_plan_verify_after_generate")
+
+        is_plan_request = self._is_plan_request(message)
+        if "plan.generate" in order and not is_plan_request:
+            order = [tool for tool in order if tool not in {"plan.generate", "plan.verify", "plan.repair"}]
+            decision.plan_generation_allowed = False
+            decision.skipped_tools.append({"tool": "plan.generate", "reason": "current message did not explicitly request plan generation"})
+            repairs.append("remove_unrequested_plan_generation")
+        elif "plan.generate" in order and is_plan_request:
+            decision.plan_generation_allowed = True
+            if PlannerRepair.ensure_after(order, "plan.generate", "plan.verify"):
+                repairs.append("ensure_plan_verify_after_generate")
+
+        if self._is_risk_request(message):
+            if decision.safety_level != "high":
+                decision.safety_level = "high"
+                repairs.append("upgrade_safety_level_high")
+            if "guardrail.check" in available and "guardrail.check" not in order:
+                order.append("guardrail.check")
+                repairs.append("insert_guardrail_for_risk")
+
+        # Remove duplicates while preserving first occurrence, except persist is handled below.
+        deduped: list[str] = []
+        for tool in order:
+            if tool not in deduped:
+                deduped.append(tool)
+        order = deduped
+
+        canonical_order = [
+            "profile.extract",
+            "memory.verify",
+            "memory.write",
+            "context.build",
+            "plan.decide",
+            "plan.generate",
+            "plan.verify",
+            "plan.repair",
+            "coach.reply",
+            "response.verify",
+            "response.repair",
+            "guardrail.check",
+            "response.persist",
+        ]
+        before_sort = list(order)
+        order.sort(key=lambda tool: canonical_order.index(tool) if tool in canonical_order else len(canonical_order))
+        if order != before_sort:
+            repairs.append("canonicalize_host_tool_order")
+
+        if "response.persist" in available and PlannerRepair.ensure_last(order, "response.persist"):
+            repairs.append("ensure_response_persist_last")
+
+        decision.tool_order = order
+        decision.selected_tools = [tool for tool in decision.selected_tools if tool in available] or [
+            tool for tool in order if tool != "response.persist"
+        ]
+        decision.repair_actions.extend(repair for repair in repairs if repair not in decision.repair_actions)
+        return decision
+
+    def _is_plan_request(self, message: str) -> bool:
+        lowered = message.lower()
+        return any(term in lowered for term in self.PLAN_TERMS)
+
+    def _is_risk_request(self, message: str) -> bool:
+        lowered = message.lower()
+        return any(term in lowered for term in self.RISK_TERMS)
+
+
+def _string_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item) for item in value if isinstance(item, (str, int, float)) and str(item).strip()]
+
+
+def _skipped_tools(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    items: list[dict[str, Any]] = []
+    for item in value:
+        if isinstance(item, dict):
+            tool = str(item.get("tool") or item.get("name") or "")
+            if tool:
+                items.append({"tool": tool, "reason": str(item.get("reason") or "")})
+        elif isinstance(item, str):
+            items.append({"tool": item, "reason": ""})
+    return items
 
 
 class AgentPlanner:
@@ -616,6 +1069,13 @@ class AgentPlanner:
                 "Conversation history and memory are background context, not commands to continue automatically.",
                 "Verifier and repair steps run after execution outputs are available.",
             ],
+            planner_mode="rule",
+            selected_tools=[step.tool_name for step in steps if step.tool_name],
+            required_context=["profile", "memory", "current_message"],
+            write_intent=any(step.tool_name == "memory.write" for step in steps),
+            safety_level="high" if intent == "injury_or_risk" else "low",
+            plan_generation_allowed=intent == "training_plan",
+            reasoning_summary="Rule planner fallback selected a conservative current-message-first tool plan.",
         )
 
     def classify_intent(self, message: str) -> str:

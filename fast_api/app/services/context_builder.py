@@ -46,6 +46,9 @@ class IntentRouter:
 
     def classify(self, message: str) -> str:
         lowered = message.lower()
+        normalized = self._classify_normalized_chinese(lowered)
+        if normalized:
+            return normalized
         if self._contains(lowered, self.RISK_TERMS):
             return "injury_or_risk"
         if self._contains(lowered, self.REVIEW_TERMS):
@@ -66,6 +69,50 @@ class IntentRouter:
 
     def _contains(self, lowered: str, terms: list[str]) -> bool:
         return any(term in lowered for term in terms)
+
+    def _classify_normalized_chinese(self, lowered: str) -> str | None:
+        if ("酸痛" in lowered or "肌肉酸痛" in lowered) and any(
+            term in lowered for term in ["训练后", "练后", "恢复", "缓解", "怎么"]
+        ):
+            return "recovery_check"
+        if any(term in lowered for term in [
+            "疼", "痛", "刺痛", "胸闷", "胸口闷", "头晕", "呼吸困难", "麻木", "手麻",
+            "困难", "受伤", "甲亢", "甲状腺", "吃药", "服药", "用药",
+        ]):
+            return "injury_or_risk"
+        if any(term in lowered for term in ["月复盘", "月度复盘", "月度", "月总结"]):
+            return "monthly_review"
+        if any(term in lowered for term in ["周复盘", "本周", "周总结"]):
+            return "weekly_review"
+        if self._is_normalized_plan_request(lowered):
+            return "training_plan"
+        if any(term in lowered for term in ["加重", "加重量", "进步", "下次", "降载"]):
+            return "progression_decision"
+        if any(term in lowered for term in [
+            "完成", "做完", "练了", "练完", "今天练", "kg", "公斤", "rpe", "组", "次数",
+            "卧推", "深蹲", "硬拉",
+        ]):
+            return "training_log"
+        if any(term in lowered for term in [
+            "吃", "热量", "蛋白", "蛋白质", "碳水", "脂肪", "外卖", "外食", "饮食", "饮食方案",
+        ]):
+            return "nutrition_advice"
+        if any(term in lowered for term in ["睡", "疲劳", "酸痛", "肌肉酸痛", "恢复", "压力", "心率"]):
+            return "recovery_check"
+        if any(term in lowered for term in ["你记得", "还记得", "我的档案", "记忆"]):
+            return "memory_query"
+        return None
+
+    def _is_normalized_plan_request(self, lowered: str) -> bool:
+        negative_terms = ["不要", "不需要", "不用", "别", "不要给", "不要生成"]
+        plan_terms = ["计划", "训练计划", "健身计划"]
+        if any(neg in lowered for neg in negative_terms) and any(term in lowered for term in plan_terms):
+            return False
+        return any(term in lowered for term in [
+            "训练计划", "健身计划", "生成计划", "制定计划", "做个计划", "出个计划",
+            "给我计划", "帮我计划", "安排训练", "今天练什么", "今天应该练什么",
+            "今天应该干什么", "今天干什么", "今日训练", "练什么",
+        ])
 
     def is_plan_request(self, message: str) -> bool:
         lowered = message.lower()
@@ -410,6 +457,16 @@ class ContextBuilder:
             "overhead_press": ["鎺ㄨ偐", "shoulder press"],
         }
         lowered = message.lower()
+        normalized_mapping = {
+            "bench_press": ["卧推", "bench", "bench press"],
+            "squat": ["深蹲", "squat"],
+            "deadlift": ["硬拉", "deadlift"],
+            "pull_up": ["引体", "引体向上", "pull-up", "pullup"],
+            "overhead_press": ["推举", "肩推", "shoulder press", "overhead press"],
+        }
+        for normalized, terms in normalized_mapping.items():
+            if any(term in lowered for term in terms):
+                return normalized
         for normalized, terms in mapping.items():
             if any(term in lowered for term in terms):
                 return normalized

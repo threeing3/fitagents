@@ -62,9 +62,18 @@ class Settings(BaseSettings):
         alias="CORS_ORIGINS",
     )
 
-    # Agent architecture: toggle between LLM-driven tool-use and code-driven pipeline
+    # Legacy agent architecture toggle. Prefer AGENT_RUNTIME_MODE for new work.
     use_llm_driven_agent: bool = Field(
         default=False, alias="USE_LLM_DRIVEN_AGENT"
+    )
+    agent_runtime_mode: Literal["auto", "llm_driven", "code_driven"] = Field(
+        default="auto", alias="AGENT_RUNTIME_MODE"
+    )
+    code_driven_planner: Literal["llm", "rule"] = Field(
+        default="llm", alias="CODE_DRIVEN_PLANNER"
+    )
+    code_driven_planner_fallback: Literal["rule", "error"] = Field(
+        default="rule", alias="CODE_DRIVEN_PLANNER_FALLBACK"
     )
 
     # JWT auth

@@ -29,7 +29,7 @@ class TestFeedbackModel:
         from fast_api.app.db.models import UserFeedback
         from sqlalchemy import inspect
 
-        constraints = inspect(UserFeedback).table_constraints
+        constraints = inspect(UserFeedback).local_table.constraints
         constraint_names = [c.name for c in constraints if hasattr(c, 'name')]
         assert "uq_user_feedback_message" in constraint_names
 
@@ -37,10 +37,10 @@ class TestFeedbackModel:
         from fast_api.app.db.models import UserFeedback
         from sqlalchemy import inspect
 
-        fks = {c.name: c for c in inspect(UserFeedback).foreign_keys}
-        assert "user_id" in str(fks)
-        assert "session_id" in str(fks) or "session_id" in fks
-        assert "message_id" in str(fks) or "message_id" in fks
+        fk_columns = {fk.parent.name for fk in inspect(UserFeedback).local_table.foreign_keys}
+        assert "user_id" in fk_columns
+        assert "session_id" in fk_columns
+        assert "message_id" in fk_columns
 
 
 class TestFeedbackSchemas:
@@ -162,7 +162,7 @@ class TestCoachAgentFeedbackIntegration:
             uuid.uuid4(), uuid.uuid4(), "assistant", "Hello"
         )
         # Should have called db.add with a ChatMessage
-        assert svc.db.add.called
+        assert svc.db._added is not None
         assert svc.db.flush.called
         # Should return the message object
         assert result is not None
@@ -171,8 +171,12 @@ class TestCoachAgentFeedbackIntegration:
     def test_handle_chat_message_includes_feedback_id(self):
         """The return dict should include feedback_message_id."""
         import inspect
-        source = inspect.getsource(CoachAgentService.handle_chat_message)
-        assert "feedback_message_id" in source
+        from fast_api.app.services.coach_agent import CoachAgentService
+
+        code_source = inspect.getsource(CoachAgentService._handle_chat_code_driven)
+        llm_source = inspect.getsource(CoachAgentService._handle_chat_llm_agent)
+        assert "feedback_message_id" in code_source
+        assert "feedback_message_id" in llm_source
 
 
 class TestFeedbackAPIRoutes:

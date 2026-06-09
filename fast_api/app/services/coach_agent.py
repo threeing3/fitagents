@@ -28,9 +28,17 @@ from fast_api.app.services.agent_runtime import (
     AgentExecutor,
     AgentPlanner,
     AgentTaskTimeline,
+    LLMPlanner,
+    PlannerVerifier,
     TaskStep,
     ToolRegistry,
     ToolSpec,
+)
+from fast_api.app.services.agent_tool_dispatcher import (
+    ReplayRunner,
+    ToolInputBuilder,
+    ToolOutputReducer,
+    ToolRuntimeState,
 )
 from fast_api.app.services.agent_verifier import AgentVerifier
 from fast_api.app.services.decision_logger import DecisionLogger
@@ -47,6 +55,7 @@ from fast_api.app.services.feedback_learner_integration import get_adaptive_syst
 from fast_api.app.services.llm_agent import LLMAgentService as LLMAgent
 from fast_api.app.services.agent_task_state import AgentTaskStateService
 from fast_api.app.services.memory_conflict_resolver import MemoryConflictResolver
+from fast_api.app.services.runtime_router import RuntimeRoute, RuntimeRouter
 
 
 REQUIRED_ONBOARDING_SLOTS = [
@@ -64,6 +73,7 @@ class CoachAgentService:
         self.db = db
         self.model_provider = model_provider or ModelProvider()
         self.cache = SemanticCacheService(db, self.model_provider)
+        self.runtime_router = RuntimeRouter()
 
     def create_session(
         self,
@@ -106,17 +116,105 @@ class CoachAgentService:
         user_id: uuid.UUID,
         message: str,
     ) -> dict[str, Any]:
-        """Dispatch to LLM-driven agent or code-driven pipeline based on config."""
+        """Dispatch each turn through the lightweight RuntimeRouter."""
+        route = self._route_runtime(message)
+        if route.mode == "llm_driven":
+            result = await self._handle_chat_llm_agent(session_id, user_id, message, route)
+        else:
+            result = await self._handle_chat_code_driven(session_id, user_id, message, route)
+        result["runtime_route"] = route.to_dict()
+        return result
+
+    def _route_runtime(self, message: str) -> RuntimeRoute:
         settings = get_settings()
+        if settings.agent_runtime_mode == "llm_driven":
+            return RuntimeRoute(
+                mode="llm_driven",
+                reason="AGENT_RUNTIME_MODE=llm_driven 强制走 LLM-driven。",
+                matched_rules=["config.force_llm_driven"],
+                confidence=1.0,
+            )
+        if settings.agent_runtime_mode == "code_driven":
+            return RuntimeRoute(
+                mode="code_driven",
+                reason="AGENT_RUNTIME_MODE=code_driven 强制走 Code-driven。",
+                matched_rules=["config.force_code_driven"],
+                confidence=1.0,
+            )
         if settings.use_llm_driven_agent:
-            return await self._handle_chat_llm_agent(session_id, user_id, message)
-        return await self._handle_chat_code_driven(session_id, user_id, message)
+            route = self.runtime_router.route(message)
+            if route.mode == "llm_driven":
+                route.reason = "兼容 USE_LLM_DRIVEN_AGENT=true：轻量请求允许走 LLM-driven；强规则仍保持 Code-driven。"
+                route.matched_rules = ["legacy.use_llm_driven_agent"] + route.matched_rules
+            return route
+        return self.runtime_router.route(message)
+
+    async def _build_code_driven_execution_plan(
+        self,
+        message: str,
+        tool_registry: ToolRegistry,
+        profile: models.UserProfile,
+        runtime_route: RuntimeRoute | None = None,
+    ) -> tuple[Any, dict[str, Any]]:
+        settings = get_settings()
+        available_tools = tool_registry.list_specs()
+        debug: dict[str, Any] = {
+            "planner_mode": settings.code_driven_planner,
+            "llm_planner_raw": None,
+            "planner_verified_plan": None,
+            "planner_repair_actions": [],
+            "planner_fallback_reason": None,
+            "planner_fallback": False,
+        }
+
+        if settings.code_driven_planner == "llm":
+            try:
+                active_plan = self.get_active_plan(profile.user_id)
+                active_plan_summary = None
+                if active_plan is not None:
+                    active_plan_summary = {
+                        "plan_id": str(active_plan.id),
+                        "title": active_plan.title,
+                        "status": active_plan.status,
+                    }
+                decision = await LLMPlanner(self.model_provider).plan(
+                    message=message,
+                    available_tools=available_tools,
+                    runtime_route=runtime_route.to_dict() if runtime_route else None,
+                    profile_summary=self._profile_snapshot(profile),
+                    active_plan_summary=active_plan_summary,
+                )
+                debug["llm_planner_raw"] = decision.raw_output
+                verified = PlannerVerifier().verify_and_repair(
+                    decision,
+                    available_tools=available_tools,
+                    message=message,
+                    runtime_route=runtime_route.to_dict() if runtime_route else None,
+                )
+                execution_plan = verified.to_execution_plan(message)
+                debug["planner_verified_plan"] = execution_plan.to_dict()
+                debug["planner_repair_actions"] = verified.repair_actions
+                return execution_plan, debug
+            except Exception as exc:
+                if settings.code_driven_planner_fallback != "rule":
+                    raise
+                debug["planner_fallback"] = True
+                debug["planner_fallback_reason"] = str(exc)
+
+        execution_plan = AgentPlanner().plan_chat_turn(message, available_tools)
+        if debug["planner_fallback_reason"]:
+            execution_plan.planner_mode = "rule_fallback"
+            execution_plan.planner_fallback_reason = debug["planner_fallback_reason"]
+            execution_plan.planner_repair_actions = ["fallback_to_rule_planner"]
+        debug["planner_verified_plan"] = execution_plan.to_dict()
+        return execution_plan, debug
 
     async def _handle_chat_code_driven(
         self,
         session_id: uuid.UUID,
         user_id: uuid.UUID,
         message: str,
+        runtime_route: RuntimeRoute | None = None,
     ) -> dict[str, Any]:
         """Legacy code-driven pipeline: ToolRegistry -> AgentPlanner -> AgentExecutor."""
         started_at = datetime.utcnow()
@@ -133,7 +231,9 @@ class CoachAgentService:
         timeline = AgentTaskTimeline(message, request_id=run_logger.request_id)
         tool_registry = self._build_chat_tool_registry(user.id, session.id, profile, message)
         executor = AgentExecutor()
-        execution_plan = AgentPlanner().plan_chat_turn(message, tool_registry.list_specs())
+        execution_plan, planner_debug = await self._build_code_driven_execution_plan(
+            message, tool_registry, profile, runtime_route
+        )
         timeline_steps = {
             planned.key: timeline.add_step(planned.name, planned.tool_name, planned.reason)
             for planned in execution_plan.steps
@@ -145,6 +245,26 @@ class CoachAgentService:
         contract_issues = tool_registry.validate_contracts()
         nodes.append(run_logger.event("ToolContractAudit", {"issues": contract_issues}))
         state_updates["tool_contract_issues"] = contract_issues
+        nodes.append(run_logger.event("LLMPlanner", {
+            "raw_output": planner_debug.get("llm_planner_raw"),
+            "planner_mode": execution_plan.planner_mode,
+            "planner_fallback": planner_debug.get("planner_fallback", False),
+        }))
+        if planner_debug.get("planner_fallback"):
+            nodes.append(run_logger.event("PlannerFallback", {
+                "planner_fallback": True,
+                "reason": planner_debug.get("planner_fallback_reason"),
+            }))
+        nodes.append(run_logger.event("PlannerVerifier", {
+            "verified_plan": planner_debug.get("planner_verified_plan"),
+            "repair_actions": planner_debug.get("planner_repair_actions", []),
+        }))
+        state_updates["planner"] = {
+            "mode": execution_plan.planner_mode,
+            "fallback": planner_debug.get("planner_fallback", False),
+            "fallback_reason": planner_debug.get("planner_fallback_reason"),
+            "repair_actions": planner_debug.get("planner_repair_actions", []),
+        }
         planner_node = run_logger.event("AgentPlanner", execution_plan.to_dict())
         nodes.append(planner_node)
         timeline_node = run_logger.event("AgentTaskTimeline", timeline.to_dict())
@@ -158,6 +278,11 @@ class CoachAgentService:
                 "embedding_mode": self.model_provider.embedding_mode(),
             },
         )
+        if runtime_route is not None:
+            route_payload = runtime_route.to_dict()
+            nodes.append(run_logger.event("RuntimeRouter", route_payload))
+            state_updates["agent_mode"] = runtime_route.mode
+            state_updates["runtime_route"] = route_payload
 
         self._save_message(session.id, user.id, "user", message)
 
@@ -192,220 +317,213 @@ class CoachAgentService:
                 raise RuntimeError(result.error or f"Tool failed: {tool_name}")
             return result.output_json
 
-        # ---- Execute: profile extract -> memory verify -> memory write ----
-        node_start = time.perf_counter()
-        extraction = await execute_tool(
-            "profile.extract",
-            {"message_chars": len(message)},
-            timeline_steps["profile_extract"],
-        )
-        if extraction["profile_patch"] or extraction["corrections"]:
-            self._apply_profile_extraction(profile, extraction)
-            self._refresh_macro_targets(profile)
-            state_updates["profile_updates"] = extraction["profile_patch"]
-            state_updates["corrections"] = extraction["corrections"]
-        nodes.append(run_logger.node("ProfileExtractorAgent", node_start, extraction, {"message": message[:240]}))
+        tool_steps = {
+            planned.tool_name: timeline_steps[planned.key]
+            for planned in execution_plan.steps
+            if planned.tool_name and planned.key in timeline_steps
+        }
+        execution_order = [planned.tool_name for planned in execution_plan.steps if planned.tool_name]
+        nodes.append(run_logger.event("AgentToolOrderDispatch", {
+            "tool_order": execution_order,
+            "planner_mode": execution_plan.planner_mode,
+        }))
 
-        memory_verify_output = await execute_tool(
-            "memory.verify",
-            {"extraction": extraction},
-            timeline_steps["memory_verify"],
-        )
-        state_updates["memory_verification"] = memory_verify_output
-        nodes.append(run_logger.event("MemoryVerifier", memory_verify_output))
-
-        node_start_mem = time.perf_counter()
-        memory_output = await execute_tool(
-            "memory.write",
-            {"extraction": extraction, "verification": memory_verify_output},
-            timeline_steps["memory_write"],
-        )
-        memories_written = memory_output.get("written") or []
-        nodes.append(run_logger.node("MemoryAgent", node_start_mem, {"written": memories_written}))
-
-        # ---- Intent routing ----
-        missing_slots = self.missing_onboarding_slots(profile)
-        onboarding_complete = not missing_slots
-        nodes.append(run_logger.event(
-            "IntentRouter",
-            {"onboarding_complete": onboarding_complete, "missing_slots": missing_slots},
-        ))
-
-        # ---- Generate response through the appropriate path ----
         chunks: list[str] = []
         context_packet: dict[str, Any] = {}
+        extraction: dict[str, Any] = {"profile_patch": {}, "corrections": [], "ignored_candidates": []}
+        memory_verify_output: dict[str, Any] = {
+            "passed": True,
+            "accepted_candidates": [],
+            "accepted_corrections": [],
+            "rejected_candidates": [],
+        }
+        memories_written: list[str] = []
+        missing_slots = self.missing_onboarding_slots(profile)
+        onboarding_complete = not missing_slots
+        plan_decision: dict[str, Any] = {}
+        plan_output: dict[str, Any] = {}
+        plan_verify_output: dict[str, Any] = {}
+        assistant_message = ""
+        assistant_msg = None
+        guardrail_payload: dict[str, Any] = {"action": "pass", "flag_count": 0, "flags": []}
+        dispatcher_state = ToolRuntimeState(
+            message=message,
+            message_chars=len(message),
+            onboarding_complete=onboarding_complete,
+            requires_static_safety=self._requires_immediate_safety_reply(message),
+            active_plan_exists=self.get_active_plan(user.id) is not None,
+        )
+        input_builder = ToolInputBuilder(dispatcher_state)
+        output_reducer = ToolOutputReducer(dispatcher_state)
+
         try:
-            if self._requires_immediate_safety_reply(message):
-                assistant_message = self._safety_reply()
-                chunks.append(assistant_message)
-                nodes.append(run_logger.node("CoachLLM", time.perf_counter(), {"safety": True, "mode": "static_safety"}))
-            elif not onboarding_complete:
-                node_start_onb = time.perf_counter()
-                assistant_message = await self._live_onboarding_reply(profile, missing_slots, message)
-                chunks.append(assistant_message)
-                nodes.append(run_logger.node(
-                    "CoachLLM", node_start_onb,
-                    {"mode": "onboarding", "live_model": self.model_provider.has_live_model(), "missing_slots": missing_slots},
-                ))
-            else:
-                # Build context through tool pipeline
-                node_start_ctx = time.perf_counter()
-                context_packet = await execute_tool(
-                    "context.build",
-                    {"message_chars": len(message)},
-                    timeline_steps["context_build"],
-                )
-                nodes.append(run_logger.node("ContextBuilder", node_start_ctx, context_packet))
-
-                # Plan decision
-                plan_decision = await execute_tool(
-                    "plan.decide",
-                    {"context_packet": context_packet},
-                    timeline_steps["plan_decision"],
-                )
-                should_generate_plan = bool(plan_decision.get("should_generate_plan"))
-                nodes.append(run_logger.event("CurrentRequestPolicy", context_packet.get("current_request_policy", {})))
-                nodes.append(run_logger.event("PlanGenerationDecision", plan_decision))
-
-                active_plan = self.get_active_plan(user.id)
-                if active_plan is None and should_generate_plan:
-                    plan_output = await execute_tool(
-                        "plan.generate",
-                        {"reason": plan_decision.get("reason")},
-                        planned_or_new_step(
-                            "plan_generate", "Generate first active plan", "plan.generate",
-                            "The current message explicitly requested a plan.",
-                        ),
-                    )
+            for tool_name in execution_order:
+                step = tool_steps.get(tool_name)
+                if step is None:
+                    continue
+                dispatcher_state.onboarding_complete = onboarding_complete
+                dispatcher_state.active_plan_exists = self.get_active_plan(user.id) is not None
+                dispatcher_state.context_packet = context_packet
+                dispatcher_state.extraction = extraction
+                dispatcher_state.memory_verification = memory_verify_output
+                dispatcher_state.plan_decision = plan_decision
+                dispatcher_state.plan_output = plan_output
+                dispatcher_state.plan_verification = plan_verify_output
+                dispatcher_state.assistant_message = "".join(chunks).strip() or assistant_message
+                tool_input = input_builder.build(tool_name)
+                if tool_input.skip_reason:
+                    nodes.append(run_logger.event("ToolSkipped", output_reducer.skip(tool_name, tool_input.skip_reason)))
+                    continue
+                if tool_name == "profile.extract":
+                    node_start = time.perf_counter()
+                    extraction = await execute_tool(tool_name, tool_input.payload, step)
+                    output_reducer.reduce(tool_name, extraction)
+                    if extraction.get("profile_patch") or extraction.get("corrections"):
+                        self._apply_profile_extraction(profile, extraction)
+                        self._refresh_macro_targets(profile)
+                        state_updates["profile_updates"] = extraction.get("profile_patch", {})
+                        state_updates["corrections"] = extraction.get("corrections", [])
+                    nodes.append(run_logger.node("ProfileExtractorAgent", node_start, extraction, {"message": message[:240]}))
+                elif tool_name == "memory.verify":
+                    memory_verify_output = await execute_tool(tool_name, tool_input.payload, step)
+                    output_reducer.reduce(tool_name, memory_verify_output)
+                    state_updates["memory_verification"] = memory_verify_output
+                    nodes.append(run_logger.event("MemoryVerifier", memory_verify_output))
+                elif tool_name == "memory.write":
+                    node_start_mem = time.perf_counter()
+                    memory_output = await execute_tool(tool_name, tool_input.payload, step)
+                    output_reducer.reduce(tool_name, memory_output)
+                    memories_written = memory_output.get("written") or []
+                    nodes.append(run_logger.node("MemoryAgent", node_start_mem, {"written": memories_written}))
+                    missing_slots = self.missing_onboarding_slots(profile)
+                    onboarding_complete = not missing_slots
+                    nodes.append(run_logger.event(
+                        "IntentRouter",
+                        {"onboarding_complete": onboarding_complete, "missing_slots": missing_slots},
+                    ))
+                elif tool_name == "context.build":
+                    node_start_ctx = time.perf_counter()
+                    context_packet = await execute_tool(tool_name, tool_input.payload, step)
+                    output_reducer.reduce(tool_name, context_packet)
+                    nodes.append(run_logger.node("ContextBuilder", node_start_ctx, context_packet))
+                    knowledge_context = context_packet.get("knowledge_context") or {}
+                    nodes.append(run_logger.event("KnowledgeRetrieval", knowledge_context.get("debug", {})))
+                    nodes.append(run_logger.event("DecisionRules", {
+                        "matched_rule_ids": knowledge_context.get("debug", {}).get("matched_rule_ids", []),
+                        "rules": knowledge_context.get("decision_rules", []),
+                    }))
+                    nodes.append(run_logger.event("TemplateSelector", {
+                        "matched_template_ids": knowledge_context.get("debug", {}).get("matched_template_ids", []),
+                        "templates": knowledge_context.get("plan_templates", []),
+                    }))
+                    state_updates["context_intent"] = context_packet.get("intent")
+                    state_updates["knowledge_debug"] = knowledge_context.get("debug", {})
+                elif tool_name == "plan.decide":
+                    plan_decision = await execute_tool(tool_name, tool_input.payload, step)
+                    output_reducer.reduce(tool_name, plan_decision)
+                    nodes.append(run_logger.event("CurrentRequestPolicy", context_packet.get("current_request_policy", {})))
+                    nodes.append(run_logger.event("PlanGenerationDecision", plan_decision))
+                elif tool_name == "plan.generate":
+                    plan_output = await execute_tool(tool_name, tool_input.payload, step)
+                    output_reducer.reduce(tool_name, plan_output)
                     context_packet["active_plan"] = plan_output.get("active_plan")
                     state_updates["generated_plan_id"] = plan_output.get("plan_id")
-
-                    # ---- Self-correction: role-play verification ----
-                    reflection_prompt = self._build_plan_reflection_prompt(
-                        plan_output, context_packet, profile
-                    )
-                    if reflection_prompt:
+                    if self._build_plan_reflection_prompt(plan_output, context_packet, profile):
                         plan_output["_reflection"] = "Requested"
                         nodes.append(run_logger.event("PlanSelfCorrection", {
                             "step": "reflection_requested",
                             "plan_id": plan_output.get("plan_id"),
                         }))
-
-                    # Plan verify -> repair
+                elif tool_name == "plan.verify":
                     plan_verify_output = await execute_tool(
-                        "plan.verify",
-                        {"plan_payload": plan_output.get("active_plan") or {}, "context_packet": context_packet},
-                        planned_or_new_step(
-                            "plan_verify", "Verify generated plan constraints", "plan.verify",
-                            "Check generated plan before it is used by the coach response.",
-                        ),
+                        tool_name,
+                        tool_input.payload,
+                        step,
                     )
+                    output_reducer.reduce(tool_name, plan_verify_output)
                     state_updates["plan_verification"] = plan_verify_output
                     nodes.append(run_logger.event("PlanVerifier", plan_verify_output))
-
-                    if plan_verify_output.get("repair_actions"):
-                        plan_repair_output = await execute_tool(
-                            "plan.repair",
-                            {
-                                "plan_id": plan_output.get("plan_id"),
-                                "plan_payload": plan_output.get("active_plan") or {},
-                                "verification": plan_verify_output,
-                                "context_packet": context_packet,
-                            },
-                            planned_or_new_step(
-                                "plan_repair", "Repair generated plan constraints", "plan.repair",
-                                "Apply deterministic repairs for verifier findings.",
-                            ),
-                        )
-                        if plan_repair_output.get("active_plan"):
-                            context_packet["active_plan"] = plan_repair_output.get("active_plan")
-                        state_updates["plan_repair"] = plan_repair_output
-                        nodes.append(run_logger.event("PlanRepair", plan_repair_output))
-
-                # Knowledge + rules context
-                knowledge_context = context_packet.get("knowledge_context") or {}
-                nodes.append(run_logger.event("KnowledgeRetrieval", knowledge_context.get("debug", {})))
-                nodes.append(run_logger.event("DecisionRules", {
-                    "matched_rule_ids": knowledge_context.get("debug", {}).get("matched_rule_ids", []),
-                    "rules": knowledge_context.get("decision_rules", []),
-                }))
-                nodes.append(run_logger.event("TemplateSelector", {
-                    "matched_template_ids": knowledge_context.get("debug", {}).get("matched_template_ids", []),
-                    "templates": knowledge_context.get("plan_templates", []),
-                }))
-                state_updates["context_intent"] = context_packet.get("intent")
-                state_updates["knowledge_debug"] = knowledge_context.get("debug", {})
-                if "feedback_debug" in locals() and feedback_debug.get("enhanced"):
-                    state_updates["feedback_learning"] = feedback_debug
-
-                # Generate coach reply
-                node_start_reply = time.perf_counter()
-                timeline.start(timeline_steps["coach_reply"])
-                assistant_message = await self._coaching_reply(user.id, message, context_packet)
-                chunks.append(assistant_message)
-                timeline.complete(
-                    timeline_steps["coach_reply"],
-                    {"response_chars": len(assistant_message), "live_model": self.model_provider.has_live_model()},
-                    round((time.perf_counter() - node_start_reply) * 1000),
-                )
-                nodes.append(run_logger.node("CoachLLM", node_start_reply, {
-                    "safety": False,
-                    "live_model": self.model_provider.has_live_model(),
-                    "response_chars": len(assistant_message),
-                }))
+                elif tool_name == "plan.repair":
+                    plan_repair_output = await execute_tool(tool_name, tool_input.payload, step)
+                    output_reducer.reduce(tool_name, plan_repair_output)
+                    if plan_repair_output.get("active_plan"):
+                        context_packet["active_plan"] = plan_repair_output.get("active_plan")
+                    state_updates["plan_repair"] = plan_repair_output
+                    nodes.append(run_logger.event("PlanRepair", plan_repair_output))
+                elif tool_name == "coach.reply":
+                    node_start_reply = time.perf_counter()
+                    timeline.start(step)
+                    if self._requires_immediate_safety_reply(message):
+                        assistant_message = self._safety_reply()
+                        coach_payload = {"safety": True, "mode": "static_safety"}
+                    elif not onboarding_complete:
+                        assistant_message = await self._live_onboarding_reply(profile, missing_slots, message)
+                        coach_payload = {
+                            "mode": "onboarding",
+                            "live_model": self.model_provider.has_live_model(),
+                            "missing_slots": missing_slots,
+                        }
+                    else:
+                        assistant_message = await self._coaching_reply(user.id, message, context_packet)
+                        coach_payload = {
+                            "safety": False,
+                            "live_model": self.model_provider.has_live_model(),
+                            "response_chars": len(assistant_message),
+                        }
+                    chunks = [assistant_message]
+                    timeline.complete(step, {"response_chars": len(assistant_message), **coach_payload}, round((time.perf_counter() - node_start_reply) * 1000))
+                    nodes.append(run_logger.node("CoachLLM", node_start_reply, coach_payload))
+                elif tool_name == "response.verify":
+                    assistant_message = "".join(chunks).strip() or registry.get("error_coach_stream_empty")
+                    response_verify_output = await execute_tool(
+                        tool_name,
+                        tool_input.payload,
+                        step,
+                    )
+                    output_reducer.reduce(tool_name, response_verify_output)
+                    state_updates["response_verification"] = response_verify_output
+                    nodes.append(run_logger.event("ResponseVerifier", response_verify_output))
+                elif tool_name == "response.repair":
+                    response_repair_output = await execute_tool(tool_name, tool_input.payload, step)
+                    output_reducer.reduce(tool_name, response_repair_output)
+                    repair_text = response_repair_output.get("repair_text") or ""
+                    if repair_text:
+                        assistant_message = (assistant_message + repair_text).strip()
+                        chunks = [assistant_message]
+                    state_updates["response_repair"] = response_repair_output
+                    nodes.append(run_logger.event("ResponseRepair", response_repair_output))
+                elif tool_name == "guardrail.check":
+                    assistant_message = "".join(chunks).strip() or assistant_message or registry.get("error_coach_stream_empty")
+                    dispatcher_state.assistant_message = assistant_message
+                    tool_input = input_builder.build(tool_name)
+                    guardrail_output = await execute_tool(tool_name, tool_input.payload, step)
+                    output_reducer.reduce(tool_name, guardrail_output)
+                    guardrail_payload = {
+                        "action": guardrail_output.get("action"),
+                        "flag_count": guardrail_output.get("flag_count", 0),
+                        "flags": guardrail_output.get("flags", []),
+                    }
+                    nodes.append(run_logger.event("GuardrailCheck", guardrail_payload))
+                    if guardrail_output.get("action") == GuardrailSeverity.BLOCK.value:
+                        assistant_message = guardrail_output.get("replacement") or assistant_message
+                        chunks = [assistant_message]
+                elif tool_name == "response.persist":
+                    assistant_message = "".join(chunks).strip() or assistant_message or registry.get("error_coach_stream_empty")
+                    dispatcher_state.assistant_message = assistant_message
+                    tool_input = input_builder.build(tool_name)
+                    persist_output = await execute_tool(tool_name, tool_input.payload, step)
+                    output_reducer.reduce(tool_name, persist_output)
+                    assistant_msg = self._save_message(session.id, user.id, "assistant", assistant_message)
+                    nodes.append(run_logger.event("ResponsePersisted", {"response_chars": len(assistant_message)}))
         except Exception as exc:
             error_text = f"\n\n{self._model_call_error_message(exc)} 请稍后重试。"
             chunks.append(error_text)
             nodes.append(run_logger.event("RuntimeError", {"error": str(exc)}))
-        assistant_message = "".join(chunks).strip()
 
-        if not assistant_message:
-            assistant_message = registry.get("error_coach_stream_empty")
-
-        # ---- Response verify -> repair (when context exists) ----
-        if context_packet:
-            response_verify_output = await execute_tool(
-                "response.verify",
-                {"assistant_message": assistant_message[:6000], "context_packet": context_packet},
-                timeline_steps["response_verify"],
-            )
-            state_updates["response_verification"] = response_verify_output
-            nodes.append(run_logger.event("ResponseVerifier", response_verify_output))
-            if response_verify_output.get("repair_actions"):
-                response_repair_output = await execute_tool(
-                    "response.repair",
-                    {"verification": response_verify_output, "context_packet": context_packet},
-                    planned_or_new_step(
-                        "response_repair", "Repair coach response constraints", "response.repair",
-                        "Append deterministic repair text when verifier finds fixable issues.",
-                    ),
-                )
-                repair_text = response_repair_output.get("repair_text") or ""
-                if repair_text:
-                    assistant_message = (assistant_message + repair_text).strip()
-                state_updates["response_repair"] = response_repair_output
-                nodes.append(run_logger.event("ResponseRepair", response_repair_output))
-
-        # ---- Guardrail check ----
-        guardrail_output = await execute_tool(
-            "guardrail.check",
-            {"assistant_message": assistant_message[:4000]},
-            timeline_steps["guardrail"],
-        )
-        guardrail_payload = {
-            "action": guardrail_output.get("action"),
-            "flag_count": guardrail_output.get("flag_count", 0),
-            "flags": guardrail_output.get("flags", []),
-        }
-        nodes.append(run_logger.event("GuardrailCheck", guardrail_payload))
-        if guardrail_output.get("action") == GuardrailSeverity.BLOCK.value:
-            assistant_message = guardrail_output.get("replacement") or assistant_message
-
-        # ---- Persist ----
-        timeline.start(timeline_steps["persist"])
-        assistant_msg = self._save_message(session.id, user.id, "assistant", assistant_message)
-        timeline.complete(timeline_steps["persist"], {"response_chars": len(assistant_message)})
-        nodes.append(run_logger.event("ResponsePersisted", {"response_chars": len(assistant_message)}))
+        assistant_message = "".join(chunks).strip() or assistant_message or registry.get("error_coach_stream_empty")
+        if assistant_msg is None:
+            assistant_msg = self._save_message(session.id, user.id, "assistant", assistant_message)
+            nodes.append(run_logger.event("ResponsePersisted", {"response_chars": len(assistant_message), "fallback_persist": True}))
 
         run = models.AgentRun(
             user_id=user.id,
@@ -439,6 +557,7 @@ class CoachAgentService:
                 "session_id": str(session.id),
                 "message": message,
                 "message_chars": len(message),
+                "runtime_route": runtime_route.to_dict() if runtime_route else None,
             },
             state_snapshot={
                 "profile": self._profile_snapshot(profile),
@@ -446,12 +565,14 @@ class CoachAgentService:
                 "state_updates": self._truncate_trace_payload(state_updates),
                 "active_tasks": long_term_tasks,
             },
-            tool_plan_json={
-                "execution_plan": execution_plan.to_dict(),
-                "timeline": timeline.to_dict(),
-                "tool_contracts": tool_registry.list_specs(),
-                "contract_issues": contract_issues,
-            },
+            tool_plan_json=ReplayRunner.tool_plan_json(
+                execution_plan=execution_plan,
+                timeline=timeline,
+                tool_contracts=tool_registry.list_specs(),
+                contract_issues=contract_issues,
+                planner_debug=planner_debug,
+                dispatcher_state=dispatcher_state,
+            ),
             response_snapshot={
                 "assistant_message": assistant_message,
                 "guardrail": guardrail_payload,
@@ -461,6 +582,9 @@ class CoachAgentService:
                 "llm_provider": self.model_provider.settings.llm_provider,
                 "chat_model": self.model_provider.settings.chat_model,
                 "embedding_mode": self.model_provider.embedding_mode(),
+                "agent_runtime_mode": get_settings().agent_runtime_mode,
+                "code_driven_planner": get_settings().code_driven_planner,
+                "code_driven_planner_fallback": get_settings().code_driven_planner_fallback,
             },
         )
 
@@ -750,13 +874,17 @@ class CoachAgentService:
         user_id: uuid.UUID,
         message: str,
     ):
-        """Dispatch streaming to LLM-driven or code-driven pipeline."""
-        settings = get_settings()
-        if settings.use_llm_driven_agent:
-            async for chunk in self._stream_chat_llm_agent(session_id, user_id, message):
+        """Dispatch streaming to LLM-driven or code-driven pipeline per turn."""
+        def event(event_type: str, **payload):
+            return json.dumps({"type": event_type, **payload}, ensure_ascii=False, default=str) + "\n"
+
+        route = self._route_runtime(message)
+        yield event("runtime_route", **route.to_dict())
+        if route.mode == "llm_driven":
+            async for chunk in self._stream_chat_llm_agent(session_id, user_id, message, route):
                 yield chunk
             return
-        async for chunk in self._stream_chat_code_driven(session_id, user_id, message):
+        async for chunk in self._stream_chat_code_driven(session_id, user_id, message, route):
             yield chunk
 
     async def _stream_chat_llm_agent(
@@ -764,12 +892,13 @@ class CoachAgentService:
         session_id: uuid.UUID,
         user_id: uuid.UUID,
         message: str,
+        runtime_route: RuntimeRoute | None = None,
     ):
         def event(event_type: str, **payload):
             return json.dumps({"type": event_type, **payload}, ensure_ascii=False, default=str) + "\n"
 
         yield event("status", text="正在思考")
-        result = await self._handle_chat_llm_agent(session_id, user_id, message)
+        result = await self._handle_chat_llm_agent(session_id, user_id, message, runtime_route)
         assistant_message = result.get("assistant_message") or ""
         for index in range(0, len(assistant_message), 3):
             yield event("answer_delta", text=assistant_message[index : index + 3])
@@ -785,6 +914,7 @@ class CoachAgentService:
         session_id: uuid.UUID,
         user_id: uuid.UUID,
         message: str,
+        runtime_route: RuntimeRoute | None = None,
     ):
         started_at = datetime.utcnow()
         nodes: list[dict[str, Any]] = []
@@ -806,6 +936,16 @@ class CoachAgentService:
                 steps = payload.get("steps") or []
                 intent = payload.get("intent") or "general_chat"
                 return f"Planner 识别意图 {intent}，本轮计划 {len(steps)} 个步骤"
+            if name == "LLMPlanner":
+                if payload.get("planner_fallback"):
+                    return "LLM Planner 不可用，准备切换规则 planner"
+                return f"LLM Planner 已输出工具计划，mode={payload.get('planner_mode') or 'llm'}"
+            if name == "PlannerVerifier":
+                plan = payload.get("verified_plan") or {}
+                repairs = payload.get("repair_actions") or []
+                return f"PlannerVerifier 完成校验，步骤 {len(plan.get('steps') or [])} 个，修复 {len(repairs)} 项"
+            if name == "PlannerFallback":
+                return f"PlannerFallback 已启用：{payload.get('reason') or 'unknown'}"
             if name == "ToolExecutor":
                 extra = ""
                 if payload.get("attempts", 1) and payload.get("attempts", 1) > 1:
@@ -932,7 +1072,9 @@ class CoachAgentService:
         timeline = AgentTaskTimeline(message, request_id=run_logger.request_id)
         tool_registry = self._build_chat_tool_registry(user.id, session.id, profile, message)
         executor = AgentExecutor()
-        execution_plan = AgentPlanner().plan_chat_turn(message, tool_registry.list_specs())
+        execution_plan, planner_debug = await self._build_code_driven_execution_plan(
+            message, tool_registry, profile, runtime_route
+        )
         timeline_steps = {
             planned.key: timeline.add_step(planned.name, planned.tool_name, planned.reason)
             for planned in execution_plan.steps
@@ -945,6 +1087,32 @@ class CoachAgentService:
         nodes.append(contract_node)
         state_updates["tool_contract_issues"] = contract_issues
         yield step_event("ToolContractAudit", contract_node, contract_node.get("output", {}))
+        llm_planner_node = run_logger.event("LLMPlanner", {
+            "raw_output": planner_debug.get("llm_planner_raw"),
+            "planner_mode": execution_plan.planner_mode,
+            "planner_fallback": planner_debug.get("planner_fallback", False),
+        })
+        nodes.append(llm_planner_node)
+        yield step_event("LLMPlanner", llm_planner_node, llm_planner_node.get("output", {}))
+        if planner_debug.get("planner_fallback"):
+            fallback_node = run_logger.event("PlannerFallback", {
+                "planner_fallback": True,
+                "reason": planner_debug.get("planner_fallback_reason"),
+            })
+            nodes.append(fallback_node)
+            yield step_event("PlannerFallback", fallback_node, fallback_node.get("output", {}))
+        verifier_node = run_logger.event("PlannerVerifier", {
+            "verified_plan": planner_debug.get("planner_verified_plan"),
+            "repair_actions": planner_debug.get("planner_repair_actions", []),
+        })
+        nodes.append(verifier_node)
+        yield step_event("PlannerVerifier", verifier_node, verifier_node.get("output", {}))
+        state_updates["planner"] = {
+            "mode": execution_plan.planner_mode,
+            "fallback": planner_debug.get("planner_fallback", False),
+            "fallback_reason": planner_debug.get("planner_fallback_reason"),
+            "repair_actions": planner_debug.get("planner_repair_actions", []),
+        }
         planner_node = run_logger.event("AgentPlanner", execution_plan.to_dict())
         nodes.append(planner_node)
         yield step_event("AgentPlanner", planner_node, planner_node.get("output", {}))
@@ -969,147 +1137,178 @@ class CoachAgentService:
             embedding_mode=self.model_provider.embedding_mode(),
         )
         yield step_event("RequestReceived", request_event, request_event.get("output", {}))
+        if runtime_route is not None:
+            route_payload = runtime_route.to_dict()
+            route_node = run_logger.event("RuntimeRouter", route_payload)
+            nodes.append(route_node)
+            state_updates["agent_mode"] = runtime_route.mode
+            state_updates["runtime_route"] = route_payload
+            yield step_event("RuntimeRouter", route_node, route_payload)
 
         self._save_message(session.id, user.id, "user", message)
 
-        node_start = time.perf_counter()
-        yield event("status", text="正在抽取档案字段和纠错信息")
-        extraction, emitted = await execute_tool(
-            "profile.extract",
-            {"message_chars": len(message)},
-            timeline_steps["profile_extract"],
-        )
-        for item in emitted:
-            yield item
-        if extraction["profile_patch"] or extraction["corrections"]:
-            self._apply_profile_extraction(profile, extraction)
-            self._refresh_macro_targets(profile)
-            state_updates["profile_updates"] = extraction["profile_patch"]
-            state_updates["corrections"] = extraction["corrections"]
-        node = run_logger.node("ProfileExtractorAgent", node_start, extraction, {"message": message[:240]})
-        nodes.append(node)
-        yield step_event("ProfileExtractorAgent", node, extraction)
+        tool_steps = {
+            planned.tool_name: timeline_steps[planned.key]
+            for planned in execution_plan.steps
+            if planned.tool_name and planned.key in timeline_steps
+        }
+        execution_order = [planned.tool_name for planned in execution_plan.steps if planned.tool_name]
+        dispatch_node = run_logger.event("AgentToolOrderDispatch", {
+            "tool_order": execution_order,
+            "planner_mode": execution_plan.planner_mode,
+        })
+        nodes.append(dispatch_node)
+        yield step_event("AgentToolOrderDispatch", dispatch_node, dispatch_node.get("output", {}))
 
-        node_start = time.perf_counter()
-        yield event("status", text="正在校验长期记忆候选")
-        memory_verify_output, emitted = await execute_tool(
-            "memory.verify",
-            {"extraction": extraction},
-            timeline_steps["memory_verify"],
-        )
-        for item in emitted:
-            yield item
-        state_updates["memory_verification"] = memory_verify_output
-        memory_verify_node = run_logger.event("MemoryVerifier", memory_verify_output)
-        nodes.append(memory_verify_node)
-        yield step_event("MemoryVerifier", memory_verify_node, memory_verify_output)
-
-        node_start = time.perf_counter()
-        yield event("status", text="正在写入已校验的长期记忆")
-        memory_output, emitted = await execute_tool(
-            "memory.write",
-            {"extraction": extraction, "verification": memory_verify_output},
-            timeline_steps["memory_write"],
-        )
-        for item in emitted:
-            yield item
-        memories_written = memory_output.get("written") or []
-        memory_payload = {"written": memories_written}
-        node = run_logger.node("MemoryAgent", node_start, memory_payload)
-        nodes.append(node)
-        yield step_event("MemoryAgent", node, memory_payload)
-
+        extraction: dict[str, Any] = {"profile_patch": {}, "corrections": [], "ignored_candidates": []}
+        memory_verify_output: dict[str, Any] = {
+            "passed": True,
+            "accepted_candidates": [],
+            "accepted_corrections": [],
+            "rejected_candidates": [],
+        }
+        memories_written: list[str] = []
         missing_slots = self.missing_onboarding_slots(profile)
         onboarding_complete = not missing_slots
-        intent_payload = {"onboarding_complete": onboarding_complete, "missing_slots": missing_slots}
-        intent_node = run_logger.event("IntentRouter", intent_payload)
-        nodes.append(intent_node)
-        yield step_event("IntentRouter", intent_node, intent_payload)
+        context_packet: dict[str, Any] = {}
+        plan_decision: dict[str, Any] = {}
+        plan_output: dict[str, Any] = {}
+        plan_verify_output: dict[str, Any] = {}
+        assistant_message = ""
+        guardrail_payload: dict[str, Any] = {"action": "pass", "flag_count": 0, "flags": []}
+        persisted = False
 
         try:
-            if self._requires_immediate_safety_reply(message):
-                node_start = time.perf_counter()
-                yield event("status", text="正在触发安全边界回复")
-                async for chunk in self._stream_static_text(self._safety_reply()):
-                    chunks.append(chunk)
-                    yield event("answer_delta", text=chunk)
-                coach_payload = {"safety": True, "mode": "static_safety"}
-                node = run_logger.node("CoachLLM", node_start, coach_payload)
-                nodes.append(node)
-                yield step_event("CoachLLM", node, coach_payload)
-            elif not onboarding_complete:
-                node_start = time.perf_counter()
-                yield event("status", text="正在生成建档追问")
-                async for chunk in self._live_onboarding_reply_stream(profile, missing_slots, message):
-                    chunks.append(chunk)
-                    yield event("answer_delta", text=chunk)
-                coach_payload = {
-                    "mode": "onboarding",
-                    "live_model": self.model_provider.has_live_model(),
-                    "missing_slots": missing_slots,
-                }
-                node = run_logger.node("CoachLLM", node_start, coach_payload)
-                nodes.append(node)
-                yield step_event("CoachLLM", node, coach_payload)
-            else:
-                node_start = time.perf_counter()
-                yield event("status", text="正在判断当前请求意图并构建上下文包")
-                context_packet, emitted = await execute_tool(
-                    "context.build",
-                    {"message_chars": len(message)},
-                    timeline_steps["context_build"],
-                )
-                for item in emitted:
-                    yield item
-                node = run_logger.node("ContextBuilder", node_start, context_packet)
-                nodes.append(node)
-                yield step_event("ContextBuilder", node, context_packet)
-
-                active_plan = self.get_active_plan(user.id)
-                plan_decision, emitted = await execute_tool(
-                    "plan.decide",
-                    {"context_packet": context_packet},
-                    timeline_steps["plan_decision"],
-                )
-                for item in emitted:
-                    yield item
-                should_generate_plan = bool(plan_decision.get("should_generate_plan"))
-                policy_payload = context_packet.get("current_request_policy", {})
-                policy_node = run_logger.event("CurrentRequestPolicy", policy_payload)
-                nodes.append(policy_node)
-                yield step_event("CurrentRequestPolicy", policy_node, policy_payload)
-                plan_node = run_logger.event("PlanGenerationDecision", plan_decision)
-                nodes.append(plan_node)
-                yield step_event("PlanGenerationDecision", plan_node, plan_decision)
-
-                if active_plan is None and should_generate_plan:
-                    yield event("status", text="当前消息明确请求计划，正在生成第一版训练计划")
-                    plan_output, emitted = await execute_tool(
-                        "plan.generate",
-                        {"reason": plan_decision.get("reason")},
-                        planned_or_new_step(
-                            "plan_generate",
-                            "Generate first active plan",
-                            "plan.generate",
-                            "The current message explicitly requested a plan.",
-                        ),
+            for tool_name in execution_order:
+                step = tool_steps.get(tool_name)
+                if step is None:
+                    continue
+                if tool_name == "profile.extract":
+                    node_start = time.perf_counter()
+                    yield event("status", text="正在抽取档案字段和纠错信息")
+                    extraction, emitted = await execute_tool(tool_name, {"message_chars": len(message)}, step)
+                    for item in emitted:
+                        yield item
+                    if extraction.get("profile_patch") or extraction.get("corrections"):
+                        self._apply_profile_extraction(profile, extraction)
+                        self._refresh_macro_targets(profile)
+                        state_updates["profile_updates"] = extraction.get("profile_patch", {})
+                        state_updates["corrections"] = extraction.get("corrections", [])
+                    node = run_logger.node("ProfileExtractorAgent", node_start, extraction, {"message": message[:240]})
+                    nodes.append(node)
+                    yield step_event("ProfileExtractorAgent", node, extraction)
+                elif tool_name == "memory.verify":
+                    yield event("status", text="正在校验长期记忆候选")
+                    memory_verify_output, emitted = await execute_tool(tool_name, {"extraction": extraction}, step)
+                    for item in emitted:
+                        yield item
+                    state_updates["memory_verification"] = memory_verify_output
+                    memory_verify_node = run_logger.event("MemoryVerifier", memory_verify_output)
+                    nodes.append(memory_verify_node)
+                    yield step_event("MemoryVerifier", memory_verify_node, memory_verify_output)
+                elif tool_name == "memory.write":
+                    node_start = time.perf_counter()
+                    yield event("status", text="正在写入已校验的长期记忆")
+                    memory_output, emitted = await execute_tool(
+                        tool_name,
+                        {"extraction": extraction, "verification": memory_verify_output},
+                        step,
                     )
+                    for item in emitted:
+                        yield item
+                    memories_written = memory_output.get("written") or []
+                    memory_payload = {"written": memories_written}
+                    node = run_logger.node("MemoryAgent", node_start, memory_payload)
+                    nodes.append(node)
+                    yield step_event("MemoryAgent", node, memory_payload)
+                    missing_slots = self.missing_onboarding_slots(profile)
+                    onboarding_complete = not missing_slots
+                    intent_payload = {"onboarding_complete": onboarding_complete, "missing_slots": missing_slots}
+                    intent_node = run_logger.event("IntentRouter", intent_payload)
+                    nodes.append(intent_node)
+                    yield step_event("IntentRouter", intent_node, intent_payload)
+                elif tool_name == "context.build":
+                    if not onboarding_complete or self._requires_immediate_safety_reply(message):
+                        skip_node = run_logger.event("ToolSkipped", {"tool_name": tool_name, "reason": "onboarding_or_static_safety"})
+                        nodes.append(skip_node)
+                        yield step_event("ToolSkipped", skip_node, skip_node.get("output", {}))
+                        continue
+                    node_start = time.perf_counter()
+                    yield event("status", text="正在按 Planner 顺序构建上下文包")
+                    context_packet, emitted = await execute_tool(tool_name, {"message_chars": len(message)}, step)
+                    for item in emitted:
+                        yield item
+                    node = run_logger.node("ContextBuilder", node_start, context_packet)
+                    nodes.append(node)
+                    yield step_event("ContextBuilder", node, context_packet)
+                    knowledge_context = context_packet.get("knowledge_context") or {}
+                    knowledge_payload = knowledge_context.get("debug", {})
+                    knowledge_node = run_logger.event("KnowledgeRetrieval", knowledge_payload)
+                    nodes.append(knowledge_node)
+                    yield step_event("KnowledgeRetrieval", knowledge_node, knowledge_payload)
+                    rules_payload = {
+                        "matched_rule_ids": knowledge_context.get("debug", {}).get("matched_rule_ids", []),
+                        "rules": knowledge_context.get("decision_rules", []),
+                    }
+                    rules_node = run_logger.event("DecisionRules", rules_payload)
+                    nodes.append(rules_node)
+                    yield step_event("DecisionRules", rules_node, rules_payload)
+                    template_payload = {
+                        "matched_template_ids": knowledge_context.get("debug", {}).get("matched_template_ids", []),
+                        "templates": knowledge_context.get("plan_templates", []),
+                    }
+                    template_node = run_logger.event("TemplateSelector", template_payload)
+                    nodes.append(template_node)
+                    yield step_event("TemplateSelector", template_node, template_payload)
+                    state_updates["context_intent"] = context_packet.get("intent")
+                    state_updates["knowledge_debug"] = knowledge_context.get("debug", {})
+                elif tool_name == "plan.decide":
+                    if not context_packet:
+                        skip_node = run_logger.event("ToolSkipped", {"tool_name": tool_name, "reason": "context_not_available"})
+                        nodes.append(skip_node)
+                        yield step_event("ToolSkipped", skip_node, skip_node.get("output", {}))
+                        continue
+                    plan_decision, emitted = await execute_tool(tool_name, {"context_packet": context_packet}, step)
+                    for item in emitted:
+                        yield item
+                    policy_payload = context_packet.get("current_request_policy", {})
+                    policy_node = run_logger.event("CurrentRequestPolicy", policy_payload)
+                    nodes.append(policy_node)
+                    yield step_event("CurrentRequestPolicy", policy_node, policy_payload)
+                    plan_node = run_logger.event("PlanGenerationDecision", plan_decision)
+                    nodes.append(plan_node)
+                    yield step_event("PlanGenerationDecision", plan_node, plan_decision)
+                elif tool_name == "plan.generate":
+                    active_plan = self.get_active_plan(user.id)
+                    if active_plan is not None or not bool(plan_decision.get("should_generate_plan")):
+                        skip_node = run_logger.event("ToolSkipped", {"tool_name": tool_name, "reason": "active_plan_exists_or_generation_not_allowed"})
+                        nodes.append(skip_node)
+                        yield step_event("ToolSkipped", skip_node, skip_node.get("output", {}))
+                        continue
+                    yield event("status", text="当前消息明确请求计划，正在生成训练计划")
+                    plan_output, emitted = await execute_tool(tool_name, {"reason": plan_decision.get("reason")}, step)
                     for item in emitted:
                         yield item
                     context_packet["active_plan"] = plan_output.get("active_plan")
                     state_updates["generated_plan_id"] = plan_output.get("plan_id")
+                    if self._build_plan_reflection_prompt(plan_output, context_packet, profile):
+                        plan_output["_reflection"] = "Requested"
+                        reflection_node = run_logger.event("PlanSelfCorrection", {
+                            "step": "reflection_requested",
+                            "plan_id": plan_output.get("plan_id"),
+                        })
+                        nodes.append(reflection_node)
+                        yield step_event("PlanSelfCorrection", reflection_node, reflection_node.get("output", {}))
+                elif tool_name == "plan.verify":
+                    if not plan_output:
+                        skip_node = run_logger.event("ToolSkipped", {"tool_name": tool_name, "reason": "plan_not_generated"})
+                        nodes.append(skip_node)
+                        yield step_event("ToolSkipped", skip_node, skip_node.get("output", {}))
+                        continue
                     plan_verify_output, emitted = await execute_tool(
-                        "plan.verify",
-                        {
-                            "plan_payload": plan_output.get("active_plan") or {},
-                            "context_packet": context_packet,
-                        },
-                        planned_or_new_step(
-                            "plan_verify",
-                            "Verify generated plan constraints",
-                            "plan.verify",
-                            "Check generated plan before it is used by the coach response.",
-                        ),
+                        tool_name,
+                        {"plan_payload": plan_output.get("active_plan") or {}, "context_packet": context_packet},
+                        step,
                     )
                     for item in emitted:
                         yield item
@@ -1117,91 +1316,133 @@ class CoachAgentService:
                     verify_node = run_logger.event("PlanVerifier", plan_verify_output)
                     nodes.append(verify_node)
                     yield step_event("PlanVerifier", verify_node, plan_verify_output)
-                    if plan_verify_output.get("repair_actions"):
-                        plan_repair_output, emitted = await execute_tool(
-                            "plan.repair",
-                            {
-                                "plan_id": plan_output.get("plan_id"),
-                                "plan_payload": plan_output.get("active_plan") or {},
-                                "verification": plan_verify_output,
-                                "context_packet": context_packet,
-                            },
-                            planned_or_new_step(
-                                "plan_repair",
-                                "Repair generated plan constraints",
-                                "plan.repair",
-                                "Apply deterministic repairs for verifier findings.",
-                            ),
-                        )
-                        for item in emitted:
-                            yield item
-                        if plan_repair_output.get("active_plan"):
-                            context_packet["active_plan"] = plan_repair_output.get("active_plan")
-                        state_updates["plan_repair"] = plan_repair_output
-                        repair_node = run_logger.event("PlanRepair", plan_repair_output)
-                        nodes.append(repair_node)
-                        yield step_event("PlanRepair", repair_node, plan_repair_output)
-                    tool_call = {
-                        "tool_name": "generate_training_plan",
-                        "status": "success",
-                        "output": {"plan_id": plan_output.get("plan_id")},
-                    }
-                    tool_calls.append(tool_call)
-                    yield event(
-                        "tool_call",
-                        name=tool_call["tool_name"],
-                        status="success",
-                        summary=f"生成训练计划 {plan_output.get('plan_id')}",
-                        metadata=tool_call["output"],
+                elif tool_name == "plan.repair":
+                    if not plan_verify_output.get("repair_actions"):
+                        skip_node = run_logger.event("ToolSkipped", {"tool_name": tool_name, "reason": "plan_repair_not_required"})
+                        nodes.append(skip_node)
+                        yield step_event("ToolSkipped", skip_node, skip_node.get("output", {}))
+                        continue
+                    plan_repair_output, emitted = await execute_tool(
+                        tool_name,
+                        {
+                            "plan_id": plan_output.get("plan_id"),
+                            "plan_payload": plan_output.get("active_plan") or {},
+                            "verification": plan_verify_output,
+                            "context_packet": context_packet,
+                        },
+                        step,
                     )
-
-                knowledge_context = context_packet.get("knowledge_context") or {}
-                knowledge_payload = knowledge_context.get("debug", {})
-                knowledge_node = run_logger.event("KnowledgeRetrieval", knowledge_payload)
-                nodes.append(knowledge_node)
-                yield step_event("KnowledgeRetrieval", knowledge_node, knowledge_payload)
-
-                rules_payload = {
-                    "matched_rule_ids": knowledge_context.get("debug", {}).get("matched_rule_ids", []),
-                    "rules": knowledge_context.get("decision_rules", []),
-                }
-                rules_node = run_logger.event("DecisionRules", rules_payload)
-                nodes.append(rules_node)
-                yield step_event("DecisionRules", rules_node, rules_payload)
-
-                template_payload = {
-                    "matched_template_ids": knowledge_context.get("debug", {}).get("matched_template_ids", []),
-                    "templates": knowledge_context.get("plan_templates", []),
-                }
-                template_node = run_logger.event("TemplateSelector", template_payload)
-                nodes.append(template_node)
-                yield step_event("TemplateSelector", template_node, template_payload)
-
-                state_updates["context_intent"] = context_packet.get("intent")
-                state_updates["knowledge_debug"] = knowledge_context.get("debug", {})
-                if "feedback_debug" in locals() and feedback_debug.get("enhanced"):
-                    state_updates["feedback_learning"] = feedback_debug
-                node_start = time.perf_counter()
-                yield event("status", text="正在生成最终教练回复")
-                timeline.start(timeline_steps["coach_reply"])
-                yield timeline_event(timeline_steps["coach_reply"])
-                async for chunk in self._coaching_reply_stream(user.id, message, context_packet):
-                    chunks.append(chunk)
-                    yield event("answer_delta", text=chunk)
-                coach_payload = {
-                    "safety": False,
-                    "live_model": self.model_provider.has_live_model(),
-                    "response_chars": len("".join(chunks)),
-                }
-                timeline.complete(
-                    timeline_steps["coach_reply"],
-                    {"response_chars": coach_payload["response_chars"], "live_model": coach_payload["live_model"]},
-                    round((time.perf_counter() - node_start) * 1000),
-                )
-                yield timeline_event(timeline_steps["coach_reply"])
-                node = run_logger.node("CoachLLM", node_start, coach_payload)
-                nodes.append(node)
-                yield step_event("CoachLLM", node, coach_payload)
+                    for item in emitted:
+                        yield item
+                    if plan_repair_output.get("active_plan"):
+                        context_packet["active_plan"] = plan_repair_output.get("active_plan")
+                    state_updates["plan_repair"] = plan_repair_output
+                    repair_node = run_logger.event("PlanRepair", plan_repair_output)
+                    nodes.append(repair_node)
+                    yield step_event("PlanRepair", repair_node, plan_repair_output)
+                elif tool_name == "coach.reply":
+                    node_start = time.perf_counter()
+                    yield event("status", text="正在按 Planner 顺序生成最终教练回复")
+                    timeline.start(step)
+                    yield timeline_event(step)
+                    if self._requires_immediate_safety_reply(message):
+                        async for chunk in self._stream_static_text(self._safety_reply()):
+                            chunks.append(chunk)
+                            yield event("answer_delta", text=chunk)
+                        coach_payload = {"safety": True, "mode": "static_safety"}
+                    elif not onboarding_complete:
+                        async for chunk in self._live_onboarding_reply_stream(profile, missing_slots, message):
+                            chunks.append(chunk)
+                            yield event("answer_delta", text=chunk)
+                        coach_payload = {
+                            "mode": "onboarding",
+                            "live_model": self.model_provider.has_live_model(),
+                            "missing_slots": missing_slots,
+                        }
+                    else:
+                        async for chunk in self._coaching_reply_stream(user.id, message, context_packet):
+                            chunks.append(chunk)
+                            yield event("answer_delta", text=chunk)
+                        coach_payload = {
+                            "safety": False,
+                            "live_model": self.model_provider.has_live_model(),
+                            "response_chars": len("".join(chunks)),
+                        }
+                    assistant_message = "".join(chunks).strip()
+                    timeline.complete(step, {"response_chars": len(assistant_message), **coach_payload}, round((time.perf_counter() - node_start) * 1000))
+                    yield timeline_event(step)
+                    node = run_logger.node("CoachLLM", node_start, coach_payload)
+                    nodes.append(node)
+                    yield step_event("CoachLLM", node, coach_payload)
+                elif tool_name == "response.verify":
+                    assistant_message = "".join(chunks).strip() or registry.get("error_coach_stream_empty")
+                    if not context_packet:
+                        skip_node = run_logger.event("ToolSkipped", {"tool_name": tool_name, "reason": "context_not_available"})
+                        nodes.append(skip_node)
+                        yield step_event("ToolSkipped", skip_node, skip_node.get("output", {}))
+                        continue
+                    response_verify_output, emitted = await execute_tool(
+                        tool_name,
+                        {"assistant_message": assistant_message[:6000], "context_packet": context_packet},
+                        step,
+                    )
+                    for item in emitted:
+                        yield item
+                    state_updates["response_verification"] = response_verify_output
+                    response_verify_node = run_logger.event("ResponseVerifier", response_verify_output)
+                    nodes.append(response_verify_node)
+                    yield step_event("ResponseVerifier", response_verify_node, response_verify_output)
+                elif tool_name == "response.repair":
+                    response_verification = state_updates.get("response_verification") or {}
+                    if not response_verification.get("repair_actions"):
+                        skip_node = run_logger.event("ToolSkipped", {"tool_name": tool_name, "reason": "response_repair_not_required"})
+                        nodes.append(skip_node)
+                        yield step_event("ToolSkipped", skip_node, skip_node.get("output", {}))
+                        continue
+                    response_repair_output, emitted = await execute_tool(
+                        tool_name,
+                        {"verification": response_verification, "context_packet": context_packet},
+                        step,
+                    )
+                    for item in emitted:
+                        yield item
+                    repair_text = response_repair_output.get("repair_text") or ""
+                    if repair_text:
+                        assistant_message = (assistant_message + repair_text).strip()
+                        chunks = [assistant_message]
+                        yield event("answer_delta", text=repair_text)
+                    state_updates["response_repair"] = response_repair_output
+                    response_repair_node = run_logger.event("ResponseRepair", response_repair_output)
+                    nodes.append(response_repair_node)
+                    yield step_event("ResponseRepair", response_repair_node, response_repair_output)
+                elif tool_name == "guardrail.check":
+                    assistant_message = "".join(chunks).strip() or assistant_message or registry.get("error_coach_stream_empty")
+                    guardrail_output, emitted = await execute_tool(tool_name, {"assistant_message": assistant_message[:4000]}, step)
+                    for item in emitted:
+                        yield item
+                    guardrail_payload = {
+                        "action": guardrail_output.get("action"),
+                        "flag_count": guardrail_output.get("flag_count", 0),
+                        "flags": guardrail_output.get("flags", []),
+                    }
+                    guardrail_node = run_logger.event("GuardrailCheck", guardrail_payload)
+                    nodes.append(guardrail_node)
+                    yield step_event("GuardrailCheck", guardrail_node, guardrail_payload)
+                    if guardrail_output.get("action") == GuardrailSeverity.BLOCK.value:
+                        assistant_message = guardrail_output.get("replacement") or assistant_message
+                        chunks = [assistant_message]
+                        yield event("guardrail_block", replacement=assistant_message[:200])
+                elif tool_name == "response.persist":
+                    assistant_message = "".join(chunks).strip() or assistant_message or registry.get("error_coach_stream_empty")
+                    _, emitted = await execute_tool(tool_name, {"assistant_message": assistant_message}, step)
+                    for item in emitted:
+                        yield item
+                    self._save_message(session.id, user.id, "assistant", assistant_message)
+                    response_payload = {"response_chars": len(assistant_message)}
+                    response_node = run_logger.event("ResponsePersisted", response_payload)
+                    nodes.append(response_node)
+                    yield step_event("ResponsePersisted", response_node, response_payload)
+                    persisted = True
         except Exception as exc:
             error_text = f"\n\n{self._model_call_error_message(exc)} 请稍后重试。"
             chunks.append(error_text)
@@ -1209,79 +1450,13 @@ class CoachAgentService:
             yield event("error", message=str(exc), summary="Agent 运行时发生错误")
             yield event("answer_delta", text=error_text)
 
-        assistant_message = "".join(chunks).strip()
-        if not assistant_message:
-            assistant_message = registry.get("error_coach_stream_empty")
-            yield event("answer_delta", text=assistant_message)
-
-        response_verify_output, emitted = await execute_tool(
-            "response.verify",
-            {
-                "assistant_message": assistant_message[:6000],
-                "context_packet": context_packet if "context_packet" in locals() else {},
-            },
-            timeline_steps["response_verify"],
-        )
-        for item in emitted:
-            yield item
-        state_updates["response_verification"] = response_verify_output
-        response_verify_node = run_logger.event("ResponseVerifier", response_verify_output)
-        nodes.append(response_verify_node)
-        yield step_event("ResponseVerifier", response_verify_node, response_verify_output)
-        if response_verify_output.get("repair_actions"):
-            response_repair_output, emitted = await execute_tool(
-                "response.repair",
-                {
-                    "verification": response_verify_output,
-                    "context_packet": context_packet if "context_packet" in locals() else {},
-                },
-                planned_or_new_step(
-                    "response_repair",
-                    "Repair coach response constraints",
-                    "response.repair",
-                    "Append deterministic repair text when verifier finds fixable issues.",
-                ),
-            )
-            for item in emitted:
-                yield item
-            repair_text = response_repair_output.get("repair_text") or ""
-            if repair_text:
-                assistant_message = (assistant_message + repair_text).strip()
-                chunks.append(repair_text)
-                yield event("answer_delta", text=repair_text)
-            state_updates["response_repair"] = response_repair_output
-            response_repair_node = run_logger.event("ResponseRepair", response_repair_output)
-            nodes.append(response_repair_node)
-            yield step_event("ResponseRepair", response_repair_node, response_repair_output)
-
-        # ---- Safety guardrail check ----
-        guardrail_output, emitted = await execute_tool(
-            "guardrail.check",
-            {"assistant_message": assistant_message[:4000]},
-            timeline_steps["guardrail"],
-        )
-        for item in emitted:
-            yield item
-        guardrail_payload = {
-            "action": guardrail_output.get("action"),
-            "flag_count": guardrail_output.get("flag_count", 0),
-            "flags": guardrail_output.get("flags", []),
-        }
-        guardrail_node = run_logger.event("GuardrailCheck", guardrail_payload)
-        nodes.append(guardrail_node)
-        yield step_event("GuardrailCheck", guardrail_node, guardrail_payload)
-        if guardrail_output.get("action") == GuardrailSeverity.BLOCK.value:
-            assistant_message = guardrail_output.get("replacement") or assistant_message
-            yield event("guardrail_block", replacement=assistant_message[:200])
-
-        timeline.start(timeline_steps["persist"])
-        self._save_message(session.id, user.id, "assistant", assistant_message)
-        response_payload = {"response_chars": len(assistant_message)}
-        timeline.complete(timeline_steps["persist"], response_payload)
-        yield timeline_event(timeline_steps["persist"])
-        response_node = run_logger.event("ResponsePersisted", response_payload)
-        nodes.append(response_node)
-        yield step_event("ResponsePersisted", response_node, response_payload)
+        assistant_message = "".join(chunks).strip() or assistant_message or registry.get("error_coach_stream_empty")
+        if not persisted:
+            self._save_message(session.id, user.id, "assistant", assistant_message)
+            response_payload = {"response_chars": len(assistant_message), "fallback_persist": True}
+            response_node = run_logger.event("ResponsePersisted", response_payload)
+            nodes.append(response_node)
+            yield step_event("ResponsePersisted", response_node, response_payload)
 
         run = models.AgentRun(
             user_id=user.id,
@@ -3629,6 +3804,33 @@ class CoachAgentService:
                 "chat_model": payload.get("chat_model"),
                 "embedding_mode": payload.get("embedding_mode"),
             }
+        if name == "LLMPlanner":
+            raw = payload.get("raw_output") or {}
+            return {
+                "planner_mode": payload.get("planner_mode"),
+                "planner_fallback": payload.get("planner_fallback", False),
+                "intent": raw.get("intent") if isinstance(raw, dict) else None,
+                "tool_order": raw.get("tool_order") if isinstance(raw, dict) else [],
+                "reasoning_summary": raw.get("reasoning_summary") if isinstance(raw, dict) else None,
+            }
+        if name == "PlannerVerifier":
+            plan = payload.get("verified_plan") or {}
+            return {
+                "intent": plan.get("intent"),
+                "planner_mode": plan.get("planner_mode"),
+                "repair_actions": payload.get("repair_actions") or [],
+                "step_count": len(plan.get("steps") or []),
+                "tool_order": [
+                    step.get("tool_name")
+                    for step in (plan.get("steps") or [])
+                    if isinstance(step, dict) and step.get("tool_name")
+                ],
+            }
+        if name == "PlannerFallback":
+            return {
+                "planner_fallback": payload.get("planner_fallback", False),
+                "reason": payload.get("reason"),
+            }
         if name == "AgentPlanner":
             return {
                 "plan_id": payload.get("plan_id"),
@@ -4198,6 +4400,8 @@ class CoachAgentService:
             assistant_message = guardrail_result.blocked_replacement or assistant_message
 
         assistant_msg = self._save_message(session.id, user.id, "assistant", assistant_message)
+        if runtime_route is not None:
+            result.nodes.append({"node": "RuntimeRouter", "output": runtime_route.to_dict()})
 
         # Persist run
         run = models.AgentRun(
@@ -4213,6 +4417,8 @@ class CoachAgentService:
         self.db.add(run)
         self.db.flush()
         state_updates = {"agent_mode": "llm_driven", "iterations": result.iterations}
+        if runtime_route is not None:
+            state_updates["runtime_route"] = runtime_route.to_dict()
         task_service = AgentTaskStateService(self.db)
         long_term_tasks = task_service.update_from_chat_turn(
             user_id=user.id,
@@ -4232,6 +4438,7 @@ class CoachAgentService:
                 "message": message,
                 "message_chars": len(message),
                 "agent_mode": "llm_driven",
+                "runtime_route": runtime_route.to_dict() if runtime_route else None,
             },
             state_snapshot={
                 "profile": self._profile_snapshot(profile),
@@ -4252,6 +4459,7 @@ class CoachAgentService:
                 "llm_provider": self.model_provider.settings.llm_provider,
                 "chat_model": self.model_provider.settings.chat_model,
                 "embedding_mode": self.model_provider.embedding_mode(),
+                "agent_runtime_mode": get_settings().agent_runtime_mode,
             },
         )
 
