@@ -332,11 +332,21 @@ class FitnessRetrievalService:
             {
                 "id": str(memory.id),
                 "memory_type": memory.memory_type,
+                "memory_network": getattr(memory, "memory_network", "world"),
+                "fact_kind": getattr(memory, "fact_kind", "unknown"),
                 "category": memory.category,
                 "summary": memory.summary,
                 "content": memory.content,
                 "importance": memory.importance,
                 "confidence": memory.confidence,
+                "entities": getattr(memory, "entities", None) or [],
+                "evidence": getattr(memory, "evidence", None) or [],
+                "semantic_rank": getattr(memory, "semantic_rank", None),
+                "keyword_rank": getattr(memory, "keyword_rank", None),
+                "entity_rank": getattr(memory, "entity_rank", None),
+                "temporal_rank": getattr(memory, "temporal_rank", None),
+                "final_score": getattr(memory, "final_score", None),
+                "retrieval_debug": getattr(memory, "retrieval_debug", None),
                 "metadata": memory.memory_metadata or {},
             }
             for memory in memories
@@ -346,9 +356,33 @@ class FitnessRetrievalService:
 class ContextBuilder:
     """Build small, intent-specific context packets for the coach LLM."""
 
+    CONTEXT_LIMITS = {
+        "memory_catalog": 6,
+        "recent_training": 6,
+        "exercise_history": 8,
+        "recent_nutrition": 5,
+        "recent_recovery": 5,
+        "recent_symptoms": 8,
+        "world_memories": 4,
+        "experience_memories": 3,
+        "observation_memories": 3,
+        "opinion_memories": 2,
+    }
+    KNOWLEDGE_LIMITS = {
+        "explanation_knowledge": 2,
+        "plan_templates": 2,
+        "coaching_cases": 1,
+    }
+    MEMORY_GROUP_ORDER = [
+        "world_memories",
+        "experience_memories",
+        "observation_memories",
+        "opinion_memories",
+    ]
+
     CATEGORY_BY_INTENT = {
         "training_log": "training",
-        "training_plan": "plan",
+        "training_plan": None,
         "progression_decision": "training",
         "nutrition_advice": "nutrition",
         "nutrition_log": "nutrition",
@@ -414,17 +448,23 @@ class ContextBuilder:
                 top_k=6,
                 category=category,
             ),
+            "world_memories": [],
+            "experience_memories": [],
+            "observation_memories": [],
+            "opinion_memories": [],
             "knowledge_context": {},
             "retrieval_debug": {
                 "intent": selected_intent,
                 "memory_category_filter": category,
                 "memory_top_k": 6,
+                "memory_ranker": "hybrid_vector_bm25",
                 "current_request_policy": current_request_policy,
                 "knowledge_sources": {},
             },
             "agent_decision_history": [],
             "context_summary": "",
         }
+        self._group_hindsight_memories(packet)
 
         if selected_intent in {"training_log", "training_plan", "progression_decision", "weekly_review", "monthly_review"}:
             packet["recent_training"] = self.retrieval.get_recent_workout_logs(user_id, days=14)
@@ -444,9 +484,92 @@ class ContextBuilder:
             user_message,
             packet,
         )
+        self._apply_budget_policy(packet)
         packet["retrieval_debug"]["knowledge_sources"] = packet["knowledge_context"].get("debug", {})
         packet["context_summary"] = self._summarize_packet(packet)
         return packet
+
+    def _group_hindsight_memories(self, packet: dict[str, Any]) -> None:
+        grouped = {
+            "world": "world_memories",
+            "experience": "experience_memories",
+            "observation": "observation_memories",
+            "opinion": "opinion_memories",
+        }
+        for memory in packet.get("relevant_memories") or []:
+            target = grouped.get(memory.get("memory_network") or "world", "world_memories")
+            if target == "opinion_memories":
+                memory["evidence_summary"] = self._evidence_summary(memory.get("evidence") or [])
+            packet[target].append(memory)
+
+    def _evidence_summary(self, evidence: list[dict[str, Any]]) -> str:
+        if not evidence:
+            return "No evidence attached."
+        parts = []
+        for item in evidence[:5]:
+            table = item.get("table", "unknown")
+            summary = item.get("summary") or item.get("id") or "evidence"
+            time = item.get("time")
+            parts.append(f"{table}: {summary}" + (f" ({time})" if time else ""))
+        return " | ".join(parts)
+
+    def _apply_budget_policy(self, packet: dict[str, Any]) -> None:
+        debug = packet.setdefault("retrieval_debug", {})
+        debug["context_budget_policy"] = {
+            "protected": ["active_risk_notes", "decision_rules", "core_profile", "current_request_policy"],
+            "limits": {**self.CONTEXT_LIMITS, **{f"knowledge_context.{key}": value for key, value in self.KNOWLEDGE_LIMITS.items()}},
+            "priority": [
+                "active_risk_notes",
+                "core_profile",
+                "current_request_policy",
+                "decision_rules",
+                "world_memories",
+                "experience_memories",
+                "observation_memories",
+                "opinion_memories",
+                "personal_recent_state",
+                "knowledge_context",
+            ],
+        }
+        dropped: dict[str, dict[str, Any]] = {}
+        for key, limit in self.CONTEXT_LIMITS.items():
+            original = packet.get(key) or []
+            if not isinstance(original, list):
+                continue
+            kept = original[:limit]
+            packet[key] = kept
+            if len(original) > len(kept):
+                dropped[key] = {
+                    "dropped_count": len(original) - len(kept),
+                    "reason": f"limited to {limit} items by ContextBuilder budget policy",
+                }
+
+        packet["relevant_memories"] = [
+            memory
+            for group_key in self.MEMORY_GROUP_ORDER
+            for memory in (packet.get(group_key) or [])
+        ]
+
+        knowledge = packet.get("knowledge_context") or {}
+        knowledge_dropped: dict[str, dict[str, Any]] = {}
+        for key, limit in self.KNOWLEDGE_LIMITS.items():
+            original = knowledge.get(key) or []
+            if not isinstance(original, list):
+                continue
+            kept = original[:limit]
+            knowledge[key] = kept
+            if len(original) > len(kept):
+                knowledge_dropped[key] = {
+                    "dropped_count": len(original) - len(kept),
+                    "reason": (
+                        f"knowledge_context.{key} limited to {limit} items so knowledge does not displace "
+                        "core profile, active risks, or recent user state"
+                    ),
+                }
+        if knowledge_dropped:
+            dropped["knowledge_context"] = knowledge_dropped
+        debug["dropped_candidates"] = dropped
+        debug["loaded_counts"] = self._context_counts(packet)
 
     def _extract_exercise_name(self, message: str) -> str | None:
         mapping = {
@@ -473,8 +596,12 @@ class ContextBuilder:
         return None
 
     def _summarize_packet(self, packet: dict[str, Any]) -> str:
-        loaded = []
-        for key in [
+        counts = self._context_counts(packet)
+        loaded = [f"{key}={value}" for key, value in counts.items()]
+        return f"intent={packet['intent']}; loaded " + ", ".join(loaded)
+
+    def _context_counts(self, packet: dict[str, Any]) -> dict[str, int]:
+        keys = [
             "core_profile",
             "memory_catalog",
             "active_plan",
@@ -484,10 +611,25 @@ class ContextBuilder:
             "recent_nutrition",
             "recent_recovery",
             "recent_symptoms",
+            "world_memories",
+            "experience_memories",
+            "observation_memories",
+            "opinion_memories",
             "relevant_memories",
-            "knowledge_context",
-        ]:
+        ]
+        counts: dict[str, int] = {}
+        for key in keys:
             value = packet.get(key)
-            if value:
-                loaded.append(f"{key}={len(value) if isinstance(value, list) else 1}")
-        return f"intent={packet['intent']}; loaded " + ", ".join(loaded)
+            if isinstance(value, list):
+                counts[key] = len(value)
+            elif isinstance(value, dict):
+                counts[key] = 1 if value else 0
+            elif value:
+                counts[key] = 1
+            else:
+                counts[key] = 0
+        knowledge = packet.get("knowledge_context") or {}
+        for key in ["decision_rules", "explanation_knowledge", "plan_templates", "coaching_cases"]:
+            value = knowledge.get(key) or []
+            counts[f"knowledge_context.{key}"] = len(value) if isinstance(value, list) else (1 if value else 0)
+        return counts

@@ -1,0 +1,162 @@
+[
+  {
+    "case_id": "knee_pain_risk_memory_priority",
+    "user_message": "I have knee pain during squats. Can I keep training legs today?",
+    "seeded_memories": [
+      {
+        "content": "User reports knee pain during squat sessions and should avoid pushing through painful knee-loaded work.",
+        "summary": "Knee pain during squats",
+        "memory_network": "world",
+        "fact_kind": "health_fact",
+        "category": "risk",
+        "importance_score": 0.92,
+        "evidence": [
+          {
+            "table": "eval_cases",
+            "id": "knee_pain_risk_memory_priority",
+            "summary": "Seeded risk memory for eval."
+          }
+        ]
+      }
+    ],
+    "seeded_logs": {
+      "profile": {
+        "goal": "fat_loss",
+        "experience_level": "intermediate",
+        "workout_frequency": 4,
+        "dietary_preferences": []
+      },
+      "risk_notes": [
+        {
+          "body_part": "knee",
+          "risk_type": "knee_pain",
+          "description": "Knee pain appears during squat patterns.",
+          "severity_score": 0.8,
+          "confidence_score": 0.85,
+          "status": "active"
+        }
+      ],
+      "exercise_logs": [
+        {
+          "exercise_name": "squat",
+          "set_index": 1,
+          "reps": 5,
+          "weight": 80,
+          "rpe": 8,
+          "pain_score": 5,
+          "pain_location": "knee",
+          "notes": "Pain appeared during warm-up squats."
+        }
+      ],
+      "symptom_logs": [
+        {
+          "body_part": "knee",
+          "symptom_type": "pain",
+          "severity_score": 0.75,
+          "trigger_context": "squat",
+          "action_taken": "stopped set",
+          "status": "active"
+        }
+      ]
+    },
+    "expected_recalled_terms": ["knee", "squat"],
+    "expected_intent": "injury_or_risk",
+    "expected_safety_rule": null,
+    "should_not_include": ["takeout", "hyperthyroidism"]
+  },
+  {
+    "case_id": "takeout_fat_loss_nutrition_rule",
+    "user_message": "For fat loss, how should I choose takeout meals with enough protein?",
+    "seeded_memories": [
+      {
+        "content": "User prefers takeout-friendly fat loss nutrition and needs high-protein, lower-oil meal options.",
+        "summary": "Takeout-friendly fat loss nutrition",
+        "memory_network": "world",
+        "fact_kind": "nutrition_habit",
+        "category": "nutrition",
+        "importance_score": 0.86,
+        "evidence": [
+          {
+            "table": "eval_cases",
+            "id": "takeout_fat_loss_nutrition_rule",
+            "summary": "Seeded nutrition habit memory for eval."
+          }
+        ]
+      }
+    ],
+    "seeded_logs": {
+      "profile": {
+        "goal": "fat_loss",
+        "experience_level": "beginner",
+        "workout_frequency": 3,
+        "dietary_preferences": ["takeout_friendly"]
+      },
+      "nutrition_summaries": [
+        {
+          "total_calories": 2350,
+          "total_protein_g": 92,
+          "target_calories": 2100,
+          "target_protein_g": 130,
+          "adherence_score": 0.58,
+          "summary_text": "Mostly takeout meals; protein below target."
+        }
+      ]
+    },
+    "expected_recalled_terms": ["takeout", "protein"],
+    "expected_intent": "nutrition_advice",
+    "expected_safety_rule": "rule_nutrition_takeout_fat_loss_001",
+    "should_not_include": ["knee pain", "thyroid"]
+  },
+  {
+    "case_id": "thyroid_training_plan_medical_boundary",
+    "user_message": "Build me a training plan while I have hyperthyroidism and take thyroid medication.",
+    "seeded_memories": [
+      {
+        "content": "User has hyperthyroidism and thyroid medication context, so training should avoid maximal effort and aggressive HIIT.",
+        "summary": "Hyperthyroidism training boundary",
+        "memory_network": "world",
+        "fact_kind": "medical_context",
+        "category": "risk",
+        "importance_score": 0.95,
+        "evidence": [
+          {
+            "table": "eval_cases",
+            "id": "thyroid_training_plan_medical_boundary",
+            "summary": "Seeded medical context memory for eval."
+          }
+        ]
+      }
+    ],
+    "seeded_logs": {
+      "profile": {
+        "goal": "muscle_gain",
+        "experience_level": "intermediate",
+        "workout_frequency": 4,
+        "dietary_preferences": []
+      },
+      "risk_notes": [
+        {
+          "body_part": "systemic",
+          "risk_type": "thyroid",
+          "description": "Hyperthyroidism and medication history require conservative intensity choices.",
+          "severity_score": 0.9,
+          "confidence_score": 0.9,
+          "status": "active"
+        }
+      ],
+      "workout_logs": [
+        {
+          "workout_name": "Upper strength",
+          "duration_minutes": 55,
+          "rpe": 8,
+          "completion_rate": 0.9,
+          "notes": "User tends to push intensity high."
+        }
+      ]
+    },
+    "expected_recalled_terms": ["thyroid", "hyperthyroidism"],
+    "expected_intent": "training_plan",
+    "expected_safety_rule": "rule_medical_hyperthyroid_conservative_001",
+    "should_not_include": ["takeout", "knee pain"]
+  }
+]

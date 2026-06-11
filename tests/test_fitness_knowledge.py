@@ -342,6 +342,10 @@ def test_build_knowledge_context_debug_includes_all_match_ids():
     assert len(result["debug"]["matched_template_ids"]) >= 1
     assert len(result["debug"]["matched_knowledge_ids"]) >= 1
     assert len(result["debug"]["matched_case_ids"]) >= 1
+    assert result["debug"]["retrieval_ranker"] == "hybrid_vector_bm25"
+    assert result["debug"]["bm25_enabled"] is True
+    assert result["debug"]["matched_knowledge_scores"]
+    assert result["debug"]["matched_case_scores"]
 
 
 def test_match_decision_rules_sorted_by_priority_desc():
