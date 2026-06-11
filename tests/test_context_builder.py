@@ -116,6 +116,15 @@ def test_context_builder_risk_intent_loads_risk_and_symptoms():
     assert packet["retrieval_debug"]["knowledge_sources"]["intent"] == "injury_or_risk"
 
 
+def test_context_builder_training_plan_uses_broad_memory_recall():
+    builder = make_builder()
+
+    packet = builder.build_context_packet(uuid4(), "Build me a training plan", intent="training_plan")
+
+    assert ("memories", None) in builder.retrieval.calls
+    assert packet["retrieval_debug"]["memory_category_filter"] is None
+
+
 # ---- Expanded tests: Intent classification accuracy ----
 
 def test_intent_router_classifies_all_eight_intents():
@@ -261,3 +270,50 @@ def test_context_builder_packet_summary_includes_loaded_sections():
     assert "intent=progression_decision" in packet["context_summary"]
     assert "core_profile" in packet["context_summary"]
     assert "recent_training" in packet["context_summary"]
+
+
+def test_context_builder_budget_keeps_risk_profile_rules_and_world_before_opinion():
+    class BudgetRetrieval(FakeRetrieval):
+        def get_active_risk_notes(self, user_id):
+            return [{"risk_type": "chest_tightness", "severity_score": 0.9}]
+
+        def search_relevant_memories(self, user_id, query, top_k=6, category=None):
+            world = [
+                {"id": f"world-{index}", "memory_network": "world", "summary": f"world fact {index}"}
+                for index in range(8)
+            ]
+            opinion = [
+                {"id": f"opinion-{index}", "memory_network": "opinion", "summary": f"opinion {index}", "evidence": []}
+                for index in range(8)
+            ]
+            return [*opinion, *world]
+
+    class BudgetKnowledge(FakeKnowledge):
+        def build_knowledge_context(self, intent, query, context_packet):
+            return {
+                "embedding_mode": "offline_fallback",
+                "decision_rules": [{"rule_id": f"rule-{index}"} for index in range(7)],
+                "explanation_knowledge": [{"knowledge_id": f"k-{index}"} for index in range(9)],
+                "plan_templates": [{"template_id": f"tpl-{index}"} for index in range(5)],
+                "coaching_cases": [{"case_id": f"case-{index}"} for index in range(5)],
+                "debug": {"intent": intent, "matched_rule_ids": [f"rule-{index}" for index in range(7)]},
+            }
+
+    builder = ContextBuilder.__new__(ContextBuilder)
+    builder.intent_router = IntentRouter()
+    builder.retrieval = BudgetRetrieval()
+    builder.knowledge = BudgetKnowledge()
+
+    packet = builder.build_context_packet(uuid4(), "chest tightness during training", intent="injury_or_risk")
+
+    assert packet["core_profile"]["goal"] == "fat_loss"
+    assert packet["active_risk_notes"][0]["risk_type"] == "chest_tightness"
+    assert len(packet["knowledge_context"]["decision_rules"]) == 7
+    assert len(packet["world_memories"]) == 4
+    assert len(packet["opinion_memories"]) == 2
+    assert [memory["memory_network"] for memory in packet["relevant_memories"][:4]] == ["world"] * 4
+    assert packet["retrieval_debug"]["dropped_candidates"]["opinion_memories"]["dropped_count"] == 6
+    assert packet["retrieval_debug"]["dropped_candidates"]["world_memories"]["dropped_count"] == 4
+    assert packet["retrieval_debug"]["dropped_candidates"]["knowledge_context"]["explanation_knowledge"]["dropped_count"] == 7
+    assert "active_risk_notes=1" in packet["context_summary"]
+    assert "knowledge_context.decision_rules=7" in packet["context_summary"]

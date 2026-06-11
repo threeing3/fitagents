@@ -7,12 +7,14 @@ These tests verify:
 """
 
 import uuid
+from datetime import date, datetime, timedelta
 from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from fast_api.app.core.config import Settings
 from fast_api.app.db import models
@@ -34,7 +36,11 @@ def _make_test_app(mock_settings):
         embedding_provider="offline",
     )
 
-    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
     Base.metadata.create_all(bind=engine)
     TestSessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
@@ -65,7 +71,11 @@ def _create_client_and_db():
         embedding_provider="offline",
     )
 
-    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
 
     # Import models so they register with Base
     from fast_api.app.db import models as _models  # noqa: F401
@@ -436,6 +446,9 @@ def test_memory_endpoints_reject_unauthenticated():
         ("GET", "/v1/memory/items", None),
         ("GET", "/v1/memory/catalog", None),
         ("POST", "/v1/memory/search", {"query": "test"}),
+        ("POST", "/v1/memory/retain", {"content": "test", "memory_network": "world", "fact_kind": "unknown"}),
+        ("POST", "/v1/memory/reflect", {}),
+        ("POST", "/v1/memory/reflect/weekly", {"week_start": "2026-06-01", "week_end": "2026-06-07"}),
     ]
 
     for method, path, body in endpoints:
@@ -505,6 +518,174 @@ def test_list_memory_items_with_valid_token():
     data = response.json()
     assert isinstance(data, list)
     assert len(data) >= 1
+
+
+def test_retain_memory_with_valid_token_returns_hindsight_fields():
+    client, _ = _create_client_and_db()
+
+    resp = client.post("/v1/auth/register", json={
+        "email": "retain@example.com",
+        "password": "secure123",
+    })
+    token = resp.json()["access_token"]
+
+    response = client.post(
+        "/v1/memory/retain",
+        json={
+            "content": "User reports knee pain after squat sessions",
+            "summary": "Knee pain after squats",
+            "memory_network": "world",
+            "fact_kind": "health_fact",
+            "category": "risk",
+            "entities": [{"type": "symptom", "name": "knee pain", "canonical": "knee pain"}],
+            "evidence": [{"table": "chat_messages", "id": "manual-test"}],
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["memory_network"] == "world"
+    assert data["fact_kind"] == "health_fact"
+    assert data["entities"][0]["canonical"] == "knee pain"
+    assert data["evidence"][0]["table"] == "chat_messages"
+
+
+def test_search_memory_with_hindsight_filters_still_accepts_legacy_fields():
+    client, _ = _create_client_and_db()
+
+    resp = client.post("/v1/auth/register", json={
+        "email": "search-hindsight@example.com",
+        "password": "secure123",
+    })
+    token = resp.json()["access_token"]
+
+    client.post(
+        "/v1/memory/retain",
+        json={
+            "content": "User prefers zone 2 cycling on recovery days",
+            "memory_network": "observation",
+            "fact_kind": "coach_observation",
+            "category": "recovery",
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    response = client.post(
+        "/v1/memory/search",
+        json={
+            "query": "cycling recovery",
+            "memory_network": "observation",
+            "fact_kind": "coach_observation",
+            "top_k": 5,
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data
+    assert data[0]["memory_network"] == "observation"
+    assert isinstance(data[0]["final_score"], float)
+    assert data[0]["retrieval_debug"]
+    assert data[0]["retrieval_debug"]["sources"]
+
+
+def test_reflect_memory_with_valid_token_returns_created_memories():
+    client, session_factory = _create_client_and_db()
+
+    resp = client.post("/v1/auth/register", json={
+        "email": "reflect@example.com",
+        "password": "secure123",
+    })
+    token = resp.json()["access_token"]
+    user_id = uuid.UUID(resp.json()["user_id"])
+
+    with session_factory() as db:
+        db.add(models.RecoveryLog(
+            user_id=user_id,
+            log_date=date.today(),
+            sleep_hours=6.5,
+            sleep_quality_score=6.0,
+            fatigue_score=7.0,
+            soreness_score=5.0,
+            stress_score=4.0,
+            resting_hr=62,
+            notes="Fatigue elevated during recovery week",
+        ))
+        db.commit()
+
+    client.post(
+        "/v1/memory/retain",
+        json={
+            "content": "Recent coaching decision: keep training conservative while knee pain is active",
+            "memory_network": "experience",
+            "fact_kind": "agent_action",
+            "category": "decision",
+            "evidence": [{"table": "agent_decisions", "id": "manual-test"}],
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    response = client.post(
+        "/v1/memory/reflect",
+        json={},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["created_count"] >= 1
+    assert any(item["memory_network"] == "observation" for item in data["memories"])
+
+
+def test_reflect_weekly_memory_with_valid_token_returns_weekly_observations():
+    client, session_factory = _create_client_and_db()
+
+    resp = client.post("/v1/auth/register", json={
+        "email": "weekly-reflect@example.com",
+        "password": "secure123",
+    })
+    token = resp.json()["access_token"]
+    user_id = uuid.UUID(resp.json()["user_id"])
+    week_start = date(2026, 6, 1)
+    week_end = date(2026, 6, 7)
+
+    with session_factory() as db:
+        for index in range(4):
+            day = week_start + timedelta(days=index)
+            db.add(models.WorkoutLog(
+                user_id=user_id,
+                performed_at=datetime.combine(day, datetime.min.time()),
+                workout_name=f"Workout {index}",
+                rpe=7,
+            ))
+            db.add(models.NutritionDailySummary(
+                user_id=user_id,
+                summary_date=day,
+                total_protein_g=120 + index,
+                adherence_score=0.8,
+            ))
+            db.add(models.RecoveryLog(
+                user_id=user_id,
+                log_date=day,
+                sleep_hours=7,
+                fatigue_score=4,
+            ))
+        db.commit()
+
+    response = client.post(
+        "/v1/memory/reflect/weekly",
+        json={"week_start": week_start.isoformat(), "week_end": week_end.isoformat()},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    fact_kinds = {item["fact_kind"] for item in data["memories"]}
+    assert "weekly_training_observation" in fact_kinds
+    assert "weekly_nutrition_observation" in fact_kinds
+    assert "weekly_recovery_observation" in fact_kinds
 
 
 # ============================================================

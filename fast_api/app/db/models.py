@@ -185,6 +185,8 @@ class LongTermMemory(Base, TimestampMixin):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
     memory_type: Mapped[str] = mapped_column(String(64), index=True)
+    memory_network: Mapped[str] = mapped_column(String(40), default="world", index=True)
+    fact_kind: Mapped[str] = mapped_column(String(80), default="unknown", index=True)
     category: Mapped[str | None] = mapped_column(String(80), index=True)
     content: Mapped[str] = mapped_column(Text)
     summary: Mapped[str | None] = mapped_column(Text)
@@ -194,12 +196,29 @@ class LongTermMemory(Base, TimestampMixin):
     memory_metadata: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     confidence: Mapped[float] = mapped_column(Float, default=0.75)
     status: Mapped[str] = mapped_column(String(32), default="active", index=True)
+    occurred_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    occurred_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    mentioned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    entities: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
+    evidence: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
     valid_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     valid_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     parent_memory_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("long_term_memories.id", ondelete="SET NULL"))
     last_accessed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     access_count: Mapped[int] = mapped_column(Integer, default=0)
     embedding: Mapped[list[float] | None] = mapped_column(EmbeddingColumnType, nullable=True)
+
+
+class MemoryLink(Base, TimestampMixin):
+    __tablename__ = "memory_links"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    source_memory_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("long_term_memories.id", ondelete="CASCADE"), index=True)
+    target_memory_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("long_term_memories.id", ondelete="CASCADE"), index=True)
+    link_type: Mapped[str] = mapped_column(String(40), index=True)
+    reason: Mapped[str | None] = mapped_column(Text)
+    link_metadata: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
 
 
 class UserPreference(Base, TimestampMixin):

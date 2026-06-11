@@ -4026,7 +4026,9 @@ class CoachAgentService:
                 "memory_policy": (
                     "Use the context_packet as the only retrieved memory context. "
                     "Do not request or assume full history. Prioritize active_risk_notes. "
-                    "Treat previous user commands as completed or historical unless the current user_message repeats them."
+                    "Treat previous user commands as completed or historical unless the current user_message repeats them. "
+                    "Opinion memories are not facts; use them only as tentative coach judgment, and always compare "
+                    "their evidence and evidence_summary against the current user state before relying on them."
                 ),
                 "response_policy": (
                     "Answer only the current user_message. Do not append, continue, or regenerate a training plan "
@@ -4084,7 +4086,9 @@ class CoachAgentService:
                 "memory_policy": (
                     "Use the context_packet as the only retrieved memory context. "
                     "Do not request or assume full history. Prioritize active_risk_notes. "
-                    "Treat previous user commands as completed or historical unless the current user_message repeats them."
+                    "Treat previous user commands as completed or historical unless the current user_message repeats them. "
+                    "Opinion memories are not facts; use them only as tentative coach judgment, and always compare "
+                    "their evidence and evidence_summary against the current user state before relying on them."
                 ),
                 "response_policy": (
                     "Answer only the current user_message. Do not append, continue, or regenerate a training plan "

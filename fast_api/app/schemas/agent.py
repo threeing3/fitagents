@@ -151,6 +151,8 @@ class EvalRunResponse(BaseModel):
 class MemoryItemCreate(BaseModel):
     user_id: UUID | None = None
     memory_type: str = "episodic"
+    memory_network: str = "world"
+    fact_kind: str = "unknown"
     category: str | None = None
     content: str
     summary: str | None = None
@@ -158,12 +160,19 @@ class MemoryItemCreate(BaseModel):
     confidence_score: float = Field(default=0.75, ge=0, le=1)
     source_type: str = "manual"
     metadata: dict[str, Any] = Field(default_factory=dict)
+    occurred_start: datetime | None = None
+    occurred_end: datetime | None = None
+    mentioned_at: datetime | None = None
+    entities: list[dict[str, Any]] = Field(default_factory=list)
+    evidence: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class MemoryItemResponse(BaseModel):
     id: UUID
     user_id: UUID
     memory_type: str
+    memory_network: str = "world"
+    fact_kind: str = "unknown"
     category: str | None
     content: str
     summary: str | None
@@ -171,6 +180,17 @@ class MemoryItemResponse(BaseModel):
     confidence_score: float
     source_type: str
     metadata: dict[str, Any]
+    occurred_start: datetime | None = None
+    occurred_end: datetime | None = None
+    mentioned_at: datetime | None = None
+    entities: list[dict[str, Any]] = Field(default_factory=list)
+    evidence: list[dict[str, Any]] = Field(default_factory=list)
+    semantic_rank: int | None = None
+    keyword_rank: int | None = None
+    entity_rank: int | None = None
+    temporal_rank: int | None = None
+    final_score: float | None = None
+    retrieval_debug: dict[str, Any] | None = None
     created_at: datetime
 
 
@@ -179,7 +199,39 @@ class MemorySearchRequest(BaseModel):
     query: str
     category: str | None = None
     memory_type: str | None = None
+    memory_network: str | None = None
+    fact_kind: str | None = None
+    entities: list[str] | None = None
+    occurred_after: datetime | None = None
+    occurred_before: datetime | None = None
+    include_expired: bool = False
     top_k: int = Field(default=6, ge=1, le=20)
+
+
+class MemoryRetainRequest(BaseModel):
+    user_id: UUID | None = None
+    content: str
+    memory_network: str
+    fact_kind: str
+    category: str | None = None
+    summary: str | None = None
+    entities: list[dict[str, Any]] = Field(default_factory=list)
+    evidence: list[dict[str, Any]] = Field(default_factory=list)
+    occurred_start: datetime | None = None
+    occurred_end: datetime | None = None
+    importance_score: float = Field(default=0.6, ge=0, le=1)
+    confidence_score: float = Field(default=0.75, ge=0, le=1)
+    source_type: str = "system"
+
+
+class MemoryReflectRequest(BaseModel):
+    user_id: UUID | None = None
+
+
+class MemoryWeeklyReflectRequest(BaseModel):
+    user_id: UUID | None = None
+    week_start: date
+    week_end: date
 
 
 class ContextBuildRequest(BaseModel):

@@ -15,11 +15,15 @@ from fast_api.app.schemas.agent import (
     ContextBuildRequest,
     MemoryItemCreate,
     MemoryItemResponse,
+    MemoryReflectRequest,
+    MemoryRetainRequest,
     MemorySearchRequest,
+    MemoryWeeklyReflectRequest,
 )
 from fast_api.app.services.context_builder import ContextBuilder
 from fast_api.app.services.decision_logger import DecisionLogger
 from fast_api.app.services.memory_system import MemoryManager
+from fast_api.app.services.reflection_service import ReflectionService
 
 memory_router = APIRouter()
 
@@ -29,6 +33,8 @@ def _memory_response(memory) -> MemoryItemResponse:
         id=memory.id,
         user_id=memory.user_id,
         memory_type=memory.memory_type,
+        memory_network=getattr(memory, "memory_network", "world"),
+        fact_kind=getattr(memory, "fact_kind", "unknown"),
         category=memory.category,
         content=memory.content,
         summary=memory.summary,
@@ -36,6 +42,17 @@ def _memory_response(memory) -> MemoryItemResponse:
         confidence_score=memory.confidence,
         source_type=memory.source,
         metadata=memory.memory_metadata or {},
+        occurred_start=getattr(memory, "occurred_start", None),
+        occurred_end=getattr(memory, "occurred_end", None),
+        mentioned_at=getattr(memory, "mentioned_at", None),
+        entities=getattr(memory, "entities", None) or [],
+        evidence=getattr(memory, "evidence", None) or [],
+        semantic_rank=getattr(memory, "semantic_rank", None),
+        keyword_rank=getattr(memory, "keyword_rank", None),
+        entity_rank=getattr(memory, "entity_rank", None),
+        temporal_rank=getattr(memory, "temporal_rank", None),
+        final_score=getattr(memory, "final_score", None),
+        retrieval_debug=getattr(memory, "retrieval_debug", None),
         created_at=memory.created_at,
     )
 
@@ -127,9 +144,67 @@ def search_memory(
         top_k=payload.top_k,
         category=payload.category,
         memory_type=payload.memory_type,
+        memory_network=payload.memory_network,
+        fact_kind=payload.fact_kind,
+        entities=payload.entities,
+        occurred_after=payload.occurred_after,
+        occurred_before=payload.occurred_before,
+        include_expired=payload.include_expired,
     )
     db.commit()
     return [_memory_response(memory) for memory in memories]
+
+
+@memory_router.post("/memory/retain", response_model=MemoryItemResponse)
+def retain_memory(
+    request: Request,
+    payload: MemoryRetainRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    manager = MemoryManager(db)
+    memory = manager.retain_memory(
+        user_id=current_user.id,
+        content=payload.content,
+        memory_network=payload.memory_network,
+        fact_kind=payload.fact_kind,
+        category=payload.category,
+        summary=payload.summary,
+        entities=payload.entities,
+        evidence=payload.evidence,
+        occurred_start=payload.occurred_start,
+        occurred_end=payload.occurred_end,
+        importance_score=payload.importance_score,
+        confidence_score=payload.confidence_score,
+        source_type=payload.source_type,
+    )
+    db.commit()
+    db.refresh(memory)
+    return _memory_response(memory)
+
+
+@memory_router.post("/memory/reflect", response_model=dict[str, Any])
+def reflect_memory(
+    request: Request,
+    payload: MemoryReflectRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    result = ReflectionService(db).reflect_user_memory(current_user.id)
+    db.commit()
+    return result
+
+
+@memory_router.post("/memory/reflect/weekly", response_model=dict[str, Any])
+def reflect_weekly_memory(
+    request: Request,
+    payload: MemoryWeeklyReflectRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    result = ReflectionService(db).reflect_weekly(current_user.id, payload.week_start, payload.week_end)
+    db.commit()
+    return result
 
 
 @memory_router.post("/agent/context", response_model=dict[str, Any])
