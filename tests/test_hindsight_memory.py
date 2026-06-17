@@ -1,6 +1,7 @@
 import uuid
 from datetime import date, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 from sqlalchemy import create_engine, select
 from sqlalchemy.dialects import postgresql
@@ -9,6 +10,7 @@ from sqlalchemy.orm import sessionmaker
 from fast_api.app.db import models
 from fast_api.app.db.database import Base
 from fast_api.app.services.context_builder import ContextBuilder
+from fast_api.app.services.coach_agent import CoachAgentService
 from fast_api.app.services.fitness_knowledge import FitnessKnowledgeService
 from fast_api.app.services.memory_system import MemoryManager
 from fast_api.app.services.reflection_service import ReflectionService
@@ -497,6 +499,95 @@ def test_weekly_reflection_insufficient_data_does_not_create_opinion():
     assert any(item["fact_kind"] == "weekly_training_observation" for item in result["memories"])
 
 
+def test_reflect_decision_outcomes_creates_strategy_experience_memory():
+    db = make_db()
+    user_id = uuid.uuid4()
+    decision_time = datetime.utcnow() - timedelta(days=3)
+    decision = models.AgentDecision(
+        user_id=user_id,
+        decision_type="training_adjustment",
+        input_summary="User reported fatigue; agent suggested conservative progression.",
+        context_used={},
+        decision_result="reduce load and keep pain-free movement",
+        reason="Fatigue was elevated and the next session should protect consistency.",
+        confidence_score=0.82,
+        created_at=decision_time,
+    )
+    db.add(decision)
+    db.flush()
+    db.add(models.WorkoutLog(
+        user_id=user_id,
+        performed_at=decision_time + timedelta(days=1),
+        workout_name="Pain-free lower body",
+        rpe=6,
+        completion_rate=0.9,
+        notes="Completed reduced-load session without pain.",
+    ))
+    db.add(models.RecoveryLog(
+        user_id=user_id,
+        log_date=(decision_time + timedelta(days=1)).date(),
+        sleep_hours=7.5,
+        fatigue_score=4,
+    ))
+    db.add(models.SymptomLog(
+        user_id=user_id,
+        symptom_date=(decision_time + timedelta(days=1)).date(),
+        symptom_type="pain",
+        severity_score=2,
+        status="monitoring",
+    ))
+    db.flush()
+
+    result = ReflectionService(db).reflect_decision_outcomes(user_id)
+
+    assert result["created_count"] == 1
+    assert result["outcomes"][0]["outcome_status"] == "improved"
+    assert result["outcomes"][0]["metrics"]["avg_completion_rate"] == 0.9
+    assert result["memories"][0]["memory_network"] == "experience"
+    assert result["memories"][0]["fact_kind"] == "strategy_experience"
+    assert any(item["table"] == "decision_outcomes" for item in result["memories"][0]["evidence"])
+    memory = db.get(models.LongTermMemory, uuid.UUID(result["memories"][0]["id"]))
+    assert memory is not None
+    assert "Outcome-aware coaching experience" in memory.content
+
+
+def test_reflect_decision_outcomes_is_idempotent_for_existing_outcome():
+    db = make_db()
+    user_id = uuid.uuid4()
+    decision_time = datetime.utcnow() - timedelta(days=2)
+    decision = models.AgentDecision(
+        user_id=user_id,
+        decision_type="nutrition_strategy",
+        input_summary="User needed a takeout nutrition strategy.",
+        context_used={},
+        decision_result="use high-protein takeout defaults",
+        reason="Protein intake was below target.",
+        confidence_score=0.8,
+        created_at=decision_time,
+    )
+    db.add(decision)
+    db.flush()
+    db.add(models.NutritionDailySummary(
+        user_id=user_id,
+        summary_date=(decision_time + timedelta(days=1)).date(),
+        total_protein_g=135,
+        target_protein_g=140,
+        adherence_score=0.82,
+        summary_text="Hit the takeout protein target.",
+    ))
+    db.flush()
+    service = ReflectionService(db)
+
+    first = service.reflect_decision_outcomes(user_id)
+    second = service.reflect_decision_outcomes(user_id)
+
+    assert first["created_count"] == 1
+    assert first["outcomes"][0]["outcome_type"] == "nutrition_outcome"
+    assert first["memories"][0]["fact_kind"] == "strategy_experience"
+    assert second["created_count"] == 0
+    assert second["skipped"][0]["reason"] == "outcome_already_exists"
+
+
 def test_rules_override_opinion_memory():
     service = FitnessKnowledgeService(db=None)
     context = {
@@ -517,3 +608,55 @@ def test_coach_prompt_policy_mentions_opinion_memory_evidence_boundary():
 
     assert "Opinion memories are not facts" in source
     assert "evidence_summary" in source
+    assert "strategy_experience" in source
+    assert "failed_strategy" in source
+    assert "avoid repeating" in source
+
+
+def test_local_coaching_reply_includes_strategy_memory_guidance():
+    service = CoachAgentService.__new__(CoachAgentService)
+    profile = SimpleNamespace(
+        goal="muscle_gain",
+        weight_kg=80,
+        target_calories=2400,
+        target_protein_g=160,
+        target_carbs_g=260,
+        target_fat_g=70,
+        equipment_available=["gym"],
+    )
+    plan = SimpleNamespace(
+        plan_json={
+            "training_days": [
+                {
+                    "exercises": [
+                        {
+                            "name": "Reduced-load squat",
+                            "sets": 3,
+                            "reps": "6",
+                            "rest_seconds": 120,
+                        }
+                    ]
+                }
+            ]
+        }
+    )
+    context_packet = {
+        "current_request_policy": {"allow_plan_content": True},
+        "strategy_memory_guidance": {
+            "successful_strategies": [
+                {"summary": "Reduced-load training improved completion after fatigue."}
+            ],
+            "failed_strategies": [
+                {"summary": "High-intensity top sets worsened fatigue and completion."}
+            ],
+        },
+    }
+
+    reply = service._local_coaching_fallback(profile, plan, context_packet)
+
+    assert "Strategy memory guidance:" in reply
+    assert "Do not reuse any strategy that conflicts with active risk notes or decision rules." in reply
+    assert "Reuse prior successful strategy only if similar" in reply
+    assert "Reduced-load training improved completion" in reply
+    assert "Avoid repeating prior failed strategy" in reply
+    assert "High-intensity top sets worsened fatigue" in reply
