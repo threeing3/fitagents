@@ -4,6 +4,12 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any
 
+from fast_api.app.services.strategy_memory_policy import (
+    build_strategy_memory_response_note,
+    response_satisfies_strategy_memory_policy,
+    strategy_memory_expectations,
+)
+
 
 @dataclass
 class VerificationIssue:
@@ -273,6 +279,8 @@ class AgentVerifier:
                     )
                 )
 
+        self._append_strategy_memory_response_issues(response, context_packet, issues)
+
         return VerificationResult(
             passed=not any(issue.severity == "error" for issue in issues),
             issues=issues,
@@ -292,6 +300,18 @@ class AgentVerifier:
             additions.append("本轮校验已阻止旧计划指令继续生效：下面只回答你当前这条消息，不自动追加训练计划。")
         if "missing_medical_boundary_in_response" in issue_ids:
             additions.append("安全边界：涉及疾病、用药、胸闷、头晕、异常心率或明确疼痛时，我只能做训练强度和动作选择上的保守建议，不能替代医生诊断或用药建议。")
+        if any(
+            issue_id in issue_ids
+            for issue_id in {
+                "missing_strategy_memory_reuse_guidance",
+                "missing_failed_strategy_avoidance",
+                "missing_strategy_rule_override",
+            }
+        ):
+            strategy_note = build_strategy_memory_response_note(context_packet)
+            if strategy_note:
+                additions.append(strategy_note.strip())
+
         repair_text = ""
         if additions:
             repair_text = "\n\n---\nAgent 自检补充：\n" + "\n".join(f"- {item}" for item in additions)
@@ -304,6 +324,48 @@ class AgentVerifier:
     def _contains_plan_content(self, text: str) -> bool:
         lowered = text.lower()
         return any(term in lowered for term in self.PLAN_TERMS)
+
+    def _append_strategy_memory_response_issues(
+        self,
+        response: str,
+        context_packet: dict[str, Any],
+        issues: list[VerificationIssue],
+    ) -> None:
+        expectations = strategy_memory_expectations(context_packet)
+        if not expectations["requires_strategy_guidance"]:
+            return
+
+        checks = response_satisfies_strategy_memory_policy(response, context_packet)
+        if not checks["successful_reuse"]:
+            issues.append(
+                VerificationIssue(
+                    "missing_strategy_memory_reuse_guidance",
+                    "warn",
+                    "Response has successful strategy memories but does not explain reuse only for similar current state.",
+                    repairable=True,
+                    evidence={"strategy_memory_guidance": "successful_strategies"},
+                )
+            )
+        if not checks["failed_avoidance"]:
+            issues.append(
+                VerificationIssue(
+                    "missing_failed_strategy_avoidance",
+                    "warn",
+                    "Response has failed_strategy memories but does not say to avoid repeating them.",
+                    repairable=True,
+                    evidence={"strategy_memory_guidance": "failed_strategies"},
+                )
+            )
+        if not checks["rule_override"]:
+            issues.append(
+                VerificationIssue(
+                    "missing_strategy_rule_override",
+                    "warn",
+                    "Response has strategy memories plus active risk notes or decision rules but does not state rule override.",
+                    repairable=True,
+                    evidence={"strategy_memory_guidance": "rule_override"},
+                )
+            )
 
     def _has_medical_context(self, context_packet: dict[str, Any]) -> bool:
         memories = context_packet.get("relevant_memories") or []

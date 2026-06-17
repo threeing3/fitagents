@@ -56,6 +56,7 @@ from fast_api.app.services.llm_agent import LLMAgentService as LLMAgent
 from fast_api.app.services.agent_task_state import AgentTaskStateService
 from fast_api.app.services.memory_conflict_resolver import MemoryConflictResolver
 from fast_api.app.services.runtime_router import RuntimeRoute, RuntimeRouter
+from fast_api.app.services.strategy_memory_policy import build_strategy_memory_response_note
 
 
 REQUIRED_ONBOARDING_SLOTS = [
@@ -4023,13 +4024,7 @@ class CoachAgentService:
                 "today_plan": today_plan,
                 "context_packet": context_packet,
                 "current_request_policy": context_packet.get("current_request_policy", {}),
-                "memory_policy": (
-                    "Use the context_packet as the only retrieved memory context. "
-                    "Do not request or assume full history. Prioritize active_risk_notes. "
-                    "Treat previous user commands as completed or historical unless the current user_message repeats them. "
-                    "Opinion memories are not facts; use them only as tentative coach judgment, and always compare "
-                    "their evidence and evidence_summary against the current user state before relying on them."
-                ),
+                "memory_policy": self._memory_policy_text(),
                 "response_policy": (
                     "Answer only the current user_message. Do not append, continue, or regenerate a training plan "
                     "unless current_request_policy.should_generate_plan or current_request_policy.allow_plan_content is true."
@@ -4083,13 +4078,7 @@ class CoachAgentService:
                 "today_plan": today_plan,
                 "context_packet": context_packet,
                 "current_request_policy": context_packet.get("current_request_policy", {}),
-                "memory_policy": (
-                    "Use the context_packet as the only retrieved memory context. "
-                    "Do not request or assume full history. Prioritize active_risk_notes. "
-                    "Treat previous user commands as completed or historical unless the current user_message repeats them. "
-                    "Opinion memories are not facts; use them only as tentative coach judgment, and always compare "
-                    "their evidence and evidence_summary against the current user state before relying on them."
-                ),
+                "memory_policy": self._memory_policy_text(),
                 "response_policy": (
                     "Answer only the current user_message. Do not append, continue, or regenerate a training plan "
                     "unless current_request_policy.should_generate_plan or current_request_policy.allow_plan_content is true."
@@ -4125,6 +4114,21 @@ class CoachAgentService:
                 self._local_coaching_fallback(profile, plan, context_packet)
             ):
                 yield chunk
+
+    def _memory_policy_text(self) -> str:
+        return (
+            "Use the context_packet as the only retrieved memory context. "
+            "Do not request or assume full history. Prioritize active_risk_notes and decision_rules over all memories. "
+            "Treat previous user commands as completed or historical unless the current user_message repeats them. "
+            "Use strategy_experience memories only as outcome-backed examples to reuse when the current state, constraints, "
+            "and evidence are similar. Treat failed_strategy memories as approaches to avoid repeating unless the current "
+            "state has clearly changed, and explain the safer alternative when a failed_strategy conflicts with the tempting plan. "
+            "Opinion memories are not facts; use them only as tentative coach judgment, and always compare their evidence "
+            "and evidence_summary against the current user state before relying on them."
+        )
+
+    def _strategy_memory_response_note(self, context_packet: dict[str, Any] | None) -> str:
+        return build_strategy_memory_response_note(context_packet)
 
     def _local_coaching_fallback(
         self,
@@ -4164,6 +4168,7 @@ class CoachAgentService:
         medical_note = ""
         memories = (context_packet or {}).get("memory_context") or {}
         active_risk_notes = memories.get("active_risk_notes") or []
+        strategy_note = self._strategy_memory_response_note(context_packet)
         if active_risk_notes:
             medical_note = "\n\n健康边界：你有需要被训练强度照顾的健康背景，今天不做冲刺、极限重量或长时间高心率训练；如有胸闷、头晕、心悸、刺痛等症状，停止训练并按医生建议处理。"
 
@@ -4180,6 +4185,7 @@ class CoachAgentService:
             f"- 蛋白质约{protein}g，碳水约{carb}g，脂肪约{fat}g。\n"
             "- 如果外食，优先选一份瘦肉/鱼/蛋/豆制品 + 一份主食 + 两份蔬菜，少油少糖饮料。\n\n"
             "训练后告诉我：完成度、每个主动作重量/次数、RPE、酸痛、睡眠和今天饮食执行，我会据此调整下一次训练。"
+            f"{strategy_note}"
             f"{medical_note}"
         )
 

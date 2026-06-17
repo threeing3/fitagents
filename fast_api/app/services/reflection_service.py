@@ -132,6 +132,20 @@ class ReflectionService:
             )
         return {"created_count": len(created), "memories": [self._memory_summary(memory) for memory in created]}
 
+    def reflect_decision_outcomes(
+        self,
+        user_id: uuid.UUID,
+        since_days: int = 14,
+        outcome_window_days: int = 7,
+    ) -> dict[str, Any]:
+        from fast_api.app.services.outcome_reflection_service import OutcomeReflectionService
+
+        return OutcomeReflectionService(self.db, self.memory_manager).reflect_recent_decision_outcomes(
+            user_id=user_id,
+            since_days=since_days,
+            outcome_window_days=outcome_window_days,
+        )
+
     def _recent_recovery_logs(self, user_id: uuid.UUID, since: date) -> list[models.RecoveryLog]:
         return list(
             self.db.scalars(

@@ -400,6 +400,24 @@ class AgentDecision(Base, TimestampMixin):
     accepted_by_user: Mapped[bool | None] = mapped_column(Boolean)
 
 
+class DecisionOutcome(Base, TimestampMixin):
+    __tablename__ = "decision_outcomes"
+    __table_args__ = (UniqueConstraint("decision_id", name="uq_decision_outcomes_decision_id"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    decision_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("agent_decisions.id", ondelete="CASCADE"), index=True)
+    outcome_type: Mapped[str] = mapped_column(String(80), index=True)
+    outcome_status: Mapped[str] = mapped_column(String(40), index=True)
+    outcome_summary: Mapped[str] = mapped_column(Text)
+    metrics: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    evidence: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
+    observed_start_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    observed_end_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    reflected_memory_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("long_term_memories.id", ondelete="SET NULL"))
+    confidence_score: Mapped[float] = mapped_column(Float, default=0.7)
+
+
 class MemoryExport(Base, TimestampMixin):
     __tablename__ = "memory_exports"
 
