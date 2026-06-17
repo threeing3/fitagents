@@ -1,6 +1,7 @@
 from uuid import uuid4
 
 from fast_api.app.services.context_builder import ContextBuilder, IntentRouter
+from fast_api.app.services.memory_planner import MemoryPlanner
 
 
 class FakeRetrieval:
@@ -123,6 +124,48 @@ def test_context_builder_training_plan_uses_broad_memory_recall():
 
     assert ("memories", None) in builder.retrieval.calls
     assert packet["retrieval_debug"]["memory_category_filter"] is None
+    assert packet["retrieval_debug"]["memory_recall_plan"]["intent"] == "training_plan"
+
+
+def test_context_builder_uses_memory_planner_for_outcome_experience():
+    class PlannedRetrieval(FakeRetrieval):
+        def search_planned_memories(self, user_id, query, plan):
+            self.calls.append(("planned_memories", [search.label for search in plan.searches]))
+            return [
+                {
+                    "id": "strategy-1",
+                    "memory_network": "experience",
+                    "fact_kind": "strategy_experience",
+                    "category": "training",
+                    "summary": "Reduced-load strategy worked after fatigue.",
+                    "content": "outcome_status=improved; reduced-load training improved completion.",
+                },
+                {
+                    "id": "strategy-2",
+                    "memory_network": "experience",
+                    "fact_kind": "failed_strategy",
+                    "category": "training",
+                    "summary": "High-intensity top sets worsened fatigue.",
+                    "content": "outcome_status=worse; high-intensity top sets had poor completion.",
+                },
+            ]
+
+    builder = ContextBuilder.__new__(ContextBuilder)
+    builder.intent_router = IntentRouter()
+    builder.retrieval = PlannedRetrieval()
+    builder.knowledge = FakeKnowledge()
+    builder.memory_planner = MemoryPlanner()
+
+    packet = builder.build_context_packet(uuid4(), "Build me a training plan while fatigued", intent="training_plan")
+
+    assert packet["experience_memories"][0]["fact_kind"] == "strategy_experience"
+    assert packet["strategy_memory_guidance"]["successful_strategies"][0]["fact_kind"] == "strategy_experience"
+    assert packet["strategy_memory_guidance"]["failed_strategies"][0]["fact_kind"] == "failed_strategy"
+    assert "avoid repeating" in packet["strategy_memory_guidance"]["failed_strategies"][0]["usage"]
+    labels = dict(builder.retrieval.calls)["planned_memories"]
+    assert "successful_strategies" in labels
+    assert "failed_strategies" in labels
+    assert packet["retrieval_debug"]["memory_recall_plan"]["excluded_networks"] == ["opinion"]
 
 
 # ---- Expanded tests: Intent classification accuracy ----

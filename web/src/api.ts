@@ -1,6 +1,6 @@
 import type { AuthUser, ChatMessage, Dashboard, PlanResponse, CheckinResult, SessionState, AgentRunDetail } from "./types";
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "http://localhost:1015").replace(/\/$/, "");
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:1015").replace(/\/$/, "");
 const TOKEN_KEY = "ai_fitness_token";
 
 function getAuthHeaders(): Record<string, string> {

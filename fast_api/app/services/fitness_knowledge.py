@@ -264,9 +264,13 @@ class FitnessKnowledgeService:
                 existing = models.CoachingCase(case_id=item["case_id"])
                 self.db.add(existing)
             existing.case_type = item["case_type"]
+            existing.title = item.get("title") or item["case_id"]
             existing.profile_summary = item.get("profile_summary")
+            existing.scenario = item.get("scenario") or item["situation"]
             existing.situation = item["situation"]
+            existing.approach = item.get("approach") or item["coach_response_pattern"]
             existing.coach_response_pattern = item["coach_response_pattern"]
+            existing.key_principles = item.get("key_principles") or []
             existing.tags = item.get("tags") or []
             existing.source = item.get("source", "seed")
             existing.status = item.get("status", "active")
