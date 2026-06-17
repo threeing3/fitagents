@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from fast_api.app.db import models
 from fast_api.app.services.fitness_knowledge import FitnessKnowledgeService
+from fast_api.app.services.memory_planner import MemoryPlanner, MemoryRecallPlan
 from fast_api.app.services.memory_system import MemoryManager
 from fast_api.app.services.model_provider import ModelProvider
 
@@ -328,29 +329,57 @@ class FitnessRetrievalService:
         category: str | None = None,
     ) -> list[dict[str, Any]]:
         memories = self.memory_manager.search_memories(user_id, query, top_k=top_k, category=category)
-        return [
-            {
-                "id": str(memory.id),
-                "memory_type": memory.memory_type,
-                "memory_network": getattr(memory, "memory_network", "world"),
-                "fact_kind": getattr(memory, "fact_kind", "unknown"),
-                "category": memory.category,
-                "summary": memory.summary,
-                "content": memory.content,
-                "importance": memory.importance,
-                "confidence": memory.confidence,
-                "entities": getattr(memory, "entities", None) or [],
-                "evidence": getattr(memory, "evidence", None) or [],
-                "semantic_rank": getattr(memory, "semantic_rank", None),
-                "keyword_rank": getattr(memory, "keyword_rank", None),
-                "entity_rank": getattr(memory, "entity_rank", None),
-                "temporal_rank": getattr(memory, "temporal_rank", None),
-                "final_score": getattr(memory, "final_score", None),
-                "retrieval_debug": getattr(memory, "retrieval_debug", None),
-                "metadata": memory.memory_metadata or {},
-            }
-            for memory in memories
-        ]
+        return [self._memory_payload(memory) for memory in memories]
+
+    def search_planned_memories(
+        self,
+        user_id: uuid.UUID,
+        query: str,
+        plan: MemoryRecallPlan,
+    ) -> list[dict[str, Any]]:
+        by_key: dict[str, dict[str, Any]] = {}
+        for search in plan.searches:
+            memories = self.memory_manager.search_memories(
+                user_id,
+                query,
+                top_k=search.top_k,
+                category=search.category if search.category is not None else plan.category,
+                memory_network=search.memory_network,
+                fact_kind=search.fact_kind,
+            )
+            for memory in memories:
+                key = str(memory.id)
+                if key in by_key:
+                    by_key[key].setdefault("retrieval_plan_labels", []).append(search.label)
+                    continue
+                payload = self._memory_payload(memory)
+                payload["retrieval_plan_label"] = search.label
+                payload["retrieval_plan_labels"] = [search.label]
+                payload["retrieval_plan_rationale"] = search.rationale
+                by_key[key] = payload
+        return list(by_key.values())[: plan.top_k]
+
+    def _memory_payload(self, memory: models.LongTermMemory) -> dict[str, Any]:
+        return {
+            "id": str(memory.id),
+            "memory_type": memory.memory_type,
+            "memory_network": getattr(memory, "memory_network", "world"),
+            "fact_kind": getattr(memory, "fact_kind", "unknown"),
+            "category": memory.category,
+            "summary": memory.summary,
+            "content": memory.content,
+            "importance": memory.importance,
+            "confidence": memory.confidence,
+            "entities": getattr(memory, "entities", None) or [],
+            "evidence": getattr(memory, "evidence", None) or [],
+            "semantic_rank": getattr(memory, "semantic_rank", None),
+            "keyword_rank": getattr(memory, "keyword_rank", None),
+            "entity_rank": getattr(memory, "entity_rank", None),
+            "temporal_rank": getattr(memory, "temporal_rank", None),
+            "final_score": getattr(memory, "final_score", None),
+            "retrieval_debug": getattr(memory, "retrieval_debug", None),
+            "metadata": memory.memory_metadata or {},
+        }
 
 
 class ContextBuilder:
@@ -403,6 +432,7 @@ class ContextBuilder:
         self.intent_router = intent_router or IntentRouter()
         self.retrieval = FitnessRetrievalService(db, model_provider)
         self.knowledge = FitnessKnowledgeService(db, model_provider)
+        self.memory_planner = MemoryPlanner()
 
     def build_context_packet(
         self,
@@ -412,6 +442,17 @@ class ContextBuilder:
     ) -> dict[str, Any]:
         selected_intent = intent or self.intent_router.classify(user_message)
         category = self.CATEGORY_BY_INTENT.get(selected_intent)
+        core_profile = self.retrieval.get_core_profile(user_id)
+        active_risk_notes = self.retrieval.get_active_risk_notes(user_id)
+        memory_planner = getattr(self, "memory_planner", MemoryPlanner())
+        recall_plan = memory_planner.build_plan(
+            selected_intent,
+            user_message,
+            category,
+            core_profile=core_profile,
+            active_risk_notes=active_risk_notes,
+        )
+        category = recall_plan.category
         allow_plan_content = selected_intent in {
             "training_plan",
             "training_log",
@@ -433,31 +474,28 @@ class ContextBuilder:
         packet: dict[str, Any] = {
             "intent": selected_intent,
             "current_request_policy": current_request_policy,
-            "core_profile": self.retrieval.get_core_profile(user_id),
+            "core_profile": core_profile,
             "memory_catalog": self.retrieval.get_memory_catalog(user_id, category=category),
             "active_plan": self.retrieval.get_active_plan(user_id) if allow_plan_content else None,
-            "active_risk_notes": self.retrieval.get_active_risk_notes(user_id),
+            "active_risk_notes": active_risk_notes,
             "recent_training": [],
             "exercise_history": [],
             "recent_nutrition": [],
             "recent_recovery": [],
             "recent_symptoms": [],
-            "relevant_memories": self.retrieval.search_relevant_memories(
-                user_id,
-                user_message,
-                top_k=6,
-                category=category,
-            ),
+            "relevant_memories": self._retrieve_memories(user_id, user_message, recall_plan),
             "world_memories": [],
             "experience_memories": [],
             "observation_memories": [],
             "opinion_memories": [],
             "knowledge_context": {},
+            "strategy_memory_guidance": {},
             "retrieval_debug": {
                 "intent": selected_intent,
                 "memory_category_filter": category,
-                "memory_top_k": 6,
+                "memory_top_k": recall_plan.top_k,
                 "memory_ranker": "hybrid_vector_bm25",
+                "memory_recall_plan": recall_plan.to_dict(),
                 "current_request_policy": current_request_policy,
                 "knowledge_sources": {},
             },
@@ -485,9 +523,25 @@ class ContextBuilder:
             packet,
         )
         self._apply_budget_policy(packet)
+        packet["strategy_memory_guidance"] = self._build_strategy_memory_guidance(packet)
         packet["retrieval_debug"]["knowledge_sources"] = packet["knowledge_context"].get("debug", {})
         packet["context_summary"] = self._summarize_packet(packet)
         return packet
+
+    def _retrieve_memories(
+        self,
+        user_id: uuid.UUID,
+        user_message: str,
+        recall_plan: MemoryRecallPlan,
+    ) -> list[dict[str, Any]]:
+        if hasattr(self.retrieval, "search_planned_memories"):
+            return self.retrieval.search_planned_memories(user_id, user_message, recall_plan)
+        return self.retrieval.search_relevant_memories(
+            user_id,
+            user_message,
+            top_k=recall_plan.top_k,
+            category=recall_plan.category,
+        )
 
     def _group_hindsight_memories(self, packet: dict[str, Any]) -> None:
         grouped = {
@@ -512,6 +566,46 @@ class ContextBuilder:
             time = item.get("time")
             parts.append(f"{table}: {summary}" + (f" ({time})" if time else ""))
         return " | ".join(parts)
+
+    def _build_strategy_memory_guidance(self, packet: dict[str, Any]) -> dict[str, Any]:
+        successful: list[dict[str, Any]] = []
+        failed: list[dict[str, Any]] = []
+        for memory in packet.get("experience_memories") or []:
+            fact_kind = memory.get("fact_kind")
+            if fact_kind not in {"strategy_experience", "failed_strategy"}:
+                continue
+            item = {
+                "id": memory.get("id"),
+                "fact_kind": fact_kind,
+                "category": memory.get("category"),
+                "summary": memory.get("summary") or memory.get("content"),
+                "content": memory.get("content"),
+                "evidence_summary": self._evidence_summary(memory.get("evidence") or []),
+                "retrieval_plan_labels": memory.get("retrieval_plan_labels")
+                or ([memory.get("retrieval_plan_label")] if memory.get("retrieval_plan_label") else []),
+            }
+            if fact_kind == "strategy_experience":
+                successful.append(
+                    {
+                        **item,
+                        "usage": "reuse only when current state, constraints, and evidence are similar",
+                    }
+                )
+            else:
+                failed.append(
+                    {
+                        **item,
+                        "usage": "avoid repeating unless current state has clearly changed",
+                    }
+                )
+        return {
+            "successful_strategies": successful[:3],
+            "failed_strategies": failed[:3],
+            "policy": (
+                "Use successful_strategies as outcome-backed examples for similar contexts. "
+                "Treat failed_strategies as prior approaches to avoid. active_risk_notes and decision_rules override both."
+            ),
+        }
 
     def _apply_budget_policy(self, packet: dict[str, Any]) -> None:
         debug = packet.setdefault("retrieval_debug", {})

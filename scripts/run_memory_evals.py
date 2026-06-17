@@ -5,7 +5,7 @@ import json
 import os
 import sys
 import uuid
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +30,8 @@ from fast_api.app.db.database import Base  # noqa: E402
 from fast_api.app.services.context_builder import ContextBuilder  # noqa: E402
 from fast_api.app.services.fitness_knowledge import FitnessKnowledgeService  # noqa: E402
 from fast_api.app.services.memory_system import MemoryManager  # noqa: E402
+from fast_api.app.services.reflection_service import ReflectionService  # noqa: E402
+from fast_api.app.services.strategy_memory_policy import build_strategy_memory_response_note  # noqa: E402
 
 
 @compiles(JSONB, "sqlite")
@@ -123,6 +125,9 @@ def seed_case(db: Session, case: dict[str, Any], index: int) -> uuid.UUID:
     db.flush()
     seed_memories(db, user_id, case)
     seed_logs(db, user_id, case.get("seeded_logs") or {})
+    db.flush()
+    if case.get("run_outcome_reflection"):
+        case["_outcome_reflection"] = ReflectionService(db).reflect_decision_outcomes(user_id)
     db.commit()
     return user_id
 
@@ -149,6 +154,22 @@ def seed_memories(db: Session, user_id: uuid.UUID, case: dict[str, Any]) -> None
 
 def seed_logs(db: Session, user_id: uuid.UUID, logs: dict[str, Any]) -> None:
     now = datetime.now(timezone.utc)
+    for item in logs.get("agent_decisions") or []:
+        created_at = now - timedelta(days=int(item.get("created_at_days_ago", 3)))
+        db.add(
+            models.AgentDecision(
+                id=uuid.UUID(item["id"]) if item.get("id") else uuid.uuid4(),
+                user_id=user_id,
+                decision_type=item.get("decision_type", "training_adjustment"),
+                input_summary=item.get("input_summary", "Eval decision"),
+                context_used=item.get("context_used", {}),
+                decision_result=item.get("decision_result", "Eval decision result"),
+                reason=item.get("reason", "Eval decision reason"),
+                confidence_score=float(item.get("confidence_score", 0.8)),
+                accepted_by_user=item.get("accepted_by_user"),
+                created_at=created_at,
+            )
+        )
     for item in logs.get("risk_notes") or []:
         db.add(
             models.RiskNote(
@@ -164,10 +185,11 @@ def seed_logs(db: Session, user_id: uuid.UUID, logs: dict[str, Any]) -> None:
             )
         )
     for item in logs.get("workout_logs") or []:
+        performed_at = now - timedelta(days=int(item.get("days_ago", 0)))
         db.add(
             models.WorkoutLog(
                 user_id=user_id,
-                performed_at=now,
+                performed_at=performed_at,
                 workout_name=item.get("workout_name", "Workout"),
                 exercises=item.get("exercises", []),
                 duration_minutes=item.get("duration_minutes"),
@@ -208,10 +230,11 @@ def seed_logs(db: Session, user_id: uuid.UUID, logs: dict[str, Any]) -> None:
             )
         )
     for item in logs.get("nutrition_summaries") or []:
+        summary_date = date.today() - timedelta(days=int(item.get("days_ago", 0)))
         db.add(
             models.NutritionDailySummary(
                 user_id=user_id,
-                summary_date=date.today(),
+                summary_date=summary_date,
                 total_calories=item.get("total_calories"),
                 total_protein_g=item.get("total_protein_g"),
                 total_carbs_g=item.get("total_carbs_g"),
@@ -224,10 +247,11 @@ def seed_logs(db: Session, user_id: uuid.UUID, logs: dict[str, Any]) -> None:
             )
         )
     for item in logs.get("recovery_logs") or []:
+        log_date = date.today() - timedelta(days=int(item.get("days_ago", 0)))
         db.add(
             models.RecoveryLog(
                 user_id=user_id,
-                log_date=date.today(),
+                log_date=log_date,
                 sleep_hours=item.get("sleep_hours"),
                 sleep_quality_score=item.get("sleep_quality_score"),
                 fatigue_score=item.get("fatigue_score"),
@@ -238,10 +262,11 @@ def seed_logs(db: Session, user_id: uuid.UUID, logs: dict[str, Any]) -> None:
             )
         )
     for item in logs.get("symptom_logs") or []:
+        symptom_date = date.today() - timedelta(days=int(item.get("days_ago", 0)))
         db.add(
             models.SymptomLog(
                 user_id=user_id,
-                symptom_date=date.today(),
+                symptom_date=symptom_date,
                 body_part=item.get("body_part"),
                 symptom_type=item["symptom_type"],
                 severity_score=item.get("severity_score"),
@@ -265,8 +290,13 @@ def serialize_memory_context(packet: dict[str, Any]) -> str:
         "experience_memories": packet.get("experience_memories") or [],
         "observation_memories": packet.get("observation_memories") or [],
         "opinion_memories": packet.get("opinion_memories") or [],
+        "strategy_memory_guidance": packet.get("strategy_memory_guidance") or {},
     }
     return json.dumps(payload, ensure_ascii=False, default=str).lower()
+
+
+def build_strategy_response_text(packet: dict[str, Any]) -> str:
+    return build_strategy_memory_response_note(packet).lower()
 
 
 def evaluate_case(case: dict[str, Any], index: int) -> dict[str, Any]:
@@ -285,6 +315,14 @@ def evaluate_case(case: dict[str, Any], index: int) -> dict[str, Any]:
     rule_ids = [rule.get("rule_id") for rule in decision_rules]
     expected_rule = case.get("expected_safety_rule")
     safety_rule_hit = None if expected_rule is None else expected_rule in rule_ids
+    outcome_reflection = case.get("_outcome_reflection") or {}
+    expected_fact_kind = case.get("expected_memory_fact_kind")
+    expected_outcome_status = case.get("expected_outcome_status")
+    expected_response_terms = [str(term).lower() for term in case.get("expected_response_terms") or []]
+    response_text = build_strategy_response_text(packet)
+    missing_response_terms = [term for term in expected_response_terms if term not in response_text]
+    reflected_fact_kinds = [memory.get("fact_kind") for memory in outcome_reflection.get("memories", [])]
+    reflected_statuses = [outcome.get("outcome_status") for outcome in outcome_reflection.get("outcomes", [])]
     return {
         "record_type": "case_result",
         "case_id": case.get("case_id", f"case-{index}"),
@@ -299,6 +337,14 @@ def evaluate_case(case: dict[str, Any], index: int) -> dict[str, Any]:
         "expected_safety_rule": expected_rule,
         "matched_safety_rules": rule_ids,
         "safety_rule_hit": safety_rule_hit,
+        "expected_memory_fact_kind": expected_fact_kind,
+        "memory_fact_kind_hit": None if expected_fact_kind is None else expected_fact_kind in reflected_fact_kinds,
+        "expected_outcome_status": expected_outcome_status,
+        "outcome_status_hit": None if expected_outcome_status is None else expected_outcome_status in reflected_statuses,
+        "expected_response_terms": case.get("expected_response_terms") or [],
+        "missing_response_terms": missing_response_terms,
+        "response_strategy_hit": None if not expected_response_terms else not missing_response_terms,
+        "outcome_reflection": outcome_reflection,
         "should_not_include": case["should_not_include"],
         "wrong_terms": wrong_terms,
         "wrong_memory_hit": bool(wrong_terms),
@@ -310,6 +356,14 @@ def evaluate_case(case: dict[str, Any], index: int) -> dict[str, Any]:
 def summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
     total = len(records)
     safety_records = [record for record in records if record["safety_rule_hit"] is not None]
+    outcome_records = [record for record in records if record["outcome_status_hit"] is not None]
+    strategy_records = [record for record in records if record["memory_fact_kind_hit"] is not None]
+    response_records = [record for record in records if record["response_strategy_hit"] is not None]
+    failed_strategy_records = [
+        record
+        for record in records
+        if record.get("expected_memory_fact_kind") == "failed_strategy"
+    ]
     return {
         "record_type": "summary",
         "total_cases": total,
@@ -318,6 +372,36 @@ def summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
         "safety_rule_hit_rate": (
             round(sum(1 for record in safety_records if record["safety_rule_hit"]) / len(safety_records), 4)
             if safety_records
+            else None
+        ),
+        "outcome_recall_hit_rate": (
+            round(sum(1 for record in outcome_records if record["outcome_status_hit"]) / len(outcome_records), 4)
+            if outcome_records
+            else None
+        ),
+        "strategy_reuse_hit_rate": (
+            round(sum(1 for record in strategy_records if record["memory_fact_kind_hit"]) / len(strategy_records), 4)
+            if strategy_records
+            else None
+        ),
+        "failed_strategy_avoidance_rate": (
+            round(
+                sum(
+                    1
+                    for record in failed_strategy_records
+                    if record["memory_fact_kind_hit"]
+                    and record["outcome_status_hit"]
+                    and not record["wrong_memory_hit"]
+                )
+                / len(failed_strategy_records),
+                4,
+            )
+            if failed_strategy_records
+            else None
+        ),
+        "response_strategy_hit_rate": (
+            round(sum(1 for record in response_records if record["response_strategy_hit"]) / len(response_records), 4)
+            if response_records
             else None
         ),
         "wrong_memory_rate": round(sum(1 for record in records if record["wrong_memory_hit"]) / total, 4),

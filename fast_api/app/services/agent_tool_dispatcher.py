@@ -37,6 +37,7 @@ class ToolRuntimeState:
     plan_output: dict[str, Any] = field(default_factory=dict)
     plan_verification: dict[str, Any] = field(default_factory=dict)
     response_verification: dict[str, Any] = field(default_factory=dict)
+    response_repair: dict[str, Any] = field(default_factory=dict)
     assistant_message: str = ""
     guardrail: dict[str, Any] = field(default_factory=lambda: {"action": "pass", "flag_count": 0, "flags": []})
     persisted: bool = False
@@ -150,6 +151,11 @@ class ToolOutputReducer:
                 self.state.context_packet["active_plan"] = output.get("active_plan")
         elif tool_name == "response.verify":
             self.state.response_verification = output
+        elif tool_name == "response.repair":
+            self.state.response_repair = output
+            repair_text = output.get("repair_text") or ""
+            if repair_text:
+                self.state.assistant_message = (self.state.assistant_message + repair_text).strip()
         elif tool_name == "guardrail.check":
             self.state.guardrail = {
                 "action": output.get("action"),

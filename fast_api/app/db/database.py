@@ -2,9 +2,16 @@ import time
 from collections.abc import Generator
 
 from sqlalchemy import create_engine, text
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from fast_api.app.core.config import get_settings
+
+
+@compiles(JSONB, "sqlite")
+def compile_jsonb_for_sqlite(type_, compiler, **kw):
+    return "JSON"
 
 
 class Base(DeclarativeBase):
