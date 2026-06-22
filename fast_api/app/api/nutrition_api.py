@@ -9,12 +9,15 @@ from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
 from fast_api.app.core.auth import get_current_user
+from fast_api.app.core.config import get_settings
+from fast_api.app.core.rate_limit import limiter
 from fast_api.app.db import models
 from fast_api.app.db.database import get_db
 from fast_api.app.services.model_provider import ModelProvider
 from fast_api.app.services.nutrition_service import NutritionService
 
 nutrition_router = APIRouter(prefix="/v1/nutrition", tags=["nutrition"])
+settings = get_settings()
 
 
 def get_nutrition_service(
@@ -27,6 +30,7 @@ def get_nutrition_service(
 # ---- Analyze food photo ----
 
 @nutrition_router.post("/recognize")
+@limiter.limit(settings.rate_limit_nutrition)
 async def recognize_food_photo(
     image: UploadFile,
     request: Request,

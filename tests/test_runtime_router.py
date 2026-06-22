@@ -6,7 +6,7 @@ def route_mode(message: str) -> str:
 
 
 def test_concept_explanation_uses_llm_driven():
-    route = RuntimeRouter().route("什么是渐进超负荷？")
+    route = RuntimeRouter().route("What is progressive overload?")
 
     assert route.mode == "llm_driven"
     assert route.confidence > 0.7
@@ -14,55 +14,59 @@ def test_concept_explanation_uses_llm_driven():
 
 
 def test_nutrition_concept_without_logging_uses_llm_driven():
-    route = RuntimeRouter().route("帮我解释一下蛋白质和碳水的区别")
+    route = RuntimeRouter().route("Explain the difference between protein and carbs")
 
     assert route.mode == "llm_driven"
 
 
-def test_training_plan_uses_code_driven():
-    route = RuntimeRouter().route("帮我制定一周训练计划")
+def test_training_plan_uses_code_driven_with_intent_decision():
+    route = RuntimeRouter().route("Please create a one week training plan")
 
     assert route.mode == "code_driven"
-    assert any(rule.startswith("training_plan:") for rule in route.matched_rules)
+    assert "intent:training_plan" in route.matched_rules
+    assert route.intent_decision["primary_intent"] == "training_plan"
 
 
-def test_food_log_uses_code_driven():
-    route = RuntimeRouter().route("我今天早餐吃了两个鸡蛋和一碗米饭，帮我记录")
-
-    assert route.mode == "code_driven"
-    assert any(rule.startswith("nutrition_record:") for rule in route.matched_rules)
-
-
-def test_health_risk_uses_code_driven():
-    route = RuntimeRouter().route("我胸口有点闷，今天还能练吗")
+def test_food_log_uses_code_driven_with_intent_decision():
+    route = RuntimeRouter().route("I ate eggs and rice for breakfast, please record my meal")
 
     assert route.mode == "code_driven"
-    assert any(rule.startswith("risk:") for rule in route.matched_rules)
+    assert "intent:nutrition_log" in route.matched_rules
+    assert route.intent_decision["primary_intent"] == "nutrition_log"
+
+
+def test_health_risk_uses_code_driven_with_intent_decision():
+    route = RuntimeRouter().route("I have chest tightness, can I train today?")
+
+    assert route.mode == "code_driven"
+    assert "intent:injury_or_risk" in route.matched_rules
+    assert route.intent_decision["risk_level"] == "high"
 
 
 def test_plan_edit_uses_code_driven():
-    route = RuntimeRouter().route("把我的计划改成一周四练")
+    route = RuntimeRouter().route("Change my plan to four training days per week")
 
     assert route.mode == "code_driven"
     assert any(rule.startswith("plan_edit:") for rule in route.matched_rules)
 
 
 def test_greeting_uses_llm_driven():
-    route = RuntimeRouter().route("你好")
+    route = RuntimeRouter().route("hello")
 
     assert route.mode == "llm_driven"
     assert any(rule.startswith("chat:") for rule in route.matched_rules)
 
 
-def test_training_log_uses_code_driven():
-    route = RuntimeRouter().route("我今天练胸了")
+def test_training_log_uses_code_driven_with_intent_decision():
+    route = RuntimeRouter().route("I trained chest today and did bench 60kg")
 
     assert route.mode == "code_driven"
-    assert any(rule.startswith("training_") for rule in route.matched_rules)
+    assert "intent:training_log" in route.matched_rules
+    assert route.intent_decision["entities"]["weight_kg"] == 60
 
 
 def test_unknown_defaults_to_code_driven():
-    route = RuntimeRouter().route("这个情况你怎么看")
+    route = RuntimeRouter().route("What do you think about this situation?")
 
     assert route.mode == "code_driven"
     assert route.matched_rules == ["fallback.unknown_defaults_to_code_driven"]

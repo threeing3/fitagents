@@ -1,5 +1,6 @@
 import uuid
 from datetime import date, datetime, timedelta
+from types import SimpleNamespace
 from typing import Any
 
 from sqlalchemy import desc, select
@@ -7,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from fast_api.app.db import models
 from fast_api.app.services.fitness_knowledge import FitnessKnowledgeService
+from fast_api.app.services.intent_decision import IntentDecision, IntentRouter as StructuredIntentRouter
 from fast_api.app.services.memory_planner import MemoryPlanner, MemoryRecallPlan
 from fast_api.app.services.memory_system import MemoryManager
 from fast_api.app.services.model_provider import ModelProvider
@@ -122,6 +124,9 @@ class IntentRouter:
         if any(neg in lowered for neg in negative_terms) and any(term in lowered for term in plan_terms):
             return False
         return self._contains(lowered, self.PLAN_REQUEST_TERMS)
+
+
+IntentRouter = StructuredIntentRouter
 
 
 class FitnessRetrievalService:
@@ -440,10 +445,18 @@ class ContextBuilder:
         user_message: str,
         intent: str | None = None,
     ) -> dict[str, Any]:
-        selected_intent = intent or self.intent_router.classify(user_message)
+        intent_decision = self._build_intent_decision(user_message, intent)
+        selected_intent = intent_decision.primary_intent
         category = self.CATEGORY_BY_INTENT.get(selected_intent)
         core_profile = self.retrieval.get_core_profile(user_id)
         active_risk_notes = self.retrieval.get_active_risk_notes(user_id)
+        if intent is None and getattr(self.intent_router, "analyze", None):
+            intent_decision = self.intent_router.analyze(
+                user_message,
+                profile=self._profile_object_for_intent(core_profile),
+            )
+            selected_intent = intent_decision.primary_intent
+            category = self.CATEGORY_BY_INTENT.get(selected_intent)
         memory_planner = getattr(self, "memory_planner", MemoryPlanner())
         recall_plan = memory_planner.build_plan(
             selected_intent,
@@ -453,18 +466,26 @@ class ContextBuilder:
             active_risk_notes=active_risk_notes,
         )
         category = recall_plan.category
-        allow_plan_content = selected_intent in {
+        allow_plan_content = intent_decision.allowed_actions.get("allow_plan_content", selected_intent in {
             "training_plan",
             "training_log",
             "progression_decision",
             "recovery_check",
             "weekly_review",
             "monthly_review",
-        }
+        })
         current_request_policy = {
             "current_intent": selected_intent,
-            "should_generate_plan": selected_intent == "training_plan",
+            "secondary_intents": intent_decision.secondary_intents,
+            "should_generate_plan": intent_decision.allowed_actions.get(
+                "generate_plan",
+                selected_intent == "training_plan",
+            ),
             "allow_plan_content": allow_plan_content,
+            "risk_level": intent_decision.risk_level,
+            "needs_clarification": intent_decision.needs_clarification,
+            "missing_slots": intent_decision.missing_slots,
+            "allowed_actions": intent_decision.allowed_actions,
             "history_scope": (
                 "Use prior conversation, memories, and active plans only as background. "
                 "Do not continue or execute older user commands unless the current user_message explicitly asks for it."
@@ -473,6 +494,9 @@ class ContextBuilder:
 
         packet: dict[str, Any] = {
             "intent": selected_intent,
+            "intent_decision": intent_decision.to_dict(),
+            "secondary_intents": intent_decision.secondary_intents,
+            "intent_entities": intent_decision.entities,
             "current_request_policy": current_request_policy,
             "core_profile": core_profile,
             "memory_catalog": self.retrieval.get_memory_catalog(user_id, category=category),
@@ -492,6 +516,7 @@ class ContextBuilder:
             "strategy_memory_guidance": {},
             "retrieval_debug": {
                 "intent": selected_intent,
+                "intent_decision": intent_decision.to_dict(),
                 "memory_category_filter": category,
                 "memory_top_k": recall_plan.top_k,
                 "memory_ranker": "hybrid_vector_bm25",
@@ -527,6 +552,20 @@ class ContextBuilder:
         packet["retrieval_debug"]["knowledge_sources"] = packet["knowledge_context"].get("debug", {})
         packet["context_summary"] = self._summarize_packet(packet)
         return packet
+
+    def _build_intent_decision(self, user_message: str, intent: str | None) -> IntentDecision:
+        if intent:
+            if hasattr(self.intent_router, "from_intent"):
+                return self.intent_router.from_intent(intent)
+            return IntentDecision(primary_intent=intent)
+        if hasattr(self.intent_router, "analyze"):
+            return self.intent_router.analyze(user_message)
+        return IntentDecision(primary_intent=self.intent_router.classify(user_message))
+
+    def _profile_object_for_intent(self, core_profile: dict[str, Any]) -> Any | None:
+        if not core_profile:
+            return None
+        return SimpleNamespace(**core_profile)
 
     def _retrieve_memories(
         self,

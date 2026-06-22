@@ -5,7 +5,15 @@ from fast_api.app.services.context_builder import ContextBuilder, IntentRouter
 
 class FakeRetrieval:
     def get_core_profile(self, user_id):
-        return {"goal": "fat_loss", "experience_level": "intermediate", "workout_frequency": 5}
+        return {
+            "age": 28,
+            "height_cm": 175,
+            "weight_kg": 76,
+            "goal": "fat_loss",
+            "experience_level": "intermediate",
+            "equipment_available": ["gym"],
+            "workout_frequency": 5,
+        }
 
     def get_memory_catalog(self, user_id, category=None):
         return []

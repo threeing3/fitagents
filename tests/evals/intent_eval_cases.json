@@ -1,0 +1,58 @@
+[
+  {
+    "name": "risk_log_and_plan",
+    "input": "I did bench 60kg for 4 sets today, my shoulder has pain, should I train chest tomorrow?",
+    "expected_primary_intent": "injury_or_risk",
+    "expected_secondary_intents": ["training_plan", "training_log"],
+    "expected_risk_level": "medium",
+    "expected_generate_plan": false,
+    "expected_needs_clarification": true
+  },
+  {
+    "name": "negated_plan_progression_question",
+    "input": "Do not generate a training plan yet, just explain why my bench progress stalled recently",
+    "expected_primary_intent": "progression_decision",
+    "expected_secondary_intents": [],
+    "expected_risk_level": "low",
+    "expected_generate_plan": false,
+    "expected_needs_clarification": false
+  },
+  {
+    "name": "clear_training_plan_complete_profile",
+    "input": "Please create a one week training plan",
+    "profile": "complete",
+    "expected_primary_intent": "training_plan",
+    "expected_secondary_intents": [],
+    "expected_risk_level": "low",
+    "expected_generate_plan": true,
+    "expected_needs_clarification": false
+  },
+  {
+    "name": "clear_training_plan_incomplete_profile",
+    "input": "Please create a one week training plan",
+    "profile": "incomplete",
+    "expected_primary_intent": "training_plan",
+    "expected_secondary_intents": [],
+    "expected_risk_level": "low",
+    "expected_generate_plan": false,
+    "expected_needs_clarification": true
+  },
+  {
+    "name": "nutrition_log",
+    "input": "I ate eggs and rice for breakfast, please record my meal",
+    "expected_primary_intent": "nutrition_log",
+    "expected_secondary_intents": [],
+    "expected_risk_level": "low",
+    "expected_generate_plan": false,
+    "expected_needs_clarification": false
+  },
+  {
+    "name": "concept_explanation",
+    "input": "What is progressive overload?",
+    "expected_primary_intent": "progression_decision",
+    "expected_secondary_intents": [],
+    "expected_risk_level": "low",
+    "expected_generate_plan": false,
+    "expected_needs_clarification": false
+  }
+]

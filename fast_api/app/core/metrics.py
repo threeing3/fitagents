@@ -166,6 +166,7 @@ guardrail_triggers_total = REGISTRY.counter("fitness_guardrail_triggers_total", 
 # API
 api_requests_total = REGISTRY.counter("fitness_api_requests_total", "API requests by endpoint", ["endpoint", "method", "status"])
 api_request_latency_seconds = REGISTRY.histogram("fitness_api_request_latency_seconds", "API request latency", ["endpoint"], [0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0])
+rate_limit_rejections_total = REGISTRY.counter("fitness_rate_limit_rejections_total", "Rate-limited API requests", ["endpoint"])
 
 # Errors
 errors_total = REGISTRY.counter("fitness_errors_total", "Application errors", ["type"])
@@ -173,6 +174,10 @@ errors_total = REGISTRY.counter("fitness_errors_total", "Application errors", ["
 # Agent
 agent_runs_total = REGISTRY.counter("fitness_agent_runs_total", "Agent run count", ["run_type", "status"])
 agent_run_latency_seconds = REGISTRY.histogram("fitness_agent_run_latency_seconds", "Agent run latency", ["run_type"], [0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0])
+background_tasks_total = REGISTRY.counter("fitness_background_tasks_total", "Background task count", ["task_type", "status"])
+background_task_latency_seconds = REGISTRY.histogram("fitness_background_task_latency_seconds", "Background task runtime", ["task_type"], [1.0, 5.0, 10.0, 30.0, 60.0, 120.0, 300.0])
+background_task_queue_depth = REGISTRY.gauge("fitness_background_task_queue_depth", "Queued background task count", ["status"])
+db_pool_capacity = REGISTRY.gauge("fitness_db_pool_capacity", "Configured database pool capacity", ["kind"])
 
 # Business
 active_users = REGISTRY.gauge("fitness_active_users", "Currently active user count estimate")

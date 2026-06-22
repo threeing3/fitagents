@@ -9,10 +9,14 @@ from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
 from fast_api.app.core.auth import get_current_user
+from fast_api.app.core.config import get_settings
+from fast_api.app.core.rate_limit import limiter
+from fast_api.app.core.redis_client import get_json_cache, set_json_cache
 from fast_api.app.db import models
 from fast_api.app.db.database import get_db
 from fast_api.app.schemas.agent import (
     AgentRunResponse,
+    BackgroundTaskResponse,
     ChatHistoryMessageResponse,
     ChatMessageRequest,
     ChatMessageResponse,
@@ -28,11 +32,13 @@ from fast_api.app.schemas.agent import (
     UserProfileInput,
     WorkoutLogRequest,
 )
+from fast_api.app.services.background_tasks import BackgroundTaskQueue
 from fast_api.app.services.coach_agent import CoachAgentService
 from fast_api.app.services.agent_task_state import AgentTaskStateService
 from fast_api.app.services.plan_reviewer import PlanReviewer
 
 coach_router = APIRouter()
+settings = get_settings()
 
 
 def get_service(
@@ -122,6 +128,7 @@ def list_chat_messages(
 
 
 @coach_router.post("/chat/messages", response_model=ChatMessageResponse)
+@limiter.limit(settings.rate_limit_chat)
 async def send_chat_message(
     request: Request,
     payload: ChatMessageRequest,
@@ -137,6 +144,7 @@ async def send_chat_message(
 
 
 @coach_router.post("/chat/messages/stream")
+@limiter.limit(settings.rate_limit_chat)
 async def stream_chat_message(
     request: Request,
     payload: ChatMessageRequest,
@@ -192,6 +200,7 @@ def record_workout_log(
 
 
 @coach_router.post("/plans/generate", response_model=PlanResponse)
+@limiter.limit(settings.rate_limit_plan)
 def generate_plan(
     request: Request,
     payload: PlanGenerateRequest,
@@ -207,6 +216,35 @@ def generate_plan(
         plan=plan.plan_json,
         rationale=plan.rationale,
     )
+
+
+@coach_router.post("/plans/generate/async", response_model=BackgroundTaskResponse, status_code=202)
+@limiter.limit(settings.rate_limit_plan)
+def enqueue_generate_plan(
+    request: Request,
+    payload: PlanGenerateRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    queue = BackgroundTaskQueue(db)
+    task = queue.enqueue(
+        user_id=current_user.id,
+        task_type="plan.generate",
+        payload={"force": payload.force, "plan_days": payload.plan_days},
+    )
+    return _task_to_response(task)
+
+
+@coach_router.get("/tasks/{task_id}", response_model=BackgroundTaskResponse)
+def get_background_task(
+    task_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    task = BackgroundTaskQueue(db).get_for_user(task_id, current_user.id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Background task not found.")
+    return _task_to_response(task)
 
 
 @coach_router.post("/plans/adjust", response_model=PlanResponse)
@@ -234,7 +272,13 @@ def user_dashboard(
 ):
     if user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Cannot access another user's dashboard.")
-    return service.dashboard(user_id)
+    cache_key = f"dashboard:{current_user.id}"
+    cached = get_json_cache(cache_key)
+    if isinstance(cached, dict):
+        return cached
+    dashboard = service.dashboard(user_id)
+    set_json_cache(cache_key, dashboard, ttl_seconds=30)
+    return dashboard
 
 
 @coach_router.get("/agent-runs/{run_id}", response_model=AgentRunResponse)
@@ -250,6 +294,21 @@ def agent_run_detail(
     if detail["user_id"] != current_user.id:
         raise HTTPException(status_code=403, detail="Cannot access another user's agent run.")
     return detail
+
+
+def _task_to_response(task: models.BackgroundTask) -> BackgroundTaskResponse:
+    return BackgroundTaskResponse(
+        task_id=task.id,
+        task_type=task.task_type,
+        status=task.status,
+        attempts=task.attempts,
+        max_attempts=task.max_attempts,
+        result=task.result_json or {},
+        error=task.error,
+        created_at=task.created_at,
+        started_at=task.started_at,
+        completed_at=task.completed_at,
+    )
 
 
 @coach_router.get("/agent-runs/{run_id}/replay", response_model=dict[str, Any])
@@ -274,12 +333,30 @@ def list_agent_tasks(
 
 
 @coach_router.post("/evals/run", response_model=EvalRunResponse)
+@limiter.limit(settings.rate_limit_plan)
 def run_evals(
-    request: EvalRunRequest,
+    request: Request,
+    payload: EvalRunRequest,
     service: CoachAgentService = Depends(get_service),
     current_user: models.User = Depends(get_current_user),
 ):
-    return service.run_evals(request.suite_name, request.persist_cases)
+    return service.run_evals(payload.suite_name, payload.persist_cases)
+
+
+@coach_router.post("/evals/run/async", response_model=BackgroundTaskResponse, status_code=202)
+@limiter.limit(settings.rate_limit_plan)
+def enqueue_run_evals(
+    request: Request,
+    payload: EvalRunRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    task = BackgroundTaskQueue(db).enqueue(
+        user_id=current_user.id,
+        task_type="eval.run",
+        payload={"suite_name": payload.suite_name, "persist_cases": payload.persist_cases},
+    )
+    return _task_to_response(task)
 
 
 @coach_router.post("/plans/review", response_model=dict[str, Any])
