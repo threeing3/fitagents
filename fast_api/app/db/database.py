@@ -19,7 +19,22 @@ class Base(DeclarativeBase):
 
 
 settings = get_settings()
-engine = create_engine(settings.database_url, pool_pre_ping=True)
+
+
+def _engine_options() -> dict[str, int | bool]:
+    options: dict[str, int | bool] = {"pool_pre_ping": True}
+    if settings.database_url.startswith("postgresql"):
+        options.update(
+            {
+                "pool_size": settings.db_pool_size,
+                "max_overflow": settings.db_max_overflow,
+                "pool_timeout": settings.db_pool_timeout_seconds,
+            }
+        )
+    return options
+
+
+engine = create_engine(settings.database_url, **_engine_options())
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 
@@ -190,6 +205,32 @@ def _apply_compatibility_migrations() -> None:
                     ON agent_run_replays(session_id);
                 CREATE INDEX IF NOT EXISTS ix_agent_run_replays_replay_status
                     ON agent_run_replays(replay_status);
+
+                CREATE TABLE IF NOT EXISTS background_tasks (
+                    id uuid PRIMARY KEY,
+                    user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    task_type varchar(80) NOT NULL,
+                    status varchar(32) NOT NULL DEFAULT 'queued',
+                    payload_json jsonb NOT NULL DEFAULT '{}'::jsonb,
+                    result_json jsonb NOT NULL DEFAULT '{}'::jsonb,
+                    error text,
+                    attempts integer NOT NULL DEFAULT 0,
+                    max_attempts integer NOT NULL DEFAULT 3,
+                    started_at timestamptz,
+                    completed_at timestamptz,
+                    created_at timestamptz DEFAULT now(),
+                    updated_at timestamptz DEFAULT now()
+                );
+                CREATE INDEX IF NOT EXISTS ix_background_tasks_user_id
+                    ON background_tasks(user_id);
+                CREATE INDEX IF NOT EXISTS ix_background_tasks_task_type
+                    ON background_tasks(task_type);
+                CREATE INDEX IF NOT EXISTS ix_background_tasks_status
+                    ON background_tasks(status);
+                CREATE INDEX IF NOT EXISTS ix_background_tasks_status_created
+                    ON background_tasks(status, created_at);
+                CREATE INDEX IF NOT EXISTS ix_background_tasks_user_status
+                    ON background_tasks(user_id, status);
                 """
             )
         )

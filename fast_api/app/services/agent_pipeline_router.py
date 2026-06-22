@@ -8,6 +8,7 @@ from typing import Any, Literal
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from fast_api.app.services.context_builder import IntentRouter
+from fast_api.app.services.intent_decision import IntentDecision
 from fast_api.app.services.model_provider import ModelProvider
 
 logger = logging.getLogger(__name__)
@@ -28,6 +29,7 @@ class PipelineRoutingDecision:
     override_reason: str | None = None
     latency_ms: int = 0
     fallback_reason: str | None = None
+    intent_decision: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -42,6 +44,7 @@ class PipelineRoutingDecision:
             "override_reason": self.override_reason,
             "latency_ms": self.latency_ms,
             "fallback_reason": self.fallback_reason,
+            "intent_decision": self.intent_decision,
         }
 
 
@@ -155,10 +158,12 @@ class AgentPipelineRouter:
             llm_intent=llm_intent,
             override_applied=override_applied,
             override_reason=override_reason,
+            intent_decision=fallback.intent_decision,
         )
 
     def _rule_decision(self, message: str, profile: Any | None) -> PipelineRoutingDecision:
-        intent = self._rule_intent(message)
+        structured = self.intent_router.analyze(message, profile=profile)
+        intent = self._rule_intent(message, structured)
         pipeline: AgentPipeline = "code_driven" if intent in self.CODE_DRIVEN_INTENTS else "llm_driven"
         reason = "规则兜底：普通闲聊走 LLM-driven；建档、计划、日志、饮食、恢复、伤痛和记忆相关请求走 code-driven。"
         missing_slots = self._missing_profile_slots(profile)
@@ -172,9 +177,10 @@ class AgentPipelineRouter:
             confidence=0.72 if pipeline == "code_driven" else 0.62,
             reason=reason,
             source="rule",
+            intent_decision=structured.to_dict(),
         )
 
-    def _rule_intent(self, message: str) -> str:
+    def _rule_intent(self, message: str, structured: IntentDecision | None = None) -> str:
         text = message.lower()
         if self._has_any(text, ["没有肩伤", "没肩伤", "没有伤", "不是肩伤", "档案错", "纠正", "不是我的", "remove", "correction"]):
             return "profile_correction"
@@ -197,7 +203,7 @@ class AgentPipelineRouter:
         if self._has_any(text, ["你记得", "我的档案", "长期记忆", "记忆", "profile", "memory"]):
             return "memory_query"
 
-        context_intent = self.intent_router.classify(message)
+        context_intent = structured.primary_intent if structured is not None else self.intent_router.classify(message)
         if context_intent and context_intent != "general_chat":
             return context_intent
         if self._looks_like_profile_message(message):

@@ -3,11 +3,11 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from dotenv import load_dotenv
 import os
+import time
 
 # Load environment variables
 load_dotenv()
@@ -25,14 +25,18 @@ from fast_api.app.api.feedback_api import feedback_router
 from fast_api.app.api.approval_api import approval_router
 from fast_api.app.core.config import get_settings
 from fast_api.app.core.errors import register_exception_handlers
-from fast_api.app.core.metrics import REGISTRY
+from fast_api.app.core.metrics import (
+    REGISTRY,
+    api_request_latency_seconds,
+    api_requests_total,
+    db_pool_capacity,
+    rate_limit_rejections_total,
+)
+from fast_api.app.core.rate_limit import limiter
 from fast_api.app.db.database import SessionLocal, init_db
 from fast_api.app.services.fitness_knowledge import FitnessKnowledgeService
 
 settings = get_settings()
-
-# Rate limiter — keyed by client IP by default
-limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
 
 app = FastAPI(
     title=settings.app_name,
@@ -57,8 +61,28 @@ app.add_middleware(
 )
 
 
+@app.middleware("http")
+async def collect_api_metrics(request: Request, call_next):
+    start = time.perf_counter()
+    endpoint = request.url.path
+    try:
+        response = await call_next(request)
+    except Exception:
+        api_requests_total.inc(endpoint=endpoint, method=request.method, status="500")
+        api_request_latency_seconds.observe(time.perf_counter() - start, endpoint=endpoint)
+        raise
+    status = str(response.status_code)
+    api_requests_total.inc(endpoint=endpoint, method=request.method, status=status)
+    api_request_latency_seconds.observe(time.perf_counter() - start, endpoint=endpoint)
+    if response.status_code == 429:
+        rate_limit_rejections_total.inc(endpoint=endpoint)
+    return response
+
+
 @app.on_event("startup")
 def startup() -> None:
+    db_pool_capacity.set(settings.db_pool_size, kind="pool_size")
+    db_pool_capacity.set(settings.db_max_overflow, kind="max_overflow")
     init_db()
     with SessionLocal() as db:
         FitnessKnowledgeService(db).seed_builtin_knowledge()

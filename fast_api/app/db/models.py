@@ -2,13 +2,13 @@ import uuid
 from datetime import date, datetime
 from typing import Any
 
-from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     Boolean,
     Date,
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -21,9 +21,14 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from fast_api.app.core.config import get_settings
 from fast_api.app.db.database import Base
 
+try:
+    from pgvector.sqlalchemy import Vector
+except ModuleNotFoundError:  # pragma: no cover - depends on local optional dependency
+    Vector = None
+
 
 settings = get_settings()
-EmbeddingColumnType = Vector(settings.vector_dimension) if settings.use_pgvector else JSONB
+EmbeddingColumnType = Vector(settings.vector_dimension) if settings.use_pgvector and Vector is not None else JSONB
 
 
 class TimestampMixin:
@@ -446,6 +451,26 @@ class AgentRun(Base, TimestampMixin):
     summary: Mapped[str | None] = mapped_column(Text)
     error: Mapped[str | None] = mapped_column(Text)
     log_path: Mapped[str | None] = mapped_column(Text)
+
+
+class BackgroundTask(Base, TimestampMixin):
+    __tablename__ = "background_tasks"
+    __table_args__ = (
+        Index("ix_background_tasks_status_created", "status", "created_at"),
+        Index("ix_background_tasks_user_status", "user_id", "status"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    task_type: Mapped[str] = mapped_column(String(80), index=True)
+    status: Mapped[str] = mapped_column(String(32), default="queued", index=True)
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    result_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    error: Mapped[str | None] = mapped_column(Text)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    max_attempts: Mapped[int] = mapped_column(Integer, default=3)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class AgentTaskState(Base, TimestampMixin):
