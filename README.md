@@ -200,3 +200,52 @@ PostgreSQL 统一保存：
 ## 健康边界
 
 本项目提供健身建议，不做医疗诊断或用药建议。疼痛、伤病、疾病、极端节食、胸闷、头晕、心悸等场景需要触发安全提示，并建议咨询专业人士。
+
+## 算法实验层（面试项目）
+
+项目新增 `algorithm/` 离线实验层，用于展示大模型应用算法和业务算法后训练能力。它不改变现有 FastAPI 主链路，主要负责：
+
+- 从 Agent run、tool call、反馈和决策结果导出脱敏训练样本。
+- 构建 SFT、工具决策、安全和偏好数据集。
+- 评估意图识别、记忆召回、工具规划、回复重排序和业务接受率。
+- 在 AutoDL 上使用独立训练依赖运行 QLoRA/DPO。
+- 保存数据 manifest、实验配置、评测报告和模型卡。
+
+项目还提供“学习模式”，用于把每个算法模块变成可练习、可验收、可面试表达的课程：
+
+```powershell
+python -m algorithm.learning.mode list
+python -m algorithm.learning.mode next
+python -m algorithm.learning.mode show 03_intent_and_routing
+python -m algorithm.learning.mode check 03_intent_and_routing
+python -m algorithm.learning.mode progress
+```
+
+学习方法和 4–6 周能力地图见 [`docs/LEARNING_MODE.md`](docs/LEARNING_MODE.md)。
+
+推荐先阅读：
+
+- `docs/ALGORITHM_UPGRADE_PLAN.md`
+- `docs/DATA_GOVERNANCE.md`
+- `docs/EVALUATION_PROTOCOL.md`
+- `docs/MODEL_CARD.md`
+
+最小数据管线：
+
+```powershell
+python -m algorithm.data.export_traces --output algorithm/datasets/manifests/training_examples.jsonl --db local_dev.db --log-dir logs/agent-runs --salt "local-dev-salt"
+python -m algorithm.data.validate_dataset algorithm/datasets/manifests/training_examples.jsonl
+python -m algorithm.datasets.build_sft_dataset algorithm/datasets/manifests/training_examples.jsonl algorithm/datasets/manifests/sft_train.jsonl
+python -m algorithm.datasets.build_preference_dataset algorithm/datasets/manifests/training_examples.jsonl algorithm/datasets/manifests/preference_pairs.jsonl
+python -m algorithm.app_algorithms.intent_baseline tests/evals/intent_eval_cases.json
+```
+
+AutoDL 训练入口：
+
+```powershell
+pip install -r algorithm/training/requirements-training.txt
+python -m algorithm.training.sft.train_qlora --config algorithm/training/configs/sft_qwen3b.json
+python -m algorithm.training.dpo.train_dpo --config algorithm/training/configs/dpo_qwen3b.json
+```
+
+只有在 `preference_pairs.jsonl` 含有经过审核的 `chosen/rejected` 对后才运行 DPO；数据不足时保持空文件，不从未标注回复推断偏好。
