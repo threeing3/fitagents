@@ -1,0 +1,13 @@
+{
+  "base_model": "Qwen/Qwen2.5-3B-Instruct",
+  "dataset_path": "algorithm/datasets/manifests/preference_pairs.jsonl",
+  "output_dir": "algorithm/research_state/experiments/dpo-qwen3b/adapter",
+  "num_train_epochs": 1,
+  "per_device_train_batch_size": 1,
+  "gradient_accumulation_steps": 8,
+  "learning_rate": 0.000005,
+  "lora_r": 16,
+  "lora_alpha": 32,
+  "lora_dropout": 0.05,
+  "seed": 42
+}

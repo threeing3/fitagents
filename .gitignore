@@ -22,6 +22,18 @@ venv/
 logs/
 *.log
 
+# Local algorithm datasets and learner state (may contain user-provided text)
+*.db
+*.sqlite
+*.sqlite3
+tmp-*.json
+algorithm/datasets/manifests/*.jsonl
+algorithm/datasets/manifests/*.manifest.json
+algorithm/datasets/manifests/validation.json
+algorithm/research_state/learning_progress.json
+algorithm/research_state/experiments/*
+!algorithm/research_state/experiments/.gitkeep
+
 # OS
 .DS_Store
 Thumbs.db

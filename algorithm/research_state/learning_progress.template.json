@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "learner": "",
+  "modules": {
+    "01_data_contracts": {"status": "not_started", "evidence": "", "note": "", "updated_at": null},
+    "02_dataset_governance": {"status": "not_started", "evidence": "", "note": "", "updated_at": null},
+    "03_intent_and_routing": {"status": "not_started", "evidence": "", "note": "", "updated_at": null},
+    "04_retrieval_and_reranking": {"status": "not_started", "evidence": "", "note": "", "updated_at": null},
+    "05_tool_planning": {"status": "not_started", "evidence": "", "note": "", "updated_at": null},
+    "06_business_modeling": {"status": "not_started", "evidence": "", "note": "", "updated_at": null},
+    "07_sft_and_dpo": {"status": "not_started", "evidence": "", "note": "", "updated_at": null},
+    "08_evaluation_and_interview": {"status": "not_started", "evidence": "", "note": "", "updated_at": null}
+  }
+}

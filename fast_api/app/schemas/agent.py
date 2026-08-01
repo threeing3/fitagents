@@ -106,6 +106,19 @@ class PlanResponse(BaseModel):
     rationale: str
 
 
+class BackgroundTaskResponse(BaseModel):
+    task_id: UUID
+    task_type: str
+    status: str
+    attempts: int
+    max_attempts: int
+    result: dict[str, Any]
+    error: str | None = None
+    created_at: datetime
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+
+
 class DashboardResponse(BaseModel):
     user_id: UUID
     profile_complete: bool

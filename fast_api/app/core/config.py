@@ -17,9 +17,18 @@ class Settings(BaseSettings):
         default="postgresql+psycopg://fitness:fitness@localhost:4553/ai_fitness_agent",
         alias="DATABASE_URL",
     )
+    db_pool_size: int = Field(default=10, alias="DB_POOL_SIZE")
+    db_max_overflow: int = Field(default=20, alias="DB_MAX_OVERFLOW")
+    db_pool_timeout_seconds: int = Field(default=30, alias="DB_POOL_TIMEOUT_SECONDS")
     vector_dimension: int = Field(default=1024, alias="VECTOR_DIMENSION")
     use_pgvector: bool = Field(default=True, alias="USE_PGVECTOR")
     agent_log_dir: str = Field(default="logs/agent-runs", alias="AGENT_LOG_DIR")
+    redis_url: str | None = Field(default=None, alias="REDIS_URL")
+    rate_limit_default: str = Field(default="60/minute", alias="RATE_LIMIT_DEFAULT")
+    rate_limit_chat: str = Field(default="15/minute", alias="RATE_LIMIT_CHAT")
+    rate_limit_plan: str = Field(default="10/minute", alias="RATE_LIMIT_PLAN")
+    rate_limit_nutrition: str = Field(default="8/minute", alias="RATE_LIMIT_NUTRITION")
+    background_task_max_attempts: int = Field(default=3, alias="BACKGROUND_TASK_MAX_ATTEMPTS")
 
     llm_provider: Literal["qwen", "deepseek", "openai", "offline"] = Field(
         default="qwen", alias="LLM_PROVIDER"

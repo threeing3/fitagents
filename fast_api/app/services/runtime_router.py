@@ -1,5 +1,7 @@
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Any, Literal
+
+from fast_api.app.services.intent_decision import IntentRouter
 
 
 RuntimeMode = Literal["llm_driven", "code_driven"]
@@ -11,6 +13,7 @@ class RuntimeRoute:
     reason: str
     matched_rules: list[str] = field(default_factory=list)
     confidence: float = 0.5
+    intent_decision: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return {
@@ -18,6 +21,7 @@ class RuntimeRoute:
             "reason": self.reason,
             "matched_rules": self.matched_rules,
             "confidence": self.confidence,
+            "intent_decision": self.intent_decision,
         }
 
 
@@ -95,7 +99,27 @@ class RuntimeRouter:
         "骨盆",
         "盆底",
     ]
-    PLAN_EDIT_TERMS = ["调整计划", "改计划", "计划改", "改成", "换成", "替换动作", "减少训练", "增加训练"]
+    PLAN_EDIT_TERMS = [
+        "调整计划", "改计划", "计划改", "改成", "换成", "替换动作", "减少训练", "增加训练",
+        "change my plan", "modify my plan", "adjust my plan",
+    ]
+
+    CODE_DRIVEN_INTENTS = {
+        "profile_correction",
+        "profile_update",
+        "training_plan",
+        "training_log",
+        "progression_decision",
+        "nutrition_log",
+        "recovery_check",
+        "injury_or_risk",
+        "weekly_review",
+        "monthly_review",
+        "memory_query",
+    }
+
+    def __init__(self, intent_router: IntentRouter | None = None):
+        self.intent_router = intent_router or IntentRouter()
 
     def route(self, message: str) -> RuntimeRoute:
         text = (message or "").strip().lower()
@@ -107,6 +131,30 @@ class RuntimeRouter:
                 reason="空消息无法可靠判断，默认走 Code-driven。",
                 matched_rules=["fallback.empty_message"],
                 confidence=0.55,
+            )
+
+        if self._is_pure_explanation(text):
+            concept_matches = self._matches(text, self.EXPLANATION_TERMS, "explanation")
+            nutrition_concepts = self._matches(text, self.NUTRITION_CONCEPT_TERMS, "nutrition_concept")
+            return RuntimeRoute(
+                mode="llm_driven",
+                reason="当前是概念解释类问题，不涉及记录、计划生成或安全风险。",
+                matched_rules=concept_matches + nutrition_concepts,
+                confidence=0.82,
+            )
+
+        intent_decision = self.intent_router.analyze(message)
+        if intent_decision.primary_intent in self.CODE_DRIVEN_INTENTS:
+            return RuntimeRoute(
+                mode="code_driven",
+                reason=(
+                    "Structured intent decision requires code-driven execution for state, "
+                    "plan, memory, recovery, risk, or log handling."
+                ),
+                matched_rules=[f"intent:{intent_decision.primary_intent}"]
+                + [f"secondary_intent:{intent}" for intent in intent_decision.secondary_intents],
+                confidence=max(0.8, intent_decision.confidence),
+                intent_decision=intent_decision.to_dict(),
             )
 
         matched.extend(self._matches(text, self.RISK_TERMS, "risk"))
@@ -166,16 +214,6 @@ class RuntimeRouter:
                 confidence=0.88,
             )
 
-        if self._is_pure_explanation(text):
-            concept_matches = self._matches(text, self.EXPLANATION_TERMS, "explanation")
-            nutrition_concepts = self._matches(text, self.NUTRITION_CONCEPT_TERMS, "nutrition_concept")
-            return RuntimeRoute(
-                mode="llm_driven",
-                reason="当前是概念解释类问题，不涉及记录、计划生成或安全风险。",
-                matched_rules=concept_matches + nutrition_concepts,
-                confidence=0.82,
-            )
-
         chat_matches = self._matches(text, self.CHAT_TERMS, "chat")
         if chat_matches:
             return RuntimeRoute(
@@ -205,4 +243,11 @@ class RuntimeRouter:
         return not any(term in text for term in blocking_terms)
 
     def _matches(self, text: str, terms: list[str], prefix: str) -> list[str]:
-        return [f"{prefix}:{term}" for term in terms if term in text]
+        return [f"{prefix}:{term}" for term in terms if self._term_matches(text, term)]
+
+    def _term_matches(self, text: str, term: str) -> bool:
+        if term.isascii() and len(term) <= 3:
+            import re
+
+            return re.search(rf"\b{re.escape(term)}\b", text) is not None
+        return term in text
