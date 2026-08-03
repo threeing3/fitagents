@@ -118,6 +118,24 @@ class ToolDecisionExample:
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
+    def validate(self) -> list[str]:
+        errors: list[str] = []
+        if not self.user_message.strip():
+            errors.append("user_message is required")
+        if self.risk_level not in {"low", "medium", "high", "critical", "unknown"}:
+            errors.append(f"unknown risk_level: {self.risk_level}")
+        if not isinstance(self.selected_tools, list) or not all(isinstance(item, str) and item for item in self.selected_tools):
+            errors.append("selected_tools must be a list of non-empty strings")
+        if not isinstance(self.tool_sequence, list) or not all(isinstance(item, str) and item for item in self.tool_sequence):
+            errors.append("tool_sequence must be a list of non-empty strings")
+        if any(item not in self.selected_tools for item in self.tool_sequence):
+            errors.append("tool_sequence contains a tool missing from selected_tools")
+        if self.source not in VALID_SOURCES:
+            errors.append(f"unknown source: {self.source}")
+        if self.split not in VALID_SPLITS:
+            errors.append(f"unknown split: {self.split}")
+        return errors
+
 
 @dataclass
 class PreferencePair:

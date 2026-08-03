@@ -20,7 +20,10 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from fast_api.app.db.database import SessionLocal
-from fast_api.app.services.background_tasks import run_one_background_task
+from fast_api.app.services.background_tasks import (
+    run_due_decision_evaluations,
+    run_one_background_task,
+)
 
 
 def main() -> None:
@@ -37,9 +40,16 @@ def main() -> None:
             task = run_one_background_task(db)
             if task is not None:
                 logging.info("processed task id=%s type=%s status=%s", task.id, task.task_type, task.status)
-            elif args.once:
-                logging.info("no queued task found")
-                return
+            else:
+                evaluation_result = run_due_decision_evaluations(db)
+                if evaluation_result["processed"]:
+                    logging.info(
+                        "processed due decision evaluations count=%s",
+                        evaluation_result["processed"],
+                    )
+                elif args.once:
+                    logging.info("no queued task or due decision evaluation found")
+                    return
 
         if args.once:
             return

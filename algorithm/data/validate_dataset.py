@@ -33,6 +33,7 @@ def validate_training_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
     sources: Counter[str] = Counter()
     splits: Counter[str] = Counter()
     users: set[str] = set()
+    user_splits: dict[str, set[str]] = {}
     for index, payload in enumerate(rows):
         try:
             example = TrainingExample.from_dict(payload)
@@ -41,6 +42,7 @@ def validate_training_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
             sources[example.source] += 1
             splits[example.split] += 1
             users.add(example.user_hash)
+            user_splits.setdefault(example.user_hash, set()).add(example.split)
         except (TypeError, ValueError) as exc:
             row_errors = [str(exc)]
         if row_errors:
@@ -50,6 +52,15 @@ def validate_training_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
         for example_id, count in ids.items()
         if count > 1
     )
+    split_leaks = {
+        user_hash: sorted(values)
+        for user_hash, values in user_splits.items()
+        if len(values) > 1 and user_hash not in {"", "unknown"}
+    }
+    errors.extend(
+        {"row": user_hash, "errors": [f"user_hash crosses splits: {', '.join(values)}"]}
+        for user_hash, values in split_leaks.items()
+    )
     return {
         "rows": len(rows),
         "valid_rows": len(rows) - len(errors),
@@ -58,6 +69,7 @@ def validate_training_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "source_counts": dict(sources),
         "split_counts": dict(splits),
         "user_count": len(users),
+        "user_split_leaks": split_leaks,
     }
 
 

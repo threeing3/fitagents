@@ -12,8 +12,18 @@ from .curriculum import CURRICULUM, get_module
 
 def default_state() -> dict[str, Any]:
     return {
-        "version": 1,
+        "version": 2,
         "learner": "",
+        "control_plane": {
+            "mode": "conversation_first",
+            "thread_role": "master_learning_control",
+            "learner_runs_terminal": False,
+            "codex_executes_commands": True,
+            "prediction_before_execution": True,
+            "error_analysis_required": True,
+        },
+        "current_module": None,
+        "last_session_at": None,
         "modules": {
             card.module_id: {
                 "status": "not_started",
@@ -59,6 +69,10 @@ class ProgressStore:
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             }
         )
+        state["last_session_at"] = state["modules"][module_id]["updated_at"]
+        if status == "in_progress":
+            state["current_module"] = module_id
+        elif state.get("current_module") == module_id and status == "mastered":
+            state["current_module"] = None
         self.save(state)
         return state
-

@@ -1,16 +1,22 @@
 # 学习模式：把项目变成你的算法训练场
 
-这个项目现在有两种使用方式：
+这个项目现在有两种使用方式；本项目的学习入口由当前 Codex（项目协作与学习控制助手）对话统一管理：
 
 1. **展示模式**：运行基线、展示数据流、比较模型指标。
-2. **学习模式**：按课程卡阅读代码、做练习、跑验收、记录证据，直到可以独立解释算法取舍。
+2. **学习模式**：在本对话中按课程卡讨论、先做预测、由 Codex 执行实验、复盘错误并记录证据，直到可以独立解释算法取舍。
 
 学习模式不是把答案直接喂给你，而是要求每个模块完成“概念 → 改代码 → 做实验 → 分析错误 → 面试表达”五步闭环。
 
 ## 快速开始
 
+你不需要自己打开终端。默认约定是：你在对话中回答概念题和实验预测，我负责运行命令、读取代码、展示结果、修改项目和维护日志。终端命令仍保留在课程卡中，目的是让实验可复现，而不是要求你记住命令。
+
+当前对话是总控对话；如果你为某个模块新开对话，只需要把模块编号和本项目路径发给我，我会把它当作该模块的讨论空间，最终把结论带回总控。
+
+建议把本项目根目录保持在 `C:\Users\Lenovo\Documents\New project 4\ai-fitness-planner`，这样总控可以直接读取代码、测试和实验日志；你只需要在对话中说“开始下一个模块”或“检查我的理解”。
+
 ```powershell
-# 查看 8 个学习模块
+# 查看 8 个学习模块（命令由 Codex 执行即可）
 python -m algorithm.learning.mode list
 
 # 查看当前应该学习的模块
@@ -32,7 +38,7 @@ python -m algorithm.learning.mode master 03_intent_and_routing --evidence "新�
 python -m algorithm.learning.mode progress
 ```
 
-第一次使用时，`init` 会创建 `algorithm/research_state/learning_progress.json`；它不会覆盖已有进度。
+第一次使用时，`init` 会创建 `algorithm/research_state/learning_progress.json`；它不会覆盖已有进度。学习控制约定的机器可读配置在 `algorithm/research_state/learning_control.json`，对话协议见 `docs/LEARNING_CONTROL_PROTOCOL.md`。
 
 ## 8 个模块与能力地图
 
@@ -48,6 +54,8 @@ python -m algorithm.learning.mode progress
 | 08 评测表达 | 消融、错误分析、复现、模型卡 | 综合面试表达 |
 
 ## 每个模块的学习协议
+
+具体的“提问 → 预测 → 实验 → 讲解 → 作业 → 验收”节奏以 `docs/LEARNING_CONTROL_PROTOCOL.md` 为准；下面保留课程卡本身的实验约束，保证任何人都能复现。
 
 ### 1. 先写假设
 
@@ -90,4 +98,3 @@ python -m algorithm.learning.mode progress
 - 能用 60 秒讲出该模块对业务的价值。
 
 如果只是跑通命令但无法解释结果，应保持 `in_progress`，在 `note` 中记录疑问。
-

@@ -129,6 +129,15 @@ def run_one_background_task(db: Session) -> models.BackgroundTask | None:
     return task
 
 
+def run_due_decision_evaluations(db: Session) -> dict[str, Any]:
+    from fast_api.app.services.decision_evaluation import DecisionEvaluationService
+
+    result = DecisionEvaluationService(db).scan_due()
+    if result["processed"]:
+        db.commit()
+    return result
+
+
 def _execute_task(db: Session, task: models.BackgroundTask) -> dict[str, Any]:
     if task.task_type == "plan.generate":
         service = CoachAgentService(db)
@@ -159,4 +168,8 @@ def _execute_task(db: Session, task: models.BackgroundTask) -> dict[str, Any]:
             "score": result.score,
             "log_path": result.log_path,
         }
+    if task.task_type == "decision.evaluation.scan":
+        from fast_api.app.services.decision_evaluation import DecisionEvaluationService
+
+        return DecisionEvaluationService(db).scan_due(task.user_id)
     raise ValueError(f"Unsupported background task type: {task.task_type}")

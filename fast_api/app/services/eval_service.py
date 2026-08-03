@@ -53,6 +53,13 @@ class EvalService:
         self.db = db
         self.model_provider = model_provider or ModelProvider()
         self.coach_service = coach_service
+        # An explicitly supplied provider is an intentional opt-in for a
+        # live judge. The default provider remains rule-only unless the
+        # dedicated EVAL_LLM_JUDGE_ENABLED setting is true.
+        self.enable_llm_judge = bool(
+            model_provider is not None
+            or getattr(self.model_provider.settings, "eval_llm_judge_enabled", False)
+        )
 
     # ----------------------------------------------------------------
     # Single response evaluation
@@ -115,6 +122,10 @@ class EvalService:
         Uses a smaller/cheaper model (gpt-4o-mini) as the judge when
         available. Falls back to None (rule-based only) when no model.
         """
+        if not self.enable_llm_judge:
+            logger.info("LLM judge disabled — using deterministic rule-based scoring")
+            return None
+
         # Get judge model — uses the vision model's config (cheaper)
         judge_model = self.model_provider.vision_model()
         if judge_model is None:

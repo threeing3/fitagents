@@ -42,6 +42,10 @@ def test_eval_cases_have_machine_checkable_expectations():
                 "must_trigger_rule",
                 "must_include_template",
                 "must_include_case",
+                "must_include",
+                "eval_dimensions",
+                "expected_scores",
+                "ground_truth",
             ]
         )
 

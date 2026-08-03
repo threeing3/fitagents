@@ -20,6 +20,17 @@ class FakeRetrieval:
         self.calls.append(("plan", None))
         return {"id": "plan-1"}
 
+    def get_recent_conversation(self, user_id, session_id=None, limit=8):
+        self.calls.append(("conversation", session_id))
+        return [
+            {"role": "assistant", "content": "pain options A/B/C"},
+            {"role": "user", "content": "A"},
+        ]
+
+    def get_conversation_summary(self, user_id, session_id=None):
+        self.calls.append(("summary", session_id))
+        return {"summary": "Earlier conversation summary"} if session_id else {}
+
     def get_active_risk_notes(self, user_id):
         self.calls.append(("risk", None))
         return []
@@ -102,7 +113,20 @@ def test_context_builder_training_intent_does_not_load_nutrition_history():
     assert "recovery" in calls
     assert "symptoms" in calls
     assert "nutrition" not in calls
+    assert "conversation" in calls
+    assert "summary" in calls
+    assert packet["recent_conversation"][0]["role"] == "assistant"
     assert packet["knowledge_context"]["debug"]["matched_rule_ids"] == ["rule-test"]
+
+
+def test_context_builder_includes_session_summary_when_session_id_is_present():
+    builder = make_builder()
+    session_id = uuid4()
+
+    packet = builder.build_context_packet(uuid4(), "卧推要不要加重？", session_id=session_id)
+
+    assert packet["conversation_summary"]["summary"] == "Earlier conversation summary"
+    assert packet["retrieval_debug"]["has_conversation_summary"] is True
 
 
 def test_context_builder_risk_intent_loads_risk_and_symptoms():
@@ -166,6 +190,45 @@ def test_context_builder_uses_memory_planner_for_outcome_experience():
     assert "successful_strategies" in labels
     assert "failed_strategies" in labels
     assert packet["retrieval_debug"]["memory_recall_plan"]["excluded_networks"] == ["opinion"]
+
+
+def test_context_builder_passes_current_state_to_strategy_retrieval():
+    class ContextAwareRetrieval(FakeRetrieval):
+        def search_planned_memories(self, user_id, query, plan, retrieval_context=None):
+            self.retrieval_context = retrieval_context
+            return []
+
+        def get_active_plan(self, user_id):
+            return {"id": "plan-1", "plan": {"training_phase": "base"}}
+
+        def get_recent_workout_logs(self, user_id, days=14):
+            return [{"completion_rate": 0.8}]
+
+        def get_recent_recovery_logs(self, user_id, days=7):
+            return [{"fatigue_score": 7, "soreness_score": 3, "sleep_hours": 6.5}]
+
+        def get_recent_symptom_logs(self, user_id, days=14):
+            return [{"body_part": "knee", "severity_score": 2}]
+
+    builder = ContextBuilder.__new__(ContextBuilder)
+    builder.intent_router = IntentRouter()
+    builder.retrieval = ContextAwareRetrieval()
+    builder.knowledge = FakeKnowledge()
+    builder.memory_planner = MemoryPlanner()
+
+    packet = builder.build_context_packet(
+        uuid4(),
+        "Adjust my knee training while fatigued",
+        intent="progression_decision",
+    )
+
+    context = builder.retrieval.retrieval_context
+    assert context["goal"] == "fat_loss"
+    assert context["training_phase"] == "base"
+    assert context["baseline_state"]["fatigue"] == 7
+    assert context["baseline_state"]["symptom_severity"] == 2
+    assert context["baseline_state"]["training_load"] == 0.8
+    assert packet["retrieval_context"] == context
 
 
 # ---- Expanded tests: Intent classification accuracy ----

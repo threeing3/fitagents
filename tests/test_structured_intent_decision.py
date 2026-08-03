@@ -33,6 +33,13 @@ def test_multi_intent_risk_overrides_plan_generation():
     assert decision.entities["weight_kg"] == 60
     assert decision.allowed_actions["generate_plan"] is False
     assert decision.needs_clarification is True
+    assert [step["intent"] for step in decision.task_plan] == [
+        "injury_or_risk",
+        "training_log",
+        "training_plan",
+    ]
+    assert decision.task_plan[0]["status"] == "needs_clarification"
+    assert decision.task_plan[-1]["status"] == "blocked"
 
 
 def test_negated_plan_request_blocks_plan_generation():
@@ -75,6 +82,35 @@ def test_context_builder_exposes_structured_intent_fields_static():
     assert '"secondary_intents": intent_decision.secondary_intents' in content
     assert '"intent_entities": intent_decision.entities' in content
     assert '"needs_clarification": intent_decision.needs_clarification' in content
+    assert '"intent_task_plan": intent_decision.task_plan' in content
+    assert '"task_plan": intent_decision.task_plan' in content
+
+
+def test_clear_plan_task_plan_is_ready_with_complete_profile():
+    router = IntentRouter()
+
+    decision = router.analyze("Please create a one week training plan", profile=complete_profile())
+
+    assert decision.task_plan == [
+        {
+            "order": 1,
+            "intent": "training_plan",
+            "action": "generate_training_plan",
+            "status": "ready",
+            "reason": "Training plan generation is allowed only after gates pass.",
+            "required_slots": [],
+        }
+    ]
+
+
+def test_coaching_prompts_obey_intent_decision_action_gate():
+    content = (ROOT / "fast_api" / "app" / "data" / "prompts.yaml").read_text(encoding="utf-8")
+
+    assert "Treat current_request_policy as the action gate for this turn." in content
+    assert "Follow current_request_policy.task_plan in order" in content
+    assert "current_request_policy.allowed_actions.generate_plan is false" in content
+    assert "do not generate a new training plan even if the user asks what to do today" in content
+    assert "If current_request_policy.should_generate_plan is true or the user asks what to do today" not in content
 
 
 def test_intent_eval_cases_json():

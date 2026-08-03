@@ -55,6 +55,11 @@ class TestContextWindowManager:
         mgr = ContextWindowManager(model_name="claude-sonnet-4-20250514")
         assert mgr.total_tokens == 180_000
 
+    def test_init_deepseek_v4_pro(self):
+        from fast_api.app.services.context_window_manager import ContextWindowManager
+        mgr = ContextWindowManager(model_name="deepseek-v4-pro")
+        assert mgr.total_tokens == 1_000_000
+
     def test_budgets_initialized(self):
         from fast_api.app.services.context_window_manager import ContextWindowManager
         mgr = ContextWindowManager(model_name="gpt-4o")
@@ -247,6 +252,27 @@ class TestBuildContextPacketWithBudget:
         )
         if stats["budgets"]["memory"]["truncated"]:
             assert "_memory_truncated" in compacted
+
+    def test_uses_recent_conversation_as_default_history(self):
+        from fast_api.app.services.context_window_manager import build_context_packet_with_budget
+
+        packet = {
+            "intent": "recovery_check",
+            "core_profile": {},
+            "active_plan": {},
+            "active_risk_notes": [],
+            "relevant_memories": [],
+            "knowledge_context": {},
+            "recent_conversation": [
+                {"role": "assistant", "content": "你现在疼痛是 A/B/C 哪种？"},
+                {"role": "user", "content": "A"},
+            ],
+            "current_request_policy": {},
+        }
+        compacted, stats = build_context_packet_with_budget(packet, model_name="gpt-3.5-turbo")
+
+        assert compacted["recent_conversation"]
+        assert stats["budgets"]["history"]["item_count"] == 2
 
 
 class TestTokenBudget:

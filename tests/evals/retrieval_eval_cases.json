@@ -1,0 +1,20 @@
+[
+  {
+    "query": "睡眠不足后如何恢复训练",
+    "expected": ["m-sleep"],
+    "memories": [
+      {"id": "m-training", "text": "每周训练三次，正在进行力量训练", "vector_score": 0.42, "recency_score": 0.7, "entity_match": 0.0},
+      {"id": "m-sleep", "text": "昨晚睡眠不足，今天需要降低训练强度", "vector_score": 0.91, "recency_score": 0.8, "entity_match": 1.0},
+      {"id": "m-food", "text": "训练后补充蛋白质和碳水", "vector_score": 0.21, "recency_score": 0.3, "entity_match": 0.0}
+    ]
+  },
+  {
+    "query": "肩膀疼痛时选择什么动作",
+    "expected": ["m-shoulder"],
+    "memories": [
+      {"id": "m-plan", "text": "当前训练计划包含推举动作", "vector_score": 0.38, "recency_score": 0.4, "entity_match": 0.0},
+      {"id": "m-shoulder", "text": "肩膀疼痛，需要避开诱发疼痛的动作", "vector_score": 0.89, "recency_score": 0.9, "entity_match": 1.0},
+      {"id": "m-sleep-2", "text": "近一周平均睡眠七小时", "vector_score": 0.12, "recency_score": 0.5, "entity_match": 0.0}
+    ]
+  }
+]

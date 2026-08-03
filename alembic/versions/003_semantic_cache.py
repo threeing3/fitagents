@@ -12,13 +12,15 @@ from sqlalchemy.dialects import postgresql
 
 from fast_api.app.core.config import get_settings
 
+try:
+    from pgvector.sqlalchemy import Vector
+except ModuleNotFoundError:  # pragma: no cover - depends on deployment extras
+    Vector = None
+
 settings = get_settings()
 # pgvector Vector type or JSONB fallback
-vector_type = (
-    postgresql.VECTOR(settings.vector_dimension)
-    if settings.use_pgvector
-    else postgresql.JSONB
-)
+vector_enabled = bool(settings.use_pgvector and Vector is not None)
+vector_type = Vector(settings.vector_dimension) if vector_enabled else postgresql.JSONB
 
 revision: str = "003_semantic_cache"
 down_revision: Union[str, None] = "002_feedback"
@@ -43,7 +45,7 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
     # Create IVFFlat index for fast ANN search on pgvector
-    if settings.use_pgvector:
+    if vector_enabled:
         op.execute(
             "CREATE INDEX IF NOT EXISTS ix_semantic_cache_embedding "
             "ON semantic_cache USING ivfflat (embedding vector_cosine_ops) "

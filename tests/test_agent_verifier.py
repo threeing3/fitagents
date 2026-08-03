@@ -69,6 +69,29 @@ def test_response_verifier_detects_old_plan_carryover_and_repairs():
     assert "旧计划指令" in repair["repair_text"]
 
 
+def test_response_verifier_blocks_plan_before_required_clarification():
+    verifier = AgentVerifier()
+    context = {
+        "current_request_policy": {
+            "current_intent": "training_plan",
+            "should_generate_plan": False,
+            "allow_plan_content": True,
+            "needs_clarification": True,
+            "missing_slots": ["age", "equipment_available"],
+            "risk_level": "low",
+        }
+    }
+    response = "Here is today's workout plan: squat 3 sets of 8 reps, bench press 3 sets of 8 reps."
+
+    result = verifier.verify_response(response, "What should I train today?", context)
+    repair = verifier.repair_response(result.to_dict(), context)
+
+    assert result.passed is False
+    assert "plan_generated_before_clarification" in result.repair_actions
+    assert repair["repaired"] is True
+    assert "equipment_available" in repair["repair_text"]
+
+
 def test_response_verifier_adds_medical_boundary_when_needed():
     context = {
         "current_request_policy": {

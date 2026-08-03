@@ -28,6 +28,13 @@ class TrainingDecisionRules:
             }
 
         recent_sets = [item for item in exercise_history if item.get("completed") is not False][:8]
+        if not recent_sets:
+            return {
+                "decision_type": "progression_adjustment",
+                "decision_result": "keep_current_load_until_more_data",
+                "reason": "No recent completed sets are available for a safe progression decision.",
+                "confidence_score": 0.62,
+            }
         avg_rpe = self._average([item.get("rpe") for item in recent_sets])
         pain_present = any((item.get("pain_score") or 0) >= 3 for item in exercise_history[:8])
         fatigue_high = any((item.get("fatigue_score") or 0) >= 8 for item in recovery_logs[:3])

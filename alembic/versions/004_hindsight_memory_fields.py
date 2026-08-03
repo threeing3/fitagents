@@ -7,8 +7,6 @@ Create Date: 2026-06-10
 from typing import Sequence, Union
 
 from alembic import op
-import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
 
 
 revision: str = "004_hindsight_memory_fields"
@@ -18,24 +16,17 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "long_term_memories",
-        sa.Column("memory_network", sa.String(40), nullable=False, server_default="world"),
-    )
-    op.add_column(
-        "long_term_memories",
-        sa.Column("fact_kind", sa.String(80), nullable=False, server_default="unknown"),
-    )
-    op.add_column("long_term_memories", sa.Column("occurred_start", sa.DateTime(timezone=True), nullable=True))
-    op.add_column("long_term_memories", sa.Column("occurred_end", sa.DateTime(timezone=True), nullable=True))
-    op.add_column("long_term_memories", sa.Column("mentioned_at", sa.DateTime(timezone=True), nullable=True))
-    op.add_column(
-        "long_term_memories",
-        sa.Column("entities", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default="[]"),
-    )
-    op.add_column(
-        "long_term_memories",
-        sa.Column("evidence", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default="[]"),
+    op.execute(
+        """
+        ALTER TABLE long_term_memories
+            ADD COLUMN IF NOT EXISTS memory_network varchar(40) NOT NULL DEFAULT 'world',
+            ADD COLUMN IF NOT EXISTS fact_kind varchar(80) NOT NULL DEFAULT 'unknown',
+            ADD COLUMN IF NOT EXISTS occurred_start timestamptz,
+            ADD COLUMN IF NOT EXISTS occurred_end timestamptz,
+            ADD COLUMN IF NOT EXISTS mentioned_at timestamptz,
+            ADD COLUMN IF NOT EXISTS entities jsonb NOT NULL DEFAULT '[]'::jsonb,
+            ADD COLUMN IF NOT EXISTS evidence jsonb NOT NULL DEFAULT '[]'::jsonb;
+        """
     )
 
     op.execute(
@@ -57,26 +48,17 @@ def upgrade() -> None:
         "UPDATE long_term_memories SET mentioned_at = COALESCE(mentioned_at, created_at)"
     )
 
-    op.create_index(
-        "ix_long_term_memories_user_status_network",
-        "long_term_memories",
-        ["user_id", "status", "memory_network"],
-    )
-    op.create_index(
-        "ix_long_term_memories_user_status_fact_kind",
-        "long_term_memories",
-        ["user_id", "status", "fact_kind"],
-    )
-    op.create_index(
-        "ix_long_term_memories_occurred_start",
-        "long_term_memories",
-        ["occurred_start"],
-    )
-    op.create_index(
-        "ix_long_term_memories_entities_gin",
-        "long_term_memories",
-        ["entities"],
-        postgresql_using="gin",
+    op.execute(
+        """
+        CREATE INDEX IF NOT EXISTS ix_long_term_memories_user_status_network
+            ON long_term_memories(user_id, status, memory_network);
+        CREATE INDEX IF NOT EXISTS ix_long_term_memories_user_status_fact_kind
+            ON long_term_memories(user_id, status, fact_kind);
+        CREATE INDEX IF NOT EXISTS ix_long_term_memories_occurred_start
+            ON long_term_memories(occurred_start);
+        CREATE INDEX IF NOT EXISTS ix_long_term_memories_entities_gin
+            ON long_term_memories USING gin(entities);
+        """
     )
 
 

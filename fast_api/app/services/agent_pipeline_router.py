@@ -7,8 +7,8 @@ from typing import Any, Literal
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from fast_api.app.services.context_builder import IntentRouter
-from fast_api.app.services.intent_decision import IntentDecision
+from fast_api.app.services.intent_decision import IntentDecision, IntentRouter
+from fast_api.app.services.llm_intent_classifier import LLMIntentClassifier
 from fast_api.app.services.model_provider import ModelProvider
 
 logger = logging.getLogger(__name__)
@@ -80,10 +80,15 @@ class AgentPipelineRouter:
     def __init__(self, model_provider: ModelProvider | None = None, intent_router: IntentRouter | None = None):
         self.model_provider = model_provider or ModelProvider()
         self.intent_router = intent_router or IntentRouter()
+        self.llm_intent_classifier = LLMIntentClassifier(self.model_provider, self.intent_router)
 
     async def route(self, message: str, profile: Any | None = None) -> PipelineRoutingDecision:
         started = time.perf_counter()
-        fallback = self._rule_decision(message, profile)
+        rule_intent_decision = self.intent_router.analyze(message, profile=profile)
+        fallback = self._rule_decision(message, profile, rule_intent_decision)
+        refined_intent_decision = await self.llm_intent_classifier.refine(message, rule_intent_decision, profile=profile)
+        if refined_intent_decision.to_dict() != rule_intent_decision.to_dict():
+            fallback = self._apply_intent_refinement(fallback, refined_intent_decision)
         llm_payload: dict[str, Any] | None = None
         fallback_reason: str | None = None
 
@@ -161,8 +166,13 @@ class AgentPipelineRouter:
             intent_decision=fallback.intent_decision,
         )
 
-    def _rule_decision(self, message: str, profile: Any | None) -> PipelineRoutingDecision:
-        structured = self.intent_router.analyze(message, profile=profile)
+    def _rule_decision(
+        self,
+        message: str,
+        profile: Any | None,
+        structured: IntentDecision | None = None,
+    ) -> PipelineRoutingDecision:
+        structured = structured or self.intent_router.analyze(message, profile=profile)
         intent = self._rule_intent(message, structured)
         pipeline: AgentPipeline = "code_driven" if intent in self.CODE_DRIVEN_INTENTS else "llm_driven"
         reason = "规则兜底：普通闲聊走 LLM-driven；建档、计划、日志、饮食、恢复、伤痛和记忆相关请求走 code-driven。"
@@ -178,6 +188,22 @@ class AgentPipelineRouter:
             reason=reason,
             source="rule",
             intent_decision=structured.to_dict(),
+        )
+
+    def _apply_intent_refinement(
+        self,
+        fallback: PipelineRoutingDecision,
+        refined: IntentDecision,
+    ) -> PipelineRoutingDecision:
+        intent = refined.primary_intent
+        pipeline: AgentPipeline = "code_driven" if intent in self.CODE_DRIVEN_INTENTS else "llm_driven"
+        return PipelineRoutingDecision(
+            pipeline=pipeline,
+            intent=intent,
+            confidence=max(fallback.confidence, refined.confidence),
+            reason=f"LLM intent refinement applied after rule fallback. {refined.reason}",
+            source=fallback.source,
+            intent_decision=refined.to_dict(),
         )
 
     def _rule_intent(self, message: str, structured: IntentDecision | None = None) -> str:

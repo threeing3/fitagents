@@ -258,6 +258,7 @@ class AgentVerifier:
 
         allow_plan_content = bool(policy.get("allow_plan_content"))
         should_generate_plan = bool(policy.get("should_generate_plan"))
+        needs_clarification = bool(policy.get("needs_clarification"))
         if not allow_plan_content and not should_generate_plan and self._contains_plan_content(response):
             issues.append(
                 VerificationIssue(
@@ -265,6 +266,19 @@ class AgentVerifier:
                     "error",
                     "当前消息没有要求计划，但回复中出现训练计划内容，疑似旧命令粘连。",
                     repairable=True,
+                )
+            )
+        if needs_clarification and not should_generate_plan and self._contains_plan_content(response):
+            issues.append(
+                VerificationIssue(
+                    "plan_generated_before_clarification",
+                    "error",
+                    "The current request is missing required slots, but the response generated plan-like content before clarification.",
+                    repairable=True,
+                    evidence={
+                        "missing_slots": policy.get("missing_slots") or [],
+                        "risk_level": policy.get("risk_level"),
+                    },
                 )
             )
 
@@ -300,6 +314,19 @@ class AgentVerifier:
             additions.append("本轮校验已阻止旧计划指令继续生效：下面只回答你当前这条消息，不自动追加训练计划。")
         if "missing_medical_boundary_in_response" in issue_ids:
             additions.append("安全边界：涉及疾病、用药、胸闷、头晕、异常心率或明确疼痛时，我只能做训练强度和动作选择上的保守建议，不能替代医生诊断或用药建议。")
+        if "plan_generated_before_clarification" in issue_ids:
+            missing_slots = []
+            if context_packet:
+                policy = context_packet.get("current_request_policy") or {}
+                missing_slots = policy.get("missing_slots") or []
+            if missing_slots:
+                additions.append(
+                    "Plan generation is blocked until these missing details are clarified: "
+                    + ", ".join(str(slot) for slot in missing_slots)
+                    + "."
+                )
+            else:
+                additions.append("Plan generation is blocked until the current safety or profile clarification is answered.")
         if any(
             issue_id in issue_ids
             for issue_id in {

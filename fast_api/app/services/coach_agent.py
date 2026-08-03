@@ -52,8 +52,13 @@ from fast_api.app.core.config import get_settings
 from fast_api.app.services.model_provider import ModelProvider
 from fast_api.app.services.semantic_cache import SemanticCacheService
 from fast_api.app.services.feedback_learner_integration import get_adaptive_system_prompt
-from fast_api.app.services.llm_agent import LLMAgentService as LLMAgent
+from fast_api.app.services.llm_agent import LLMAgentResult, LLMAgentService as LLMAgent
 from fast_api.app.services.agent_task_state import AgentTaskStateService
+from fast_api.app.services.followup_resolver import FollowupResolver
+from fast_api.app.services.context_window_manager import (
+    build_context_packet_with_budget,
+    estimate_tokens,
+)
 from fast_api.app.services.memory_conflict_resolver import MemoryConflictResolver
 from fast_api.app.services.runtime_router import RuntimeRoute, RuntimeRouter
 from fast_api.app.services.strategy_memory_policy import build_strategy_memory_response_note
@@ -230,10 +235,21 @@ class CoachAgentService:
         profile = self._get_or_create_profile(user.id)
         run_logger = AgentRunLogger("chat", user.id, session.id)
         timeline = AgentTaskTimeline(message, request_id=run_logger.request_id)
-        tool_registry = self._build_chat_tool_registry(user.id, session.id, profile, message)
+        user_msg = self._save_message(session.id, user.id, "user", message)
+        followup_resolution = FollowupResolver(self.db).resolve(user.id, session.id, message, user_msg.id)
+        effective_message = followup_resolution.normalized_message
+        state_updates["followup_resolution"] = followup_resolution.to_dict()
+        tool_registry = self._build_chat_tool_registry(
+            user.id,
+            session.id,
+            profile,
+            message,
+            effective_message=effective_message,
+            followup_resolution=followup_resolution.to_dict(),
+        )
         executor = AgentExecutor()
         execution_plan, planner_debug = await self._build_code_driven_execution_plan(
-            message, tool_registry, profile, runtime_route
+            effective_message, tool_registry, profile, runtime_route
         )
         timeline_steps = {
             planned.key: timeline.add_step(planned.name, planned.tool_name, planned.reason)
@@ -285,7 +301,7 @@ class CoachAgentService:
             state_updates["agent_mode"] = runtime_route.mode
             state_updates["runtime_route"] = route_payload
 
-        self._save_message(session.id, user.id, "user", message)
+        self.db.commit()
 
         # ---- Tool helper (non-streaming: collect instead of yield) ----
         def planned_or_new_step(key: str, name: str, tool_name: str, reason: str) -> TaskStep:
@@ -315,6 +331,13 @@ class CoachAgentService:
             completed_event["output_summary"] = tool_payload.get("output_json", {})
             nodes.append(run_logger.event("TaskStep", completed_event))
             if result.status != "success":
+                if tool_name == "memory.write":
+                    self.db.rollback()
+                    return {
+                        "written": [],
+                        "status": "degraded",
+                        "error": result.error or "memory write failed",
+                    }
                 raise RuntimeError(result.error or f"Tool failed: {tool_name}")
             return result.output_json
 
@@ -395,7 +418,12 @@ class CoachAgentService:
                     memory_output = await execute_tool(tool_name, tool_input.payload, step)
                     output_reducer.reduce(tool_name, memory_output)
                     memories_written = memory_output.get("written") or []
-                    nodes.append(run_logger.node("MemoryAgent", node_start_mem, {"written": memories_written}))
+                    memory_payload = {"written": memories_written}
+                    if memory_output.get("status"):
+                        memory_payload["status"] = memory_output["status"]
+                    if memory_output.get("error"):
+                        memory_payload["error"] = memory_output["error"]
+                    nodes.append(run_logger.node("MemoryAgent", node_start_mem, memory_payload))
                     missing_slots = self.missing_onboarding_slots(profile)
                     onboarding_complete = not missing_slots
                     nodes.append(run_logger.event(
@@ -465,7 +493,7 @@ class CoachAgentService:
                             "missing_slots": missing_slots,
                         }
                     else:
-                        assistant_message = await self._coaching_reply(user.id, message, context_packet)
+                        assistant_message = await self._coaching_reply(user.id, effective_message, context_packet)
                         coach_payload = {
                             "safety": False,
                             "live_model": self.model_provider.has_live_model(),
@@ -515,6 +543,10 @@ class CoachAgentService:
                     persist_output = await execute_tool(tool_name, tool_input.payload, step)
                     output_reducer.reduce(tool_name, persist_output)
                     assistant_msg = self._save_message(session.id, user.id, "assistant", assistant_message)
+                    self._remember_pending_question_from_reply(user.id, session.id, assistant_msg, assistant_message)
+                    session_summary = self._compact_session_context_if_needed(session.id, user.id)
+                    if session_summary:
+                        state_updates["conversation_summary"] = session_summary
                     nodes.append(run_logger.event("ResponsePersisted", {"response_chars": len(assistant_message)}))
         except Exception as exc:
             error_text = f"\n\n{self._model_call_error_message(exc)} 请稍后重试。"
@@ -524,6 +556,10 @@ class CoachAgentService:
         assistant_message = "".join(chunks).strip() or assistant_message or registry.get("error_coach_stream_empty")
         if assistant_msg is None:
             assistant_msg = self._save_message(session.id, user.id, "assistant", assistant_message)
+            self._remember_pending_question_from_reply(user.id, session.id, assistant_msg, assistant_message)
+            session_summary = self._compact_session_context_if_needed(session.id, user.id)
+            if session_summary:
+                state_updates["conversation_summary"] = session_summary
             nodes.append(run_logger.event("ResponsePersisted", {"response_chars": len(assistant_message), "fallback_persist": True}))
 
         run = models.AgentRun(
@@ -605,6 +641,7 @@ class CoachAgentService:
         run.log_path = log_path
         self.db.commit()
         state_updates["agent_log_path"] = log_path
+        self._attach_pending_decision_followup(state_updates, user.id)
 
         return {
             "user_id": user.id,
@@ -653,19 +690,22 @@ class CoachAgentService:
                 "embedding_mode": self.model_provider.embedding_mode(),
             },
         )
-        self._save_message(session.id, user.id, "user", message)
+        user_msg = self._save_message(session.id, user.id, "user", message)
+        followup_resolution = FollowupResolver(self.db).resolve(user.id, session.id, message, user_msg.id)
+        effective_message = followup_resolution.normalized_message
+        state_updates["followup_resolution"] = followup_resolution.to_dict()
 
         node_start = time.perf_counter()
-        extraction = await self.profile_extractor_agent(profile, message)
+        extraction = await self.profile_extractor_agent(profile, effective_message)
         if extraction["profile_patch"] or extraction["corrections"]:
             self._apply_profile_extraction(profile, extraction)
             self._refresh_macro_targets(profile)
             state_updates["profile_updates"] = extraction["profile_patch"]
             state_updates["corrections"] = extraction["corrections"]
-        nodes.append(run_logger.node("ProfileExtractorAgent", node_start, extraction, {"message": message[:240]}))
+        nodes.append(run_logger.node("ProfileExtractorAgent", node_start, extraction, {"message": effective_message[:240]}))
 
         node_start = time.perf_counter()
-        memories_written = self.write_memories_from_message(user.id, message, extraction)
+        memories_written = self.write_memories_from_message(user.id, effective_message, extraction)
         nodes.append(run_logger.node("MemoryAgent", node_start, {"written": memories_written}))
 
         missing_slots = self.missing_onboarding_slots(profile)
@@ -678,7 +718,7 @@ class CoachAgentService:
         )
 
         try:
-            if self._requires_immediate_safety_reply(message):
+            if self._requires_immediate_safety_reply(effective_message):
                 node_start = time.perf_counter()
                 async for chunk in self._stream_static_text(self._safety_reply()):
                     chunks.append(chunk)
@@ -687,7 +727,7 @@ class CoachAgentService:
             elif not onboarding_complete:
                 node_start = time.perf_counter()
                 async for chunk in self._live_onboarding_reply_stream(
-                    profile, missing_slots, message
+                    profile, missing_slots, effective_message
                 ):
                     chunks.append(chunk)
                     yield chunk
@@ -704,7 +744,12 @@ class CoachAgentService:
                 )
             else:
                 node_start = time.perf_counter()
-                context_packet = ContextBuilder(self.db, self.model_provider).build_context_packet(user.id, message)
+                context_packet = ContextBuilder(self.db, self.model_provider).build_context_packet(
+                    user.id,
+                    effective_message,
+                    session_id=session.id,
+                    followup_resolution=followup_resolution.to_dict(),
+                )
                 nodes.append(run_logger.node("ContextBuilder", node_start, context_packet))
 
                 active_plan = self.get_active_plan(user.id)
@@ -757,7 +802,7 @@ class CoachAgentService:
                 if "feedback_debug" in locals() and feedback_debug.get("enhanced"):
                     state_updates["feedback_learning"] = feedback_debug
                 node_start = time.perf_counter()
-                async for chunk in self._coaching_reply_stream(user.id, message, context_packet):
+                async for chunk in self._coaching_reply_stream(user.id, effective_message, context_packet):
                     chunks.append(chunk)
                     yield chunk
                 nodes.append(
@@ -794,7 +839,11 @@ class CoachAgentService:
             # Yield the replacement so the user sees the safe version
             yield assistant_message
 
-        self._save_message(session.id, user.id, "assistant", assistant_message)
+        assistant_msg = self._save_message(session.id, user.id, "assistant", assistant_message)
+        self._remember_pending_question_from_reply(user.id, session.id, assistant_msg, assistant_message)
+        session_summary = self._compact_session_context_if_needed(session.id, user.id)
+        if session_summary:
+            state_updates["conversation_summary"] = session_summary
         nodes.append(run_logger.event("ResponsePersisted", {"response_chars": len(assistant_message)}))
         run = models.AgentRun(
             user_id=user.id,
@@ -1059,6 +1108,16 @@ class CoachAgentService:
             nodes.append(step_completed_node)
             emitted_events.append(step_event("TaskStep", step_completed_node, execution.completed_event))
             if result.status != "success":
+                if tool_name == "memory.write":
+                    self.db.rollback()
+                    return (
+                        {
+                            "written": [],
+                            "status": "degraded",
+                            "error": result.error or "memory write failed",
+                        },
+                        emitted_events,
+                    )
                 raise RuntimeError(result.error or f"Tool failed: {tool_name}")
             return result.output_json, emitted_events
 
@@ -1071,10 +1130,21 @@ class CoachAgentService:
         profile = self._get_or_create_profile(user.id)
         run_logger = AgentRunLogger("chat_stream", user.id, session.id)
         timeline = AgentTaskTimeline(message, request_id=run_logger.request_id)
-        tool_registry = self._build_chat_tool_registry(user.id, session.id, profile, message)
+        user_msg = self._save_message(session.id, user.id, "user", message)
+        followup_resolution = FollowupResolver(self.db).resolve(user.id, session.id, message, user_msg.id)
+        effective_message = followup_resolution.normalized_message
+        state_updates["followup_resolution"] = followup_resolution.to_dict()
+        tool_registry = self._build_chat_tool_registry(
+            user.id,
+            session.id,
+            profile,
+            message,
+            effective_message=effective_message,
+            followup_resolution=followup_resolution.to_dict(),
+        )
         executor = AgentExecutor()
         execution_plan, planner_debug = await self._build_code_driven_execution_plan(
-            message, tool_registry, profile, runtime_route
+            effective_message, tool_registry, profile, runtime_route
         )
         timeline_steps = {
             planned.key: timeline.add_step(planned.name, planned.tool_name, planned.reason)
@@ -1145,8 +1215,6 @@ class CoachAgentService:
             state_updates["agent_mode"] = runtime_route.mode
             state_updates["runtime_route"] = route_payload
             yield step_event("RuntimeRouter", route_node, route_payload)
-
-        self._save_message(session.id, user.id, "user", message)
 
         tool_steps = {
             planned.tool_name: timeline_steps[planned.key]
@@ -1219,6 +1287,10 @@ class CoachAgentService:
                         yield item
                     memories_written = memory_output.get("written") or []
                     memory_payload = {"written": memories_written}
+                    if memory_output.get("status"):
+                        memory_payload["status"] = memory_output["status"]
+                    if memory_output.get("error"):
+                        memory_payload["error"] = memory_output["error"]
                     node = run_logger.node("MemoryAgent", node_start, memory_payload)
                     nodes.append(node)
                     yield step_event("MemoryAgent", node, memory_payload)
@@ -1361,7 +1433,7 @@ class CoachAgentService:
                             "missing_slots": missing_slots,
                         }
                     else:
-                        async for chunk in self._coaching_reply_stream(user.id, message, context_packet):
+                        async for chunk in self._coaching_reply_stream(user.id, effective_message, context_packet):
                             chunks.append(chunk)
                             yield event("answer_delta", text=chunk)
                         coach_payload = {
@@ -1438,7 +1510,11 @@ class CoachAgentService:
                     _, emitted = await execute_tool(tool_name, {"assistant_message": assistant_message}, step)
                     for item in emitted:
                         yield item
-                    self._save_message(session.id, user.id, "assistant", assistant_message)
+                    assistant_msg = self._save_message(session.id, user.id, "assistant", assistant_message)
+                    self._remember_pending_question_from_reply(user.id, session.id, assistant_msg, assistant_message)
+                    session_summary = self._compact_session_context_if_needed(session.id, user.id)
+                    if session_summary:
+                        state_updates["conversation_summary"] = session_summary
                     response_payload = {"response_chars": len(assistant_message)}
                     response_node = run_logger.event("ResponsePersisted", response_payload)
                     nodes.append(response_node)
@@ -1453,7 +1529,11 @@ class CoachAgentService:
 
         assistant_message = "".join(chunks).strip() or assistant_message or registry.get("error_coach_stream_empty")
         if not persisted:
-            self._save_message(session.id, user.id, "assistant", assistant_message)
+            assistant_msg = self._save_message(session.id, user.id, "assistant", assistant_message)
+            self._remember_pending_question_from_reply(user.id, session.id, assistant_msg, assistant_message)
+            session_summary = self._compact_session_context_if_needed(session.id, user.id)
+            if session_summary:
+                state_updates["conversation_summary"] = session_summary
             response_payload = {"response_chars": len(assistant_message), "fallback_persist": True}
             response_node = run_logger.event("ResponsePersisted", response_payload)
             nodes.append(response_node)
@@ -1485,6 +1565,7 @@ class CoachAgentService:
         self.db.commit()
         run.log_path = run_logger.write_run_log(run.id, "completed", assistant_message[:500])
         self.db.commit()
+        self._attach_pending_decision_followup(state_updates, user.id)
         yield event(
             "done",
             run_id=str(run.id),
@@ -1532,11 +1613,18 @@ class CoachAgentService:
             auto_adjusted = True
 
         task_update = AgentTaskStateService(self.db).update_from_checkin(user.id, checkin, auto_adjusted)
+        from fast_api.app.services.decision_evaluation import DecisionEvaluationService
+
+        evaluation_updates = DecisionEvaluationService(self.db).on_user_event(
+            user.id,
+            "daily_checkin_submitted",
+        )
         self.db.commit()
         return {
             "checkin_id": str(checkin.id),
             "auto_adjusted": auto_adjusted,
             "long_term_task": task_update,
+            "decision_evaluations": evaluation_updates,
         }
 
     def record_workout_log(self, request: WorkoutLogRequest) -> models.WorkoutLog:
@@ -1573,6 +1661,9 @@ class CoachAgentService:
             "workout_log",
             0.65,
         )
+        from fast_api.app.services.decision_evaluation import DecisionEvaluationService
+
+        DecisionEvaluationService(self.db).on_user_event(user.id, "workout_logged")
         self.db.commit()
         self.db.refresh(log)
         return log
@@ -2180,8 +2271,11 @@ class CoachAgentService:
         session_id: uuid.UUID,
         profile: models.UserProfile,
         message: str,
+        effective_message: str | None = None,
+        followup_resolution: dict[str, Any] | None = None,
     ) -> ToolRegistry:
         registry = ToolRegistry()
+        effective_message = effective_message or message
 
         registry.register(
             ToolSpec(
@@ -2240,7 +2334,7 @@ class CoachAgentService:
             ),
             lambda payload: self._verify_memory_tool(
                 user_id,
-                message,
+                effective_message,
                 payload.get("extraction") or {},
                 profile,
             ),
@@ -2269,7 +2363,7 @@ class CoachAgentService:
             lambda payload: {
                 "written": self.write_memories_from_message(
                     user_id,
-                    message,
+                    effective_message,
                     payload.get("extraction") or {},
                     payload.get("verification"),
                 )
@@ -2299,7 +2393,12 @@ class CoachAgentService:
                 risk_level="low",
                 tags=["context"],
             ),
-            lambda _: ContextBuilder(self.db, self.model_provider).build_context_packet(user_id, message),
+            lambda _: ContextBuilder(self.db, self.model_provider).build_context_packet(
+                user_id,
+                effective_message,
+                session_id=session_id,
+                followup_resolution=followup_resolution,
+            ),
             repair_handler=self._repair_context_build_tool,
         )
         registry.register(
@@ -2847,11 +2946,17 @@ class CoachAgentService:
         content: str,
     ) -> models.ChatMessage:
         saved_at = datetime.utcnow()
+        tokenizer_model = self.model_provider.settings.chat_model
+        token_count = estimate_tokens(content)
         msg = models.ChatMessage(
             session_id=session_id,
             user_id=user_id,
             role=role,
             content=content,
+            token_count=token_count,
+            tokenizer_model=tokenizer_model,
+            token_count_method="estimated",
+            token_count_version="char-heuristic-v1",
             created_at=saved_at,
             updated_at=saved_at,
         )
@@ -2861,6 +2966,96 @@ class CoachAgentService:
             session.updated_at = saved_at
         self.db.flush()
         return msg
+
+    def _remember_pending_question_from_reply(
+        self,
+        user_id: uuid.UUID,
+        session_id: uuid.UUID,
+        assistant_msg: models.ChatMessage,
+        assistant_message: str,
+    ) -> models.PendingQuestion | None:
+        return FollowupResolver(self.db).remember_from_assistant_message(
+            user_id,
+            session_id,
+            assistant_msg.id,
+            assistant_message,
+        )
+
+    def _budget_context_packet(
+        self,
+        context_packet: dict[str, Any],
+        prompt_id: str,
+    ) -> dict[str, Any]:
+        system_prompt = registry.get(prompt_id)
+        compacted, stats = build_context_packet_with_budget(
+            context_packet,
+            model_name=self.model_provider.settings.chat_model,
+            system_prompt=system_prompt,
+        )
+        compacted["context_budget"] = stats
+        compacted["context_management"] = {
+            "scope": "single_agent_run_input",
+            "policy": (
+                "This budget is applied to the context_packet sent in the current model call. "
+                "It is separate from session-level conversation_summary compaction."
+            ),
+        }
+        return compacted
+
+    def _compact_session_context_if_needed(
+        self,
+        session_id: uuid.UUID,
+        user_id: uuid.UUID,
+        keep_recent: int = 8,
+        trigger_tokens: int = 2500,
+    ) -> dict[str, Any] | None:
+        session = self.db.get(models.ConversationSession, session_id)
+        if session is None:
+            return None
+        messages = list(
+            self.db.scalars(
+                select(models.ChatMessage)
+                .where(
+                    models.ChatMessage.user_id == user_id,
+                    models.ChatMessage.session_id == session_id,
+                )
+                .order_by(models.ChatMessage.created_at)
+            )
+        )
+        if len(messages) <= keep_recent:
+            return None
+        older = messages[:-keep_recent]
+        token_estimate = sum(
+            int(getattr(message, "token_count", 0) or estimate_tokens(message.content or ""))
+            for message in older
+        )
+        if token_estimate < trigger_tokens:
+            return None
+
+        previous = session.conversation_summary or {}
+        older_tail = older[-12:]
+        summary_lines = [
+            f"{m.role}: {m.content[:220]}"
+            for m in older_tail
+            if m.content
+        ]
+        summary = {
+            "scope": "session_level_conversation_compaction",
+            "summary": (
+                str(previous.get("summary") or "").strip()
+                + "\n"
+                + "\n".join(summary_lines)
+            ).strip()[-4000:],
+            "compacted_message_count": int(previous.get("compacted_message_count") or 0) + len(older),
+            "kept_recent_count": keep_recent,
+            "last_compacted_message_id": str(older[-1].id) if older else None,
+            "token_estimate_before": token_estimate,
+            "updated_at": datetime.utcnow().isoformat(),
+        }
+        session.conversation_summary = summary
+        session.summary_updated_at = datetime.utcnow()
+        self.db.flush()
+        return summary
 
     def _node(self, name: str, start: float, output: dict[str, Any]) -> dict[str, Any]:
         return {
@@ -4007,6 +4202,7 @@ class CoachAgentService:
         profile = self._get_or_create_profile(user_id)
         plan = self.get_active_plan(user_id)
         context_packet = context_packet or ContextBuilder(self.db, self.model_provider).build_context_packet(user_id, message)
+        context_packet = self._budget_context_packet(context_packet, "coach_coaching_reply")
         today_plan = None
         allow_plan_content = self._allow_plan_content_for_context(context_packet)
         if allow_plan_content and plan and isinstance(plan.plan_json, dict):
@@ -4061,6 +4257,7 @@ class CoachAgentService:
         profile = self._get_or_create_profile(user_id)
         plan = self.get_active_plan(user_id)
         context_packet = context_packet or ContextBuilder(self.db, self.model_provider).build_context_packet(user_id, message)
+        context_packet = self._budget_context_packet(context_packet, "coach_coaching_reply_stream")
         today_plan = None
         allow_plan_content = self._allow_plan_content_for_context(context_packet)
         if allow_plan_content and plan and isinstance(plan.plan_json, dict):
@@ -4356,6 +4553,7 @@ class CoachAgentService:
         session_id: uuid.UUID,
         user_id: uuid.UUID,
         message: str,
+        runtime_route: RuntimeRoute | None = None,
     ) -> dict[str, Any]:
         """LLM-driven agent: LLM selects tools iteratively, host executes them."""
         started_at = datetime.utcnow()
@@ -4366,9 +4564,18 @@ class CoachAgentService:
         user = self.ensure_user(user_id)
         profile = self._get_or_create_profile(user.id)
 
-        self._save_message(session.id, user.id, "user", message)
+        user_msg = self._save_message(session.id, user.id, "user", message)
+        followup_resolution = FollowupResolver(self.db).resolve(user.id, session.id, message, user_msg.id)
+        effective_message = followup_resolution.normalized_message
 
-        tool_registry = self._build_chat_tool_registry(user.id, session.id, profile, message)
+        tool_registry = self._build_chat_tool_registry(
+            user.id,
+            session.id,
+            profile,
+            message,
+            effective_message=effective_message,
+            followup_resolution=followup_resolution.to_dict(),
+        )
 
         agent = LLMAgent(
             db=self.db,
@@ -4377,7 +4584,7 @@ class CoachAgentService:
             user_id=user.id,
             session_id=session.id,
             profile=profile,
-            message=message,
+            message=effective_message,
         )
 
         # ---- Inject learned user preferences into system prompt ----
@@ -4397,7 +4604,20 @@ class CoachAgentService:
         except Exception:
             pass  # Feedback enhancement is best-effort
 
-        result = await agent.run()
+        try:
+            result = await agent.run()
+        except Exception as exc:
+            self.db.rollback()
+            result = LLMAgentResult(
+                final_response="",
+                error=str(exc),
+                nodes=[{"node": "LLMAgentError", "output": {"error": str(exc)}}],
+                iterations=0,
+            )
+        self.db.rollback()
+        session = self.db.get(models.ConversationSession, session_id)
+        user = self.ensure_user(user_id)
+        profile = self._get_or_create_profile(user.id)
 
         if result.error:
             assistant_message = f"I encountered an issue: {result.error}. Please try again."
@@ -4405,11 +4625,13 @@ class CoachAgentService:
             assistant_message = result.final_response
 
         # Apply guardrail
-        guardrail_result = run_guardrails(assistant_message, user_message=message, profile=profile)
+        guardrail_result = run_guardrails(assistant_message, user_message=effective_message, profile=profile)
         if guardrail_result.action == GuardrailSeverity.BLOCK:
             assistant_message = guardrail_result.blocked_replacement or assistant_message
 
         assistant_msg = self._save_message(session.id, user.id, "assistant", assistant_message)
+        self._remember_pending_question_from_reply(user.id, session.id, assistant_msg, assistant_message)
+        session_summary = self._compact_session_context_if_needed(session.id, user.id)
         if runtime_route is not None:
             result.nodes.append({"node": "RuntimeRouter", "output": runtime_route.to_dict()})
 
@@ -4426,13 +4648,19 @@ class CoachAgentService:
         )
         self.db.add(run)
         self.db.flush()
-        state_updates = {"agent_mode": "llm_driven", "iterations": result.iterations}
+        state_updates = {
+            "agent_mode": "llm_driven",
+            "iterations": result.iterations,
+            "followup_resolution": followup_resolution.to_dict(),
+        }
+        if session_summary:
+            state_updates["conversation_summary"] = session_summary
         if runtime_route is not None:
             state_updates["runtime_route"] = runtime_route.to_dict()
         task_service = AgentTaskStateService(self.db)
         long_term_tasks = task_service.update_from_chat_turn(
             user_id=user.id,
-            message=message,
+            message=effective_message,
             profile=profile,
             context_packet={},
             state_updates=state_updates,
@@ -4446,6 +4674,7 @@ class CoachAgentService:
             request_json={
                 "session_id": str(session.id),
                 "message": message,
+                "effective_message": effective_message,
                 "message_chars": len(message),
                 "agent_mode": "llm_driven",
                 "runtime_route": runtime_route.to_dict() if runtime_route else None,
@@ -4485,6 +4714,7 @@ class CoachAgentService:
 
         self.db.commit()
         self.db.refresh(run)
+        self._attach_pending_decision_followup(state_updates, user.id)
 
         return {
             "session_id": session.id,
@@ -4499,3 +4729,15 @@ class CoachAgentService:
             "state_updates": state_updates,
             "guardrail": result.guardrail,
         }
+
+    def _attach_pending_decision_followup(
+        self,
+        state_updates: dict[str, Any],
+        user_id: uuid.UUID,
+    ) -> None:
+        from fast_api.app.services.decision_evaluation import DecisionEvaluationService
+
+        pending = DecisionEvaluationService(self.db).next_followup_for_delivery(user_id)
+        if pending:
+            state_updates["pending_decision_followup"] = pending
+            self.db.commit()

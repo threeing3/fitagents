@@ -364,7 +364,7 @@ class TestApprovalAPI:
         assert approval_router.prefix == "/v1/approvals"
 
     def test_main_includes_approval_router(self):
-        with open("fast_api/app/main.py") as f:
+        with open("fast_api/app/main.py", encoding="utf-8") as f:
             content = f.read()
         assert "from fast_api.app.api.approval_api import approval_router" in content
         assert "app.include_router(approval_router)" in content

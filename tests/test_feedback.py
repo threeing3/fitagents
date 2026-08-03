@@ -7,6 +7,16 @@ import pytest
 
 
 class TestFeedbackModel:
+    def test_chat_message_token_count_fields(self):
+        from fast_api.app.db.models import ChatMessage
+        from sqlalchemy import inspect
+
+        columns = {c.name for c in inspect(ChatMessage).columns}
+        assert "token_count" in columns
+        assert "tokenizer_model" in columns
+        assert "token_count_method" in columns
+        assert "token_count_version" in columns
+
     def test_feedback_model_fields(self):
         from fast_api.app.db.models import UserFeedback
         from sqlalchemy import inspect
@@ -125,7 +135,7 @@ class TestFeedbackMigration:
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
         assert mod.revision == "002_feedback"
-        assert mod.down_revision == "001_initial_schema"
+        assert mod.down_revision == "001"
 
     def test_migration_has_upgrade_downgrade(self):
         import importlib.util
@@ -148,6 +158,8 @@ class TestCoachAgentFeedbackIntegration:
 
         svc = CoachAgentService.__new__(CoachAgentService)
         svc.db = MagicMock()
+        svc.model_provider = MagicMock()
+        svc.model_provider.settings.chat_model = "deepseek-v4-pro"
 
         mock_msg = MagicMock(spec=models.ChatMessage)
         mock_msg.id = uuid.uuid4()
@@ -167,6 +179,10 @@ class TestCoachAgentFeedbackIntegration:
         # Should return the message object
         assert result is not None
         assert isinstance(result, models.ChatMessage)
+        assert result.token_count > 0
+        assert result.tokenizer_model == "deepseek-v4-pro"
+        assert result.token_count_method == "estimated"
+        assert result.token_count_version == "char-heuristic-v1"
 
     def test_handle_chat_message_includes_feedback_id(self):
         """The return dict should include feedback_message_id."""
@@ -188,7 +204,7 @@ class TestFeedbackAPIRoutes:
 
     def test_main_includes_feedback_router(self):
         """main.py should import and include the feedback router."""
-        with open("fast_api/app/main.py") as f:
+        with open("fast_api/app/main.py", encoding="utf-8") as f:
             content = f.read()
         assert "from fast_api.app.api.feedback_api import feedback_router" in content
         assert "app.include_router(feedback_router)" in content

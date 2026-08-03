@@ -145,7 +145,8 @@ def export_training_examples(
 ) -> DatasetManifest:
     db_paths = db_paths or []
     records = [row.to_dict() for path in db_paths for row in _sqlite_rows(path, salt)]
-    records.extend(row.to_dict() for row in _log_rows(log_dir, salt) if log_dir)
+    if log_dir:
+        records.extend(row.to_dict() for row in _log_rows(log_dir, salt))
     records, duplicate_count = deduplicate_records(records, ("user_hash", "user_message", "assistant_response"))
     records, split_counts = split_records(records)
     output_path.parent.mkdir(parents=True, exist_ok=True)

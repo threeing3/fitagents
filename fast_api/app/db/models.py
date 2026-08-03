@@ -110,6 +110,8 @@ class ConversationSession(Base, TimestampMixin):
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
     title: Mapped[str] = mapped_column(String(200), default="AI Coach Session")
     status: Mapped[str] = mapped_column(String(32), default="active")
+    conversation_summary: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    summary_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     user: Mapped[User] = relationship(back_populates="sessions")
     messages: Mapped[list["ChatMessage"]] = relationship(back_populates="session")
@@ -124,8 +126,28 @@ class ChatMessage(Base, TimestampMixin):
     role: Mapped[str] = mapped_column(String(32))
     content: Mapped[str] = mapped_column(Text)
     message_metadata: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    token_count: Mapped[int] = mapped_column(Integer, default=0)
+    tokenizer_model: Mapped[str] = mapped_column(String(120), default="unknown")
+    token_count_method: Mapped[str] = mapped_column(String(32), default="estimated")
+    token_count_version: Mapped[str] = mapped_column(String(40), default="char-heuristic-v1")
 
     session: Mapped[ConversationSession] = relationship(back_populates="messages")
+
+
+class PendingQuestion(Base, TimestampMixin):
+    __tablename__ = "pending_questions"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    session_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("conversation_sessions.id", ondelete="CASCADE"), index=True)
+    assistant_message_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("chat_messages.id", ondelete="SET NULL"), nullable=True, index=True)
+    question_type: Mapped[str] = mapped_column(String(80), index=True)
+    prompt_text: Mapped[str] = mapped_column(Text)
+    options_json: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
+    status: Mapped[str] = mapped_column(String(32), default="pending", index=True)
+    answer_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    resolved_message_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("chat_messages.id", ondelete="SET NULL"), nullable=True, index=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
 
 
 class TrainingPlan(Base, TimestampMixin):
@@ -421,6 +443,56 @@ class DecisionOutcome(Base, TimestampMixin):
     observed_end_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     reflected_memory_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("long_term_memories.id", ondelete="SET NULL"))
     confidence_score: Mapped[float] = mapped_column(Float, default=0.7)
+
+
+class DecisionEvaluationPlan(Base, TimestampMixin):
+    __tablename__ = "decision_evaluation_plans"
+    __table_args__ = (
+        UniqueConstraint("decision_id", name="uq_decision_evaluation_plans_decision_id"),
+        Index("ix_decision_evaluation_plans_status_next_check", "status", "next_check_at"),
+        Index("ix_decision_evaluation_plans_user_status", "user_id", "status"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    decision_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("agent_decisions.id", ondelete="CASCADE"), unique=True, index=True)
+    status: Mapped[str] = mapped_column(String(32), default="scheduled", index=True)
+    evaluation_type: Mapped[str] = mapped_column(String(80), index=True)
+    baseline_snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    expected_action: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    objective_metrics: Mapped[list[str]] = mapped_column(JSONB, default=list)
+    subjective_questions: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
+    minimum_evidence: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    evidence_snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    implementation_status: Mapped[str] = mapped_column(String(40), default="unknown", index=True)
+    outcome_status: Mapped[str | None] = mapped_column(String(40), index=True)
+    window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    window_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    next_check_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    last_evidence_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    followup_count: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class DecisionFollowup(Base, TimestampMixin):
+    __tablename__ = "decision_followups"
+    __table_args__ = (
+        Index("ix_decision_followups_user_status", "user_id", "status"),
+        Index("ix_decision_followups_plan_status", "evaluation_plan_id", "status"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    evaluation_plan_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("decision_evaluation_plans.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    question_type: Mapped[str] = mapped_column(String(80), index=True)
+    question_payload: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    trigger_type: Mapped[str] = mapped_column(String(40), default="scheduled")
+    status: Mapped[str] = mapped_column(String(32), default="pending", index=True)
+    scheduled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    answered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    answer_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0)
 
 
 class MemoryExport(Base, TimestampMixin):

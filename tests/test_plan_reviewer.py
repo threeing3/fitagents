@@ -206,7 +206,7 @@ class TestPlanReviewer:
 
     def test_endpoint_exists_in_router(self):
         """Verify the review endpoint is registered."""
-        with open("fast_api/app/api/coach_platform.py") as f:
+        with open("fast_api/app/api/coach_platform.py", encoding="utf-8") as f:
             content = f.read()
         assert 'def review_plan' in content
         assert 'PlanReviewer' in content

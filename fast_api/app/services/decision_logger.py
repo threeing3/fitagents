@@ -30,6 +30,9 @@ class DecisionLogger:
         )
         self.db.add(item)
         self.db.flush()
+        from fast_api.app.services.decision_evaluation import DecisionEvaluationService
+
+        DecisionEvaluationService(self.db).create_for_decision(item)
         return item
 
     def get_recent_decisions(

@@ -1,5 +1,6 @@
 import uuid
 from datetime import date, datetime, timedelta
+from inspect import signature
 from types import SimpleNamespace
 from typing import Any
 
@@ -174,6 +175,46 @@ class FitnessRetrievalService:
             "rationale": plan.rationale,
         }
 
+    def get_recent_conversation(
+        self,
+        user_id: uuid.UUID,
+        session_id: uuid.UUID | None = None,
+        limit: int = 8,
+    ) -> list[dict[str, Any]]:
+        filters = [models.ChatMessage.user_id == user_id]
+        if session_id is not None:
+            filters.append(models.ChatMessage.session_id == session_id)
+        messages = list(
+            self.db.scalars(
+                select(models.ChatMessage)
+                .where(*filters)
+                .order_by(desc(models.ChatMessage.created_at))
+                .limit(limit)
+            )
+        )
+        messages.reverse()
+        return [
+            {
+                "id": str(message.id),
+                "role": message.role,
+                "content": message.content,
+                "created_at": message.created_at.isoformat() if message.created_at else None,
+            }
+            for message in messages
+        ]
+
+    def get_conversation_summary(
+        self,
+        user_id: uuid.UUID,
+        session_id: uuid.UUID | None = None,
+    ) -> dict[str, Any]:
+        if session_id is None:
+            return {}
+        session = self.db.get(models.ConversationSession, session_id)
+        if session is None or session.user_id != user_id:
+            return {}
+        return session.conversation_summary or {}
+
     def get_recent_workout_logs(self, user_id: uuid.UUID, days: int = 14, limit: int = 10) -> list[dict[str, Any]]:
         since = datetime.utcnow() - timedelta(days=days)
         logs = list(
@@ -332,8 +373,15 @@ class FitnessRetrievalService:
         query: str,
         top_k: int = 6,
         category: str | None = None,
+        retrieval_context: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
-        memories = self.memory_manager.search_memories(user_id, query, top_k=top_k, category=category)
+        memories = self.memory_manager.search_memories(
+            user_id,
+            query,
+            top_k=top_k,
+            category=category,
+            current_context=retrieval_context,
+        )
         return [self._memory_payload(memory) for memory in memories]
 
     def search_planned_memories(
@@ -341,6 +389,7 @@ class FitnessRetrievalService:
         user_id: uuid.UUID,
         query: str,
         plan: MemoryRecallPlan,
+        retrieval_context: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         by_key: dict[str, dict[str, Any]] = {}
         for search in plan.searches:
@@ -351,6 +400,7 @@ class FitnessRetrievalService:
                 category=search.category if search.category is not None else plan.category,
                 memory_network=search.memory_network,
                 fact_kind=search.fact_kind,
+                current_context=retrieval_context,
             )
             for memory in memories:
                 key = str(memory.id)
@@ -444,6 +494,8 @@ class ContextBuilder:
         user_id: uuid.UUID,
         user_message: str,
         intent: str | None = None,
+        session_id: uuid.UUID | None = None,
+        followup_resolution: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         intent_decision = self._build_intent_decision(user_message, intent)
         selected_intent = intent_decision.primary_intent
@@ -474,6 +526,46 @@ class ContextBuilder:
             "weekly_review",
             "monthly_review",
         })
+        active_plan = self.retrieval.get_active_plan(user_id) if allow_plan_content else None
+        recent_conversation = self._optional_conversation_retrieval(
+            "get_recent_conversation", user_id, session_id=session_id, default=[]
+        )
+        conversation_summary = self._optional_conversation_retrieval(
+            "get_conversation_summary", user_id, session_id=session_id, default={}
+        )
+        recent_training = (
+            self.retrieval.get_recent_workout_logs(user_id, days=14)
+            if selected_intent in {"training_log", "training_plan", "progression_decision", "weekly_review", "monthly_review"}
+            else []
+        )
+        exercise_history = (
+            self.retrieval.get_exercise_history(user_id, self._extract_exercise_name(user_message))
+            if selected_intent in {"training_log", "training_plan", "progression_decision", "weekly_review", "monthly_review"}
+            else []
+        )
+        recent_nutrition = (
+            self.retrieval.get_recent_nutrition_summary(user_id, days=7)
+            if selected_intent in {"nutrition_advice", "nutrition_log", "weekly_review", "monthly_review"}
+            else []
+        )
+        recent_recovery = (
+            self.retrieval.get_recent_recovery_logs(user_id, days=7)
+            if selected_intent in {"recovery_check", "progression_decision", "injury_or_risk", "weekly_review", "monthly_review"}
+            else []
+        )
+        recent_symptoms = (
+            self.retrieval.get_recent_symptom_logs(user_id, days=14)
+            if selected_intent in {"injury_or_risk", "progression_decision", "weekly_review", "monthly_review"}
+            else []
+        )
+        retrieval_context = self._build_retrieval_context(
+            core_profile,
+            active_plan,
+            recent_training,
+            recent_recovery,
+            recent_symptoms,
+            intent_decision.entities,
+        )
         current_request_policy = {
             "current_intent": selected_intent,
             "secondary_intents": intent_decision.secondary_intents,
@@ -486,6 +578,7 @@ class ContextBuilder:
             "needs_clarification": intent_decision.needs_clarification,
             "missing_slots": intent_decision.missing_slots,
             "allowed_actions": intent_decision.allowed_actions,
+            "task_plan": intent_decision.task_plan,
             "history_scope": (
                 "Use prior conversation, memories, and active plans only as background. "
                 "Do not continue or execute older user commands unless the current user_message explicitly asks for it."
@@ -497,17 +590,27 @@ class ContextBuilder:
             "intent_decision": intent_decision.to_dict(),
             "secondary_intents": intent_decision.secondary_intents,
             "intent_entities": intent_decision.entities,
+            "intent_task_plan": intent_decision.task_plan,
             "current_request_policy": current_request_policy,
             "core_profile": core_profile,
             "memory_catalog": self.retrieval.get_memory_catalog(user_id, category=category),
-            "active_plan": self.retrieval.get_active_plan(user_id) if allow_plan_content else None,
+            "active_plan": active_plan,
+            "conversation_summary": conversation_summary,
+            "recent_conversation": recent_conversation,
+            "followup_resolution": followup_resolution or {},
             "active_risk_notes": active_risk_notes,
-            "recent_training": [],
-            "exercise_history": [],
-            "recent_nutrition": [],
-            "recent_recovery": [],
-            "recent_symptoms": [],
-            "relevant_memories": self._retrieve_memories(user_id, user_message, recall_plan),
+            "recent_training": recent_training,
+            "exercise_history": exercise_history,
+            "recent_nutrition": recent_nutrition,
+            "recent_recovery": recent_recovery,
+            "recent_symptoms": recent_symptoms,
+            "retrieval_context": retrieval_context,
+            "relevant_memories": self._retrieve_memories(
+                user_id,
+                user_message,
+                recall_plan,
+                retrieval_context,
+            ),
             "world_memories": [],
             "experience_memories": [],
             "observation_memories": [],
@@ -522,25 +625,15 @@ class ContextBuilder:
                 "memory_ranker": "hybrid_vector_bm25",
                 "memory_recall_plan": recall_plan.to_dict(),
                 "current_request_policy": current_request_policy,
+                "recent_conversation_count": len(recent_conversation),
+                "has_conversation_summary": bool(conversation_summary),
+                "followup_resolution": followup_resolution or {},
                 "knowledge_sources": {},
             },
             "agent_decision_history": [],
             "context_summary": "",
         }
         self._group_hindsight_memories(packet)
-
-        if selected_intent in {"training_log", "training_plan", "progression_decision", "weekly_review", "monthly_review"}:
-            packet["recent_training"] = self.retrieval.get_recent_workout_logs(user_id, days=14)
-            packet["exercise_history"] = self.retrieval.get_exercise_history(user_id, self._extract_exercise_name(user_message))
-
-        if selected_intent in {"nutrition_advice", "nutrition_log", "weekly_review", "monthly_review"}:
-            packet["recent_nutrition"] = self.retrieval.get_recent_nutrition_summary(user_id, days=7)
-
-        if selected_intent in {"recovery_check", "progression_decision", "injury_or_risk", "weekly_review", "monthly_review"}:
-            packet["recent_recovery"] = self.retrieval.get_recent_recovery_logs(user_id, days=7)
-
-        if selected_intent in {"injury_or_risk", "progression_decision", "weekly_review", "monthly_review"}:
-            packet["recent_symptoms"] = self.retrieval.get_recent_symptom_logs(user_id, days=14)
 
         packet["knowledge_context"] = self.knowledge.build_knowledge_context(
             selected_intent,
@@ -552,6 +645,29 @@ class ContextBuilder:
         packet["retrieval_debug"]["knowledge_sources"] = packet["knowledge_context"].get("debug", {})
         packet["context_summary"] = self._summarize_packet(packet)
         return packet
+
+    def _optional_conversation_retrieval(
+        self,
+        method_name: str,
+        user_id: uuid.UUID,
+        *,
+        session_id: uuid.UUID | None,
+        default: Any,
+    ) -> Any:
+        """Call newer conversation APIs without breaking lightweight test fakes.
+
+        The fallback is intentionally local to conversation history: older
+        retrieval doubles may not expose these optional fields, while profile,
+        risk, and workout retrieval remain required for a valid context packet.
+        """
+        method = getattr(self.retrieval, method_name, None)
+        if not callable(method):
+            return default
+        try:
+            return method(user_id, session_id=session_id)
+        except TypeError:
+            # Backward-compatible fakes may accept only user_id.
+            return method(user_id)
 
     def _build_intent_decision(self, user_message: str, intent: str | None) -> IntentDecision:
         if intent:
@@ -572,15 +688,75 @@ class ContextBuilder:
         user_id: uuid.UUID,
         user_message: str,
         recall_plan: MemoryRecallPlan,
+        retrieval_context: dict[str, Any],
     ) -> list[dict[str, Any]]:
         if hasattr(self.retrieval, "search_planned_memories"):
-            return self.retrieval.search_planned_memories(user_id, user_message, recall_plan)
-        return self.retrieval.search_relevant_memories(
-            user_id,
-            user_message,
-            top_k=recall_plan.top_k,
-            category=recall_plan.category,
+            method = self.retrieval.search_planned_memories
+            if "retrieval_context" in signature(method).parameters:
+                return method(
+                    user_id,
+                    user_message,
+                    recall_plan,
+                    retrieval_context=retrieval_context,
+                )
+            return method(user_id, user_message, recall_plan)
+        method = self.retrieval.search_relevant_memories
+        kwargs = {
+            "top_k": recall_plan.top_k,
+            "category": recall_plan.category,
+        }
+        if "retrieval_context" in signature(method).parameters:
+            kwargs["retrieval_context"] = retrieval_context
+        return method(user_id, user_message, **kwargs)
+
+    def _build_retrieval_context(
+        self,
+        core_profile: dict[str, Any],
+        active_plan: dict[str, Any] | None,
+        recent_training: list[dict[str, Any]],
+        recent_recovery: list[dict[str, Any]],
+        recent_symptoms: list[dict[str, Any]],
+        intent_entities: dict[str, Any],
+    ) -> dict[str, Any]:
+        latest_training = recent_training[0] if recent_training else {}
+        latest_recovery = recent_recovery[0] if recent_recovery else {}
+        latest_symptom = recent_symptoms[0] if recent_symptoms else {}
+        plan_body = (active_plan or {}).get("plan") or {}
+        training_phase = (
+            (active_plan or {}).get("training_phase")
+            or (plan_body.get("training_phase") if isinstance(plan_body, dict) else None)
+            or (plan_body.get("phase") if isinstance(plan_body, dict) else None)
         )
+        entities: list[dict[str, str]] = []
+        for entity_type, values in (intent_entities or {}).items():
+            if entity_type in {"time_scope", "weight_kg", "sets", "reps"}:
+                continue
+            value_list = values if isinstance(values, list) else [values]
+            for value in value_list:
+                if value:
+                    entities.append({
+                        "type": str(entity_type),
+                        "name": str(value),
+                        "canonical": str(value),
+                    })
+        if latest_symptom.get("body_part"):
+            entities.append({
+                "type": "symptom",
+                "name": str(latest_symptom["body_part"]),
+                "canonical": str(latest_symptom["body_part"]),
+            })
+        return {
+            "goal": core_profile.get("goal"),
+            "training_phase": training_phase,
+            "baseline_state": {
+                "fatigue": latest_recovery.get("fatigue_score"),
+                "soreness": latest_recovery.get("soreness_score"),
+                "sleep_hours": latest_recovery.get("sleep_hours"),
+                "symptom_severity": latest_symptom.get("severity_score"),
+                "training_load": latest_training.get("completion_rate"),
+            },
+            "entities": entities,
+        }
 
     def _group_hindsight_memories(self, packet: dict[str, Any]) -> None:
         grouped = {
@@ -620,6 +796,16 @@ class ContextBuilder:
                 "summary": memory.get("summary") or memory.get("content"),
                 "content": memory.get("content"),
                 "evidence_summary": self._evidence_summary(memory.get("evidence") or []),
+                "temporal": {
+                    "age_days": (memory.get("retrieval_debug") or {}).get("age_days"),
+                    "temporal_score": (memory.get("retrieval_debug") or {}).get("temporal_score"),
+                    "policy": (memory.get("retrieval_debug") or {}).get("temporal_policy"),
+                },
+                "applicability": {
+                    "score": (memory.get("retrieval_debug") or {}).get("applicability_score"),
+                    "adjustment": (memory.get("retrieval_debug") or {}).get("applicability_adjustment"),
+                    "reasons": (memory.get("retrieval_debug") or {}).get("applicability_reasons") or [],
+                },
                 "retrieval_plan_labels": memory.get("retrieval_plan_labels")
                 or ([memory.get("retrieval_plan_label")] if memory.get("retrieval_plan_label") else []),
             }
@@ -627,14 +813,20 @@ class ContextBuilder:
                 successful.append(
                     {
                         **item,
-                        "usage": "reuse only when current state, constraints, and evidence are similar",
+                        "usage": (
+                            "reuse only when current state, goal, training phase, constraints, and evidence are similar; "
+                            "low-applicability or stale strategies are historical references only"
+                        ),
                     }
                 )
             else:
                 failed.append(
                     {
                         **item,
-                        "usage": "avoid repeating unless current state has clearly changed",
+                        "usage": (
+                            "avoid repeating unless the goal, training phase, or physical baseline has clearly changed; "
+                            "safety-related failures remain strongly relevant over time"
+                        ),
                     }
                 )
         return {
@@ -642,7 +834,9 @@ class ContextBuilder:
             "failed_strategies": failed[:3],
             "policy": (
                 "Use successful_strategies as outcome-backed examples for similar contexts. "
-                "Treat failed_strategies as prior approaches to avoid. active_risk_notes and decision_rules override both."
+                "Low-applicability or stale successes are historical references, not direct instructions. "
+                "Treat failed_strategies as prior approaches to avoid unless the current state has materially changed. "
+                "active_risk_notes and decision_rules override both."
             ),
         }
 
