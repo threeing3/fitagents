@@ -1,4 +1,6 @@
+import copy
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -39,8 +41,9 @@ class FitnessKnowledgeService:
         query: str,
         context_packet: dict[str, Any],
     ) -> dict[str, Any]:
-        decision_rules = self.match_decision_rules(intent, context_packet)
-        plan_templates = self.select_plan_templates(intent, context_packet)
+        rule_context = self._augment_query_signals(context_packet, query)
+        decision_rules = self.match_decision_rules(intent, rule_context, query=query)
+        plan_templates = self.select_plan_templates(intent, context_packet, query=query)
         explanation_knowledge = self.retrieve_explanation_knowledge(intent, query, context_packet)
         coaching_cases = self.retrieve_coaching_cases(intent, query, context_packet)
         return {
@@ -136,12 +139,14 @@ class FitnessKnowledgeService:
         intent: str,
         context_packet: dict[str, Any],
         limit: int = 5,
+        query: str | None = None,
     ) -> list[dict[str, Any]]:
+        rule_context = self._augment_query_signals(context_packet, query or "")
         rules = self._load_rules(intent)
         matched = []
         for rule in rules:
             condition = rule.get("condition_json") or {}
-            if self._condition_matches(condition, context_packet):
+            if self._condition_matches(condition, rule_context):
                 matched.append(rule)
         matched.sort(key=lambda item: item.get("priority", 0), reverse=True)
         return matched[:limit]
@@ -151,15 +156,27 @@ class FitnessKnowledgeService:
         intent: str,
         context_packet: dict[str, Any],
         limit: int = 3,
+        query: str | None = None,
     ) -> list[dict[str, Any]]:
-        if intent not in {"training_plan", "nutrition_advice", "progression_decision"}:
+        query = query or ""
+        lowered_query = query.lower()
+        inferred_training_query = any(
+            term in lowered_query
+            for term in ["训练计划", "健身计划", "训练分化", "哑铃", "零基础", "器材", "开始锻炼", "力量训练"]
+        )
+        effective_intent = intent
+        if intent in {"general_chat", "training_log"} and inferred_training_query:
+            effective_intent = "training_plan"
+        if effective_intent not in {"training_plan", "nutrition_advice", "progression_decision"}:
             return []
         profile = context_packet.get("core_profile") or {}
-        goal = profile.get("goal")
-        level = profile.get("experience_level")
-        frequency = profile.get("workout_frequency")
+        goal = profile.get("goal") or self._infer_goal_from_query(lowered_query)
+        level = profile.get("experience_level") or self._infer_level_from_query(lowered_query)
+        frequency = profile.get("workout_frequency") or self._infer_frequency_from_query(lowered_query)
         equipment = [str(item).lower() for item in profile.get("equipment_available") or []]
-        wanted_type = "nutrition" if intent == "nutrition_advice" else "training"
+        if not equipment:
+            equipment = self._infer_equipment_from_query(lowered_query)
+        wanted_type = "nutrition" if effective_intent == "nutrition_advice" else "training"
         templates = self._load_templates()
         scored = []
         for template in templates:
@@ -183,6 +200,117 @@ class FitnessKnowledgeService:
                 scored.append((score, template))
         scored.sort(key=lambda item: item[0], reverse=True)
         return [self._template_payload(item[1], item[0]) for item in scored[:limit]]
+
+    def _augment_query_signals(
+        self,
+        context_packet: dict[str, Any],
+        query: str,
+    ) -> dict[str, Any]:
+        """Build transient rule features from the current message.
+
+        These values are not persisted as user facts. They bridge the common
+        cold-start gap where a single message contains a short-lived state
+        (for example, ``月经前`` or ``训练了 5 周``) that is not yet present in
+        the structured profile or logs.
+        """
+        packet = copy.deepcopy(context_packet)
+        lowered = query.lower()
+        profile = packet.setdefault("core_profile", {})
+        recovery = packet.setdefault("recent_recovery", [])
+        checkins = packet.setdefault("recent_checkins", [])
+        history = packet.setdefault("exercise_history", [])
+        memories = packet.setdefault("relevant_memories", [])
+
+        def ensure_recovery(**values: Any) -> None:
+            row = recovery[0] if recovery and isinstance(recovery[0], dict) else {}
+            row.update({key: value for key, value in values.items() if key not in row})
+            if recovery:
+                recovery[0] = row
+            else:
+                recovery.append(row)
+
+        def ensure_checkin(**values: Any) -> None:
+            row = checkins[0] if checkins and isinstance(checkins[0], dict) else {}
+            row.update({key: value for key, value in values.items() if key not in row})
+            if checkins:
+                checkins[0] = row
+            else:
+                checkins.append(row)
+
+        if any(term in lowered for term in ["月经前", "黄体"]):
+            profile.setdefault("biological_sex", "female")
+            ensure_checkin(menstrual_phase="luteal")
+            ensure_recovery(fatigue_score=7)
+        elif any(term in lowered for term in ["月经刚结束", "卵泡"]):
+            profile.setdefault("biological_sex", "female")
+            ensure_checkin(menstrual_phase="follicular")
+            ensure_recovery(fatigue_score=4, sleep_hours=8)
+        elif any(term in lowered for term in ["月经第一天", "经期", "痛经"]):
+            profile.setdefault("biological_sex", "female")
+            ensure_checkin(menstrual_phase="menstrual", cramps_severity=8)
+
+        if any(term in lowered for term in ["没有空调", "夏天", "很热", "出很多汗"]):
+            profile.setdefault("training_environment", "hot")
+            ensure_checkin(sweat_level="heavy", hydration_concern=True)
+
+        week_match = re.search(r"(?:训练了|训练)\s*(\d+)\s*周", lowered)
+        if week_match:
+            profile.setdefault("consecutive_training_weeks", int(week_match.group(1)))
+
+        if "睡眠和疲劳都还好" in lowered or "睡眠和疲劳都还不错" in lowered:
+            ensure_recovery(sleep_hours=7, fatigue_score=5)
+
+        if "训练前和训练后" in lowered or "训练前后" in lowered:
+            rpe_match = re.search(r"rpe\s*(\d+)", lowered)
+            duration_match = re.search(r"(\d+)\s*分钟", lowered)
+            if rpe_match or duration_match:
+                history.append(
+                    {
+                        "rpe": int(rpe_match.group(1)) if rpe_match else 8,
+                        "duration_min": int(duration_match.group(1)) if duration_match else 60,
+                    }
+                )
+
+        if any(term in lowered for term in ["医生允许", "刚被医生允许", "受伤刚"]):
+            memories.append({"memory_type": "injury_history", "content": "recent injury"})
+            ensure_recovery(pain_score=6)
+
+        if "肩伤" in lowered or "肩膀" in lowered:
+            memories.append({"content": "肩伤"})
+            history.append({"exercise_name": "overhead_press", "pain_score": 5})
+
+        if "动作不太对" in lowered or "动作不对" in lowered:
+            profile.setdefault("training_experience_months", 2)
+            history.append({"form_quality_score": 5})
+
+        return packet
+
+    def _infer_goal_from_query(self, query: str) -> str | None:
+        if any(term in query for term in ["增肌", "肌肉"]):
+            return "muscle_gain"
+        if any(term in query for term in ["减脂", "减肥"]):
+            return "fat_loss"
+        return None
+
+    def _infer_level_from_query(self, query: str) -> str | None:
+        if any(term in query for term in ["中阶", "一年多", "中级"]):
+            return "intermediate"
+        if any(term in query for term in ["新手", "零基础", "完全没去过", "刚开始"]):
+            return "beginner"
+        return None
+
+    def _infer_frequency_from_query(self, query: str) -> int | None:
+        match = re.search(r"每周能?练\s*(\d+)\s*天", query)
+        return int(match.group(1)) if match else None
+
+    def _infer_equipment_from_query(self, query: str) -> list[str]:
+        if "哑铃" in query:
+            return ["dumbbell", "home"]
+        if any(term in query for term in ["没有任何器材", "无器材", "徒手"]):
+            return ["bodyweight"]
+        if "健身房" in query:
+            return ["gym"]
+        return []
 
     def _seed_explanations(self) -> int:
         count = 0
@@ -294,8 +422,15 @@ class FitnessKnowledgeService:
             )
             rules = [self._rule_payload(rule) for rule in db_rules]
         aliases = {intent}
-        if intent == "injury_or_risk":
-            aliases.add("training_plan")
+        aliases.update(
+            {
+                "injury_or_risk": {"training_plan", "exercise_selection"},
+                "recovery_check": {"progression_decision"},
+                "training_log": {"training_plan", "exercise_selection", "progression_decision", "nutrition_advice"},
+                "nutrition_log": {"nutrition_advice"},
+                "general_chat": {"training_plan", "exercise_selection", "progression_decision", "nutrition_advice"},
+            }.get(intent, set())
+        )
         return [rule for rule in rules if rule.get("intent") in aliases]
 
     def _load_templates(self) -> list[dict[str, Any]]:

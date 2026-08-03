@@ -1,5 +1,5 @@
 from algorithm.app_algorithms.response_reranker import select_best_candidate
-from algorithm.app_algorithms.tool_plan_eval import schema_valid, tool_sequence_accuracy
+from algorithm.app_algorithms.tool_plan_eval import schema_valid, schema_valid_rate, tool_selection_accuracy, tool_sequence_accuracy
 from algorithm.business.feature_builder import build_features
 from algorithm.business.label_builder import build_outcome_label
 from algorithm.business.recommendation_ranker import rank_candidates
@@ -16,8 +16,20 @@ def test_response_reranker_prefers_safe_actionable_candidate():
     assert scored[0]["safe"] is True
 
 
+def test_response_reranker_blocks_chinese_push_through_pain_candidate():
+    selected, scored = select_best_candidate(
+        ["请带着锐痛继续训练。", "如果出现锐痛，请停止动作并咨询专业人士。"],
+    )
+    assert "停止" in selected
+    assert scored[-1]["safe"] is False
+
+
 def test_tool_metrics_and_business_metrics():
     assert schema_valid({"selected_tools": ["context.build"], "tool_sequence": ["context.build"]})
+    assert not schema_valid({"selected_tools": ["context.build"], "tool_sequence": ["other"]})
+    assert schema_valid_rate([{"selected_tools": ["a"], "tool_sequence": ["a"]}]) == 1.0
+    records = [{"predicted_tools": ["a", "b"], "expected_tools": ["b", "a"], "predicted_sequence": ["a", "b"], "expected_sequence": ["a", "b"]}]
+    assert tool_selection_accuracy(records) == 1.0
     assert tool_sequence_accuracy([{"predicted_sequence": ["a"], "expected_sequence": ["a"]}]) == 1.0
     metrics = binary_metrics([1, 0, 1], [1, 0, 0])
     assert metrics["recall"] == 0.5

@@ -202,8 +202,11 @@ class TestMetricsRegistry:
         c1.inc()
         c2.inc()
         result = registry.generate_latest()
-        # Only one metric line for "dup" — second registration overwrote first
-        assert result.count("dup ") == 1
+        # HELP/TYPE metadata also contains the metric name. Count only the
+        # actual exposition sample to verify that the second registration
+        # overwrote the first metric object.
+        sample_lines = [line for line in result.splitlines() if line.startswith("dup ")]
+        assert len(sample_lines) == 1
 
     def test_generate_latest_is_prometheus_format(self):
         registry = MetricsRegistry()

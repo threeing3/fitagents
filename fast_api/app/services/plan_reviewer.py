@@ -170,14 +170,14 @@ class PlanReviewer:
             else 0
         )
         avg_completion = (
-            round(sum(w.completion_rate or 0 for w in workouts) / max(total_workouts, 1), 1)
+            round(sum(w.completion_rate or 0 for w in workouts) / max(total_workouts, 1), 2)
             if total_workouts
             else 0
         )
 
         # Check-in trends
         avg_sleep = (
-            round(sum(c.sleep_hours or 0 for c in checkins) / max(len(checkins), 1), 1)
+            round(sum(c.sleep_hours or 0 for c in checkins) / max(len(checkins), 1), 2)
             if checkins
             else 0
         )

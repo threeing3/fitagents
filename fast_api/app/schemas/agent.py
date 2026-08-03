@@ -276,6 +276,13 @@ class AgentDecisionResponse(BaseModel):
     created_at: datetime
 
 
+class DecisionFollowupAnswerRequest(BaseModel):
+    implementation_status: str
+    subjective_outcome: str | None = None
+    safety_status: str | None = None
+    comment: str | None = Field(default=None, max_length=2000)
+
+
 # ---- User Feedback ----
 
 class FeedbackSubmitRequest(BaseModel):

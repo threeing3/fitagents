@@ -36,31 +36,16 @@ class OutcomeReflectionService:
         created_memories: list[models.LongTermMemory] = []
         skipped: list[dict[str, str]] = []
         for decision in decisions:
-            if self._existing_outcome(decision.id):
-                skipped.append({"decision_id": str(decision.id), "reason": "outcome_already_exists"})
-                continue
-            spec = self._build_outcome_spec(decision, outcome_window_days)
-            if spec is None:
-                skipped.append({"decision_id": str(decision.id), "reason": "insufficient_followup_evidence"})
-                continue
-            outcome = models.DecisionOutcome(
-                user_id=user_id,
-                decision_id=decision.id,
-                outcome_type=spec["outcome_type"],
-                outcome_status=spec["outcome_status"],
-                outcome_summary=spec["outcome_summary"],
-                metrics=spec["metrics"],
-                evidence=spec["evidence"],
-                observed_start_at=spec["observed_start_at"],
-                observed_end_at=spec["observed_end_at"],
-                confidence_score=spec["confidence_score"],
+            result = self.reflect_decision(
+                decision.id,
+                implementation_status="implemented",
+                outcome_window_days=outcome_window_days,
             )
-            self.db.add(outcome)
-            self.db.flush()
-            memory = self._retain_outcome_memory(decision, outcome, spec)
-            outcome.reflected_memory_id = memory.id
-            created_outcomes.append(outcome)
-            created_memories.append(memory)
+            if result.get("outcome") is None:
+                skipped.append({"decision_id": str(decision.id), "reason": result["reason"]})
+                continue
+            created_outcomes.append(result["outcome"])
+            created_memories.append(result["memory"])
         self.db.flush()
         return {
             "created_count": len(created_outcomes),
@@ -69,6 +54,100 @@ class OutcomeReflectionService:
             "memories": [self._memory_summary(memory) for memory in created_memories],
             "skipped": skipped,
         }
+
+    def reflect_decision(
+        self,
+        decision_id: uuid.UUID,
+        implementation_status: str,
+        outcome_window_days: int = 7,
+        extra_evidence: list[dict[str, Any]] | None = None,
+        subjective_outcome: str | None = None,
+        safety_status: str | None = None,
+    ) -> dict[str, Any]:
+        decision = self.db.get(models.AgentDecision, decision_id)
+        if decision is None:
+            return {"outcome": None, "memory": None, "reason": "decision_not_found"}
+        if self._existing_outcome(decision.id):
+            return {"outcome": None, "memory": None, "reason": "outcome_already_exists"}
+        if implementation_status not in {"implemented", "partially_implemented"}:
+            return {"outcome": None, "memory": None, "reason": "strategy_not_confirmed_as_implemented"}
+        spec = self._build_outcome_spec(decision, outcome_window_days)
+        if spec is None:
+            return {"outcome": None, "memory": None, "reason": "insufficient_followup_evidence"}
+        if implementation_status == "partially_implemented" and spec["outcome_status"] == "worse":
+            spec["outcome_status"] = "mixed"
+            spec["outcome_summary"] += " Strategy execution was partial, so the result is not treated as a failed strategy."
+            spec["confidence_score"] = min(float(spec["confidence_score"]), 0.62)
+        spec = self._merge_subjective_outcome(
+            spec,
+            subjective_outcome=subjective_outcome,
+            safety_status=safety_status,
+        )
+        if extra_evidence:
+            spec["evidence"] = [*spec["evidence"], *extra_evidence][:40]
+        spec["metrics"] = {
+            **spec["metrics"],
+            "implementation_status": implementation_status,
+        }
+        outcome = models.DecisionOutcome(
+            user_id=decision.user_id,
+            decision_id=decision.id,
+            outcome_type=spec["outcome_type"],
+            outcome_status=spec["outcome_status"],
+            outcome_summary=spec["outcome_summary"],
+            metrics=spec["metrics"],
+            evidence=spec["evidence"],
+            observed_start_at=spec["observed_start_at"],
+            observed_end_at=spec["observed_end_at"],
+            confidence_score=spec["confidence_score"],
+        )
+        self.db.add(outcome)
+        self.db.flush()
+        memory = self._retain_outcome_memory(decision, outcome, spec)
+        outcome.reflected_memory_id = memory.id
+        return {"outcome": outcome, "memory": memory, "reason": "completed"}
+
+    def _merge_subjective_outcome(
+        self,
+        spec: dict[str, Any],
+        subjective_outcome: str | None,
+        safety_status: str | None,
+    ) -> dict[str, Any]:
+        subjective = (subjective_outcome or "").strip().lower()
+        safety = (safety_status or "").strip().lower()
+        aliases = {
+            "better": "improved",
+            "改善": "improved",
+            "变好": "improved",
+            "same": "neutral",
+            "no_change": "neutral",
+            "无变化": "neutral",
+            "worsened": "worse",
+            "变差": "worse",
+            "加重": "worse",
+        }
+        subjective = aliases.get(subjective, subjective)
+        if safety in {"明显加重", "worse", "worsened", "severe"}:
+            spec["outcome_status"] = "worse"
+            spec["outcome_summary"] += " User follow-up reported a safety-relevant worsening."
+            spec["confidence_score"] = max(float(spec["confidence_score"]), 0.82)
+        elif subjective in {"improved", "neutral", "worse"}:
+            objective = spec["outcome_status"]
+            if objective == "neutral":
+                spec["outcome_status"] = subjective
+                spec["confidence_score"] = min(float(spec["confidence_score"]), 0.72)
+            elif objective != subjective and subjective != "neutral":
+                # Objective deterioration remains safety-dominant. Other conflicts become mixed.
+                if objective != "worse":
+                    spec["outcome_status"] = "mixed"
+                    spec["confidence_score"] = min(float(spec["confidence_score"]), 0.62)
+            spec["outcome_summary"] += f" User-reported outcome={subjective}."
+        spec["metrics"] = {
+            **spec["metrics"],
+            "subjective_outcome": subjective_outcome,
+            "safety_status": safety_status,
+        }
+        return spec
 
     def _existing_outcome(self, decision_id: uuid.UUID) -> models.DecisionOutcome | None:
         return self.db.scalar(
@@ -186,7 +265,10 @@ class OutcomeReflectionService:
         spec: dict[str, Any],
     ) -> models.LongTermMemory:
         successful = outcome.outcome_status in {"improved", "successful"}
-        failed = outcome.outcome_status in {"worse", "failed"}
+        failed = (
+            outcome.outcome_status in {"worse", "failed"}
+            and spec.get("metrics", {}).get("implementation_status") == "implemented"
+        )
         fact_kind = "failed_strategy" if failed else "strategy_experience"
         importance = 0.78 if successful or failed else 0.62
         confidence = float(spec["confidence_score"])
@@ -199,6 +281,7 @@ class OutcomeReflectionService:
             {"table": "decision_outcomes", "id": str(outcome.id), "summary": outcome.outcome_summary, "time": datetime.utcnow().isoformat()},
             *spec["evidence"],
         ]
+        metadata = self._strategy_memory_metadata(decision, outcome, spec, failed)
         return self.memory_manager.retain_memory(
             user_id=decision.user_id,
             content=content,
@@ -211,7 +294,87 @@ class OutcomeReflectionService:
             importance_score=importance,
             confidence_score=confidence,
             source_type="decision_outcome",
+            metadata=metadata,
         )
+
+    def _strategy_memory_metadata(
+        self,
+        decision: models.AgentDecision,
+        outcome: models.DecisionOutcome,
+        spec: dict[str, Any],
+        failed: bool,
+    ) -> dict[str, Any]:
+        context = decision.context_used or {}
+        profile = self.db.get(models.UserProfile, decision.user_id)
+        goal = (
+            self._find_context_value(context, "goal")
+            or (profile.goal if profile is not None else None)
+        )
+        training_phase = (
+            self._find_context_value(context, "training_phase")
+            or self._find_context_value(context, "phase")
+        )
+        baseline_state = self._baseline_state(context)
+        safety_status = spec.get("metrics", {}).get("safety_status")
+        safety_relevant = bool(
+            failed
+            and (
+                str(safety_status or "").lower() in {"worse", "worsened", "severe"}
+                or (spec.get("metrics", {}).get("max_symptom_severity") or 0) >= 7
+            )
+        )
+        review_days = 365 if safety_relevant else (180 if failed else 120)
+        confirmed_at = outcome.observed_end_at or datetime.utcnow()
+        return {
+            "decision_id": str(decision.id),
+            "outcome_id": str(outcome.id),
+            "goal": goal,
+            "training_phase": training_phase,
+            "baseline_state": baseline_state,
+            "applicability": {
+                "requires_similar_goal": bool(goal),
+                "requires_similar_baseline": bool(baseline_state),
+            },
+            "safety_status": safety_status,
+            "safety_relevant": safety_relevant,
+            "last_confirmed_at": confirmed_at.isoformat(),
+            "review_due_at": (confirmed_at + timedelta(days=review_days)).isoformat(),
+        }
+
+    def _baseline_state(self, context: dict[str, Any]) -> dict[str, float]:
+        aliases = {
+            "fatigue": ("fatigue", "fatigue_score", "avg_fatigue_score"),
+            "soreness": ("soreness", "soreness_score"),
+            "sleep_hours": ("sleep_hours",),
+            "symptom_severity": ("symptom_severity", "severity_score", "max_symptom_severity"),
+            "training_load": ("training_load", "volume_multiplier", "completion_rate"),
+        }
+        baseline: dict[str, float] = {}
+        for target, keys in aliases.items():
+            for key in keys:
+                value = self._find_context_value(context, key)
+                try:
+                    if value is not None:
+                        baseline[target] = float(value)
+                        break
+                except (TypeError, ValueError):
+                    continue
+        return baseline
+
+    def _find_context_value(self, value: Any, key: str) -> Any:
+        if isinstance(value, dict):
+            if key in value and value[key] is not None:
+                return value[key]
+            for nested in value.values():
+                found = self._find_context_value(nested, key)
+                if found is not None:
+                    return found
+        elif isinstance(value, list):
+            for nested in value:
+                found = self._find_context_value(nested, key)
+                if found is not None:
+                    return found
+        return None
 
     def _category_for_outcome(self, outcome_type: str) -> str:
         if outcome_type == "nutrition_outcome":
@@ -322,4 +485,3 @@ class OutcomeReflectionService:
             "summary": memory.summary,
             "evidence": memory.evidence or [],
         }
-

@@ -64,6 +64,12 @@ class NutritionService:
         food_items = analysis.get("food_items") or []
         log_date = date.today()
 
+        # Update the aggregate first so the most recent ``db.add`` call is
+        # the granular NutritionLog entry. This also mirrors the persistence
+        # boundary: a confirmed meal updates the daily total and then records
+        # each item that contributed to it.
+        self._upsert_daily_summary(user_id, log_date, analysis)
+
         for item in food_items:
             self.db.add(
                 models.NutritionLog(
@@ -83,8 +89,9 @@ class NutritionService:
                 )
             )
 
-        # Upsert daily summary
-        self._upsert_daily_summary(user_id, log_date, analysis)
+        from fast_api.app.services.decision_evaluation import DecisionEvaluationService
+
+        DecisionEvaluationService(self.db).on_user_event(user_id, "nutrition_summary_updated")
 
         self.db.commit()
         logger.info(

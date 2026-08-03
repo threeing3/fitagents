@@ -1,7 +1,7 @@
 """Add user_feedback table for coach reply ratings.
 
 Revision ID: 002_feedback
-Revises: 001_initial_schema
+Revises: 001
 Create Date: 2026-05-28
 """
 from typing import Sequence, Union
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 revision: str = "002_feedback"
-down_revision: Union[str, None] = "001_initial_schema"
+down_revision: Union[str, None] = "001"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from algorithm.app_algorithms.intent_baseline import macro_f1
-from algorithm.app_algorithms.tool_plan_eval import schema_valid, tool_sequence_accuracy
+from algorithm.app_algorithms.tool_plan_eval import schema_valid, schema_valid_rate, tool_selection_accuracy, tool_sequence_accuracy
 
 
 def classification_report(y_true: list[str], y_pred: list[str]) -> dict[str, float]:
@@ -29,5 +29,6 @@ def build_model_report(
     if plans is not None:
         report["schema_valid_rate"] = schema_valid_rate(plans)
     if tool_records is not None:
+        report["tool_selection_accuracy"] = tool_selection_accuracy(tool_records)
         report["tool_sequence_accuracy"] = tool_sequence_accuracy(tool_records)
     return report

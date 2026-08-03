@@ -205,3 +205,25 @@ def test_alembic_env_imports_models():
     with open(env_path, encoding="utf-8") as f:
         content = f.read()
     assert "import fast_api.app.db.models" in content
+
+
+def test_decision_evaluation_migration_exists_and_follows_background_tasks():
+    from importlib import util as import_util
+
+    mig_path = os.path.join(
+        os.path.dirname(__file__),
+        "..",
+        "alembic",
+        "versions",
+        "008_decision_evaluation_plans.py",
+    )
+    spec = import_util.spec_from_file_location("decision_evaluation_migration", mig_path)
+    mod = import_util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    content = open(mig_path, encoding="utf-8").read()
+
+    assert mod.revision == "008_decision_evaluation_plans"
+    assert mod.down_revision == "007_background_tasks"
+    assert '"decision_evaluation_plans"' in content
+    assert '"decision_followups"' in content
+    assert "ix_decision_evaluation_plans_status_next_check" in content

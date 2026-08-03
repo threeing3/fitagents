@@ -8,7 +8,36 @@ from typing import Any
 
 
 def _has_any(text: str, terms: list[str]) -> bool:
-    return any(term in text for term in terms)
+    for term in terms:
+        if term.isascii() and term.isalpha() and len(term) <= 4 and term not in {"kg", "cm", "rpe"}:
+            if re.search(rf"\b{re.escape(term)}\b", text):
+                return True
+            continue
+        if term in text:
+            return True
+    return False
+
+
+@dataclass
+class IntentTaskStep:
+    """One ordered action derived from a multi-intent decision."""
+
+    order: int
+    intent: str
+    action: str
+    status: str
+    reason: str
+    required_slots: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "order": self.order,
+            "intent": self.intent,
+            "action": self.action,
+            "status": self.status,
+            "reason": self.reason,
+            "required_slots": self.required_slots,
+        }
 
 
 @dataclass
@@ -23,6 +52,7 @@ class IntentDecision:
     missing_slots: list[str] = field(default_factory=list)
     needs_clarification: bool = False
     allowed_actions: dict[str, bool] = field(default_factory=dict)
+    task_plan: list[dict[str, Any]] = field(default_factory=list)
     reason: str = ""
 
     @property
@@ -39,12 +69,30 @@ class IntentDecision:
             "missing_slots": self.missing_slots,
             "needs_clarification": self.needs_clarification,
             "allowed_actions": self.allowed_actions,
+            "task_plan": self.task_plan,
             "reason": self.reason,
         }
 
 
 class IntentRouter:
     """Rule-first, multi-intent classifier for the fitness coach."""
+
+    TASK_PRIORITY = [
+        "profile_correction",
+        "injury_or_risk",
+        "training_log",
+        "nutrition_log",
+        "profile_update",
+        "memory_query",
+        "recovery_check",
+        "progression_decision",
+        "nutrition_advice",
+        "weekly_review",
+        "monthly_review",
+        "training_plan",
+        "concept_explanation",
+        "general_chat",
+    ]
 
     RISK_TERMS = [
         "疼", "疼痛", "痛", "刺痛", "胸闷", "胸口闷", "头晕", "呼吸困难", "麻木", "受伤", "拉伤",
@@ -106,7 +154,11 @@ class IntentRouter:
 
         if self._is_profile_correction(text):
             matched.append("profile_correction")
-        if _has_any(text, self.RISK_TERMS):
+        if self._is_recovery_soreness(text):
+            matched.append("recovery_check")
+        if self._has_risk_signal(text):
+            matched.append("injury_or_risk")
+        if self._has_risk_signal(text, ["呼吸困难", "呼吸有点困难", "胸口闷", "手麻"]):
             matched.append("injury_or_risk")
         if _has_any(text, self.REVIEW_TERMS):
             matched.append("monthly_review" if "月" in text or "monthly" in text else "weekly_review")
@@ -128,6 +180,12 @@ class IntentRouter:
             matched.append("profile_update")
 
         matched = self._dedupe(matched)
+        if self._is_recovery_soreness(text) and "recovery_check" in matched:
+            matched = ["recovery_check"] + [
+                intent
+                for intent in matched
+                if intent not in {"recovery_check", "injury_or_risk"}
+            ]
         if not matched:
             matched = ["general_chat"]
 
@@ -140,6 +198,7 @@ class IntentRouter:
             primary == "injury_or_risk" and any(intent in secondary for intent in {"training_plan", "progression_decision"})
         )
         allowed_actions = self._allowed_actions(primary, secondary, risk_level, needs_clarification)
+        task_plan = self._build_task_plan(primary, secondary, allowed_actions, missing_slots, risk_level)
 
         return IntentDecision(
             primary_intent=primary,
@@ -150,15 +209,19 @@ class IntentRouter:
             missing_slots=missing_slots,
             needs_clarification=needs_clarification,
             allowed_actions=allowed_actions,
+            task_plan=task_plan,
             reason=self._reason(primary, secondary, risk_level, needs_clarification),
         )
 
     def from_intent(self, intent: str) -> IntentDecision:
+        risk_level = "high" if intent == "injury_or_risk" else "low"
+        allowed_actions = self._allowed_actions(intent, [], risk_level, False)
         return IntentDecision(
             primary_intent=intent,
             confidence=0.8,
-            risk_level="high" if intent == "injury_or_risk" else "low",
-            allowed_actions=self._allowed_actions(intent, [], "high" if intent == "injury_or_risk" else "low", False),
+            risk_level=risk_level,
+            allowed_actions=allowed_actions,
+            task_plan=self._build_task_plan(intent, [], allowed_actions, [], risk_level),
             reason="Intent was supplied by caller.",
         )
 
@@ -167,6 +230,47 @@ class IntentRouter:
         if _has_any(text, self.NEGATED_PLAN_TERMS) and _has_any(text, ["计划", "training plan", "workout plan", "generate"]):
             return False
         return _has_any(text, self.PLAN_TERMS)
+
+    def _is_recovery_soreness(self, text: str) -> bool:
+        return (
+            "肌肉酸痛" in text
+            and any(term in text for term in ["训练后", "练后", "缓解", "恢复", "酸痛怎么"])
+        )
+
+    def _has_risk_signal(self, text: str, terms: list[str] | None = None) -> bool:
+        """Detect a positive risk mention while respecting simple negations.
+
+        Phrases such as ``没有疼痛`` describe an absence of risk and should
+        not override a progression request. The matcher remains conservative:
+        it only suppresses a term when a short, explicit negation immediately
+        precedes it; any separate positive symptom still wins.
+        """
+        terms = terms or self.RISK_TERMS
+        # Remove explicitly negated symptom spans before matching. Chinese
+        # terms such as ``疼痛`` contain the shorter term ``痛``; checking only
+        # the immediate prefix would therefore incorrectly leave a positive
+        # match behind after ``没有疼痛``.
+        negated_terms = "|".join(
+            re.escape(term) for term in sorted(set(terms), key=len, reverse=True)
+        )
+        cleaned_text = re.sub(
+            rf"(?:没有|无|未|不|并不|不是|no|not|without)\s*(?:{negated_terms})",
+            "",
+            text,
+            flags=re.IGNORECASE,
+        )
+        negation_pattern = re.compile(r"(?:没有|无|未|不|并不|不是|no|not|without)\s*$", re.IGNORECASE)
+        for term in terms:
+            if term.isascii() and term.isalpha() and len(term) <= 12:
+                matches = re.finditer(rf"\b{re.escape(term)}\b", cleaned_text)
+            else:
+                matches = re.finditer(re.escape(term), cleaned_text)
+            for match in matches:
+                prefix = cleaned_text[max(0, match.start() - 8):match.start()]
+                if negation_pattern.search(prefix):
+                    continue
+                return True
+        return False
 
     def _choose_primary(self, intents: list[str]) -> str:
         priority = [
@@ -212,6 +316,97 @@ class IntentRouter:
             "requested_plan_but_blocked": plan_requested and primary != "training_plan",
         }
 
+    def _build_task_plan(
+        self,
+        primary: str,
+        secondary: list[str],
+        allowed_actions: dict[str, bool],
+        missing_slots: list[str],
+        risk_level: str,
+    ) -> list[dict[str, Any]]:
+        intents = self._ordered_intents([primary] + secondary)
+        steps: list[IntentTaskStep] = []
+        for intent in intents:
+            status = "ready"
+            required_slots: list[str] = []
+            action = self._task_action_for_intent(intent)
+            reason = self._task_reason_for_intent(intent)
+
+            if intent == "injury_or_risk":
+                if missing_slots:
+                    status = "needs_clarification"
+                    required_slots = missing_slots
+                    action = "ask_safety_clarification"
+                    reason = "Safety-related requests must clarify symptoms before plan changes."
+                elif risk_level in {"medium", "high"}:
+                    status = "ready"
+                    action = "assess_risk_boundary"
+                    reason = "Risk is present, so safety boundaries must be handled before downstream tasks."
+
+            if intent == "training_plan" and not allowed_actions.get("generate_plan", False):
+                status = "blocked"
+                required_slots = missing_slots
+                action = "block_plan_generation"
+                if risk_level in {"medium", "high"}:
+                    reason = "Plan generation is blocked until safety risk is clarified."
+                elif missing_slots:
+                    reason = "Plan generation is blocked until required profile slots are collected."
+                else:
+                    reason = "Plan generation is not allowed for the current primary intent."
+
+            steps.append(
+                IntentTaskStep(
+                    order=len(steps) + 1,
+                    intent=intent,
+                    action=action,
+                    status=status,
+                    reason=reason,
+                    required_slots=required_slots,
+                )
+            )
+        return [step.to_dict() for step in steps]
+
+    def _ordered_intents(self, intents: list[str]) -> list[str]:
+        deduped = self._dedupe(intents)
+        priority = {intent: index for index, intent in enumerate(self.TASK_PRIORITY)}
+        return sorted(deduped, key=lambda intent: priority.get(intent, len(priority)))
+
+    def _task_action_for_intent(self, intent: str) -> str:
+        return {
+            "profile_correction": "apply_profile_correction",
+            "injury_or_risk": "assess_risk_boundary",
+            "training_log": "record_training_log",
+            "nutrition_log": "record_nutrition_log",
+            "profile_update": "extract_profile_update",
+            "memory_query": "retrieve_memory",
+            "recovery_check": "assess_recovery",
+            "progression_decision": "decide_progression",
+            "nutrition_advice": "answer_nutrition_advice",
+            "weekly_review": "generate_weekly_review",
+            "monthly_review": "generate_monthly_review",
+            "training_plan": "generate_training_plan",
+            "concept_explanation": "answer_concept",
+            "general_chat": "answer_general",
+        }.get(intent, "answer_general")
+
+    def _task_reason_for_intent(self, intent: str) -> str:
+        return {
+            "profile_correction": "User correction must update the source of truth before other tasks.",
+            "injury_or_risk": "Safety and medical boundaries take precedence in fitness coaching.",
+            "training_log": "Training facts can be recorded as structured state.",
+            "nutrition_log": "Nutrition facts can be recorded as structured state.",
+            "profile_update": "Profile facts should be extracted before personalization.",
+            "memory_query": "Relevant long-term memory should be retrieved before answering.",
+            "recovery_check": "Recovery state influences training recommendations.",
+            "progression_decision": "Progression decisions depend on current state and risk.",
+            "nutrition_advice": "Nutrition advice can be answered after safety and profile checks.",
+            "weekly_review": "Weekly review summarizes recent logs and outcomes.",
+            "monthly_review": "Monthly review summarizes longer-term trends.",
+            "training_plan": "Training plan generation is allowed only after gates pass.",
+            "concept_explanation": "Concept questions can be answered directly.",
+            "general_chat": "General chat does not require tool execution.",
+        }.get(intent, "Default answer task.")
+
     def _extract_entities(self, text: str) -> dict[str, Any]:
         entities: dict[str, Any] = {}
         body_parts = [name for name, terms in self.BODY_PART_TERMS.items() if _has_any(text, terms)]
@@ -240,7 +435,7 @@ class IntentRouter:
     def _risk_level(self, text: str, primary: str, secondary: list[str]) -> str:
         if primary != "injury_or_risk" and "injury_or_risk" not in secondary:
             return "low"
-        if _has_any(text, self.HARD_RISK_TERMS):
+        if self._has_risk_signal(text, self.HARD_RISK_TERMS):
             return "high"
         return "medium"
 

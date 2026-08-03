@@ -23,6 +23,12 @@ def macro_f1(y_true: list[str], y_pred: list[str]) -> float:
     return sum(scores) / len(scores) if scores else 0.0
 
 
+def recall_for_label(y_true: list[str], y_pred: list[str], label: str) -> float:
+    positives = sum(actual == label for actual in y_true)
+    true_positives = sum(actual == label and predicted == label for actual, predicted in zip(y_true, y_pred))
+    return true_positives / positives if positives else 0.0
+
+
 def evaluate_cases(cases: list[dict], router: IntentRouter | None = None) -> dict:
     router = router or IntentRouter()
     y_true = [str(case.get("expected_primary_intent") or case.get("expected_intent")) for case in cases]
@@ -34,6 +40,7 @@ def evaluate_cases(cases: list[dict], router: IntentRouter | None = None) -> dic
         "cases": len(cases),
         "accuracy": sum(a == b for a, b in zip(y_true, y_pred)) / len(cases) if cases else 0.0,
         "macro_f1": macro_f1(y_true, y_pred),
+        "risk_recall": recall_for_label(y_true, y_pred, "injury_or_risk"),
         "predictions": [
             {"input": case.get("input") or case.get("user_message"), "expected": actual, "predicted": predicted, "correct": actual == predicted}
             for case, actual, predicted in zip(cases, y_true, y_pred)

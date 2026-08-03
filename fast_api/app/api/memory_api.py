@@ -13,6 +13,7 @@ from fast_api.app.schemas.agent import (
     AgentDecisionCreate,
     AgentDecisionResponse,
     ContextBuildRequest,
+    DecisionFollowupAnswerRequest,
     MemoryItemCreate,
     MemoryItemResponse,
     MemoryReflectRequest,
@@ -22,6 +23,7 @@ from fast_api.app.schemas.agent import (
 )
 from fast_api.app.services.context_builder import ContextBuilder
 from fast_api.app.services.decision_logger import DecisionLogger
+from fast_api.app.services.decision_evaluation import DecisionEvaluationService
 from fast_api.app.services.memory_system import MemoryManager
 from fast_api.app.services.reflection_service import ReflectionService
 
@@ -250,3 +252,50 @@ def list_agent_decisions(
             limit=limit,
         )
     ]
+
+
+@memory_router.get("/agent/decision-evaluations", response_model=list[dict[str, Any]])
+def list_decision_evaluations(
+    limit: int = Query(default=50, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    return DecisionEvaluationService(db).list_plans(current_user.id, limit=limit)
+
+
+@memory_router.post("/agent/decision-evaluations/scan", response_model=dict[str, Any])
+def scan_decision_evaluations(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    result = DecisionEvaluationService(db).scan_due(current_user.id)
+    db.commit()
+    return result
+
+
+@memory_router.get("/agent/decision-followups", response_model=list[dict[str, Any]])
+def list_decision_followups(
+    limit: int = Query(default=20, ge=1, le=50),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    return DecisionEvaluationService(db).list_pending_followups(current_user.id, limit=limit)
+
+
+@memory_router.post("/agent/decision-followups/{followup_id}/answer", response_model=dict[str, Any])
+def answer_decision_followup(
+    followup_id: UUID,
+    payload: DecisionFollowupAnswerRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    try:
+        result = DecisionEvaluationService(db).answer_followup(
+            followup_id,
+            current_user.id,
+            payload.model_dump(exclude_none=True),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    db.commit()
+    return result

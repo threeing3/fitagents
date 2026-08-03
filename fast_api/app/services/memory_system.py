@@ -8,15 +8,22 @@ from sqlalchemy.orm import Session
 
 from fast_api.app.db import models
 from fast_api.app.services.bm25 import build_weighted_document, rank_by_bm25
+from fast_api.app.services.memory_temporal_policy import MemoryTemporalPolicy
 from fast_api.app.services.model_provider import ModelProvider
 
 
 class MemoryManager:
     """Write, catalog, and retrieve user-scoped long-term fitness memories."""
 
-    def __init__(self, db: Session, model_provider: ModelProvider | None = None):
+    def __init__(
+        self,
+        db: Session,
+        model_provider: ModelProvider | None = None,
+        temporal_policy: MemoryTemporalPolicy | None = None,
+    ):
         self.db = db
         self.model_provider = model_provider or ModelProvider()
+        self.temporal_policy = temporal_policy or MemoryTemporalPolicy()
 
     def add_memory(
         self,
@@ -130,6 +137,7 @@ class MemoryManager:
         importance_score: float = 0.6,
         confidence_score: float = 0.75,
         source_type: str = "system",
+        metadata: dict[str, Any] | None = None,
     ) -> models.LongTermMemory:
         if memory_network == "opinion" and not evidence:
             raise ValueError("opinion memory requires evidence")
@@ -144,6 +152,7 @@ class MemoryManager:
             importance_score=importance_score,
             confidence_score=confidence_score,
             source_type=source_type,
+            metadata=metadata or {},
             entities=entities or [],
             evidence=evidence or [],
             occurred_start=occurred_start,
@@ -350,9 +359,16 @@ class MemoryManager:
         occurred_after: datetime | None = None,
         occurred_before: datetime | None = None,
         include_expired: bool = False,
+        current_context: dict[str, Any] | None = None,
+        as_of: datetime | None = None,
     ) -> list[models.LongTermMemory]:
+        as_of = as_of or datetime.utcnow()
         filters = [
             models.LongTermMemory.user_id == user_id,
+            or_(
+                models.LongTermMemory.valid_from.is_(None),
+                models.LongTermMemory.valid_from <= as_of,
+            ),
         ]
         if not include_expired:
             filters.append(models.LongTermMemory.status == "active")
@@ -372,7 +388,7 @@ class MemoryManager:
             filters.append(
                 or_(
                     models.LongTermMemory.valid_until.is_(None),
-                    models.LongTermMemory.valid_until >= datetime.utcnow(),
+                    models.LongTermMemory.valid_until >= as_of,
                 )
             )
 
@@ -401,10 +417,31 @@ class MemoryManager:
             self.db.scalars(
                 select(models.LongTermMemory)
                 .where(*filters)
-                .order_by(desc(models.LongTermMemory.importance), desc(models.LongTermMemory.created_at))
+                .order_by(
+                    desc(
+                        func.coalesce(
+                            models.LongTermMemory.occurred_end,
+                            models.LongTermMemory.occurred_start,
+                            models.LongTermMemory.mentioned_at,
+                            models.LongTermMemory.created_at,
+                        )
+                    )
+                )
                 .limit(top_k * 3)
             )
         )
+        relevance_ids = {
+            memory.id
+            for memory in [*vector_candidates, *entity_candidates, *keyword_candidates]
+        }
+        temporal_candidates = [
+            memory
+            for memory in temporal_candidates
+            if not (
+                self.temporal_policy.is_safety_failed_strategy(memory)
+                and memory.id not in relevance_ids
+            )
+        ]
         vector_rank = {memory.id: index for index, memory in enumerate(vector_candidates)}
         entity_rank = {memory.id: index for index, memory in enumerate(entity_candidates)}
         temporal_rank = {memory.id: index for index, memory in enumerate(temporal_candidates)}
@@ -432,6 +469,8 @@ class MemoryManager:
                 keyword_rank,
                 entity_rank,
                 temporal_rank,
+                current_context=current_context,
+                as_of=as_of,
             ),
             reverse=True,
         )[:top_k]
@@ -443,6 +482,8 @@ class MemoryManager:
                 keyword_rank,
                 entity_rank,
                 temporal_rank,
+                current_context=current_context,
+                as_of=as_of,
             )
             self._attach_search_debug(
                 memory,
@@ -452,6 +493,8 @@ class MemoryManager:
                 temporal_rank,
                 final_score,
                 bm25_scores.get(memory.id, 0.0),
+                current_context=current_context,
+                as_of=as_of,
             )
             self.mark_memory_accessed(memory)
         return ranked
@@ -607,7 +650,33 @@ class MemoryManager:
         keyword_rank: dict[uuid.UUID, int] | None = None,
         entity_rank: dict[uuid.UUID, int] | None = None,
         temporal_rank: dict[uuid.UUID, int] | None = None,
+        *,
+        current_context: dict[str, Any] | None = None,
+        as_of: datetime | None = None,
     ) -> float:
+        return self._memory_score_details(
+            memory,
+            bm25_score,
+            vector_rank,
+            keyword_rank,
+            entity_rank,
+            temporal_rank,
+            current_context=current_context,
+            as_of=as_of,
+        )["final_score"]
+
+    def _memory_score_details(
+        self,
+        memory: models.LongTermMemory,
+        bm25_score: float,
+        vector_rank: dict[uuid.UUID, int] | None = None,
+        keyword_rank: dict[uuid.UUID, int] | None = None,
+        entity_rank: dict[uuid.UUID, int] | None = None,
+        temporal_rank: dict[uuid.UUID, int] | None = None,
+        *,
+        current_context: dict[str, Any] | None = None,
+        as_of: datetime | None = None,
+    ) -> dict[str, Any]:
         rrf_score = 0.0
         if vector_rank and memory.id in vector_rank:
             rrf_score += 1.0 / (60.0 + vector_rank[memory.id])
@@ -618,10 +687,31 @@ class MemoryManager:
         if temporal_rank and memory.id in temporal_rank:
             rrf_score += 0.75 / (60.0 + temporal_rank[memory.id])
         importance = float(memory.importance or 0.5)
-        recency = float(memory.recency_score or 0.5)
+        temporal = self.temporal_policy.score(memory, as_of=as_of)
+        applicability = self.temporal_policy.applicability(memory, current_context)
         risk_priority = 0.22 if self._is_risk_or_health_memory(memory) else 0.0
         opinion_penalty = -0.05 if getattr(memory, "memory_network", "world") == "opinion" else 0.0
-        return rrf_score + bm25_score * 0.45 + importance * 0.25 + recency * 0.1 + risk_priority + opinion_penalty
+        final_score = (
+            rrf_score
+            + bm25_score * 0.45
+            + importance * 0.25
+            + temporal.score * 0.1
+            + applicability.adjustment
+            + risk_priority
+            + opinion_penalty
+        )
+        return {
+            "final_score": final_score,
+            "rrf_score": rrf_score,
+            "bm25_component": bm25_score * 0.45,
+            "importance_component": importance * 0.25,
+            "temporal_component": temporal.score * 0.1,
+            "applicability_component": applicability.adjustment,
+            "risk_priority": risk_priority,
+            "opinion_penalty": opinion_penalty,
+            "temporal": temporal,
+            "applicability": applicability,
+        }
 
     def _keyword_candidates(
         self,
@@ -729,6 +819,9 @@ class MemoryManager:
         temporal_rank: dict[uuid.UUID, int],
         final_score: float,
         keyword_score: float = 0.0,
+        *,
+        current_context: dict[str, Any] | None = None,
+        as_of: datetime | None = None,
     ) -> None:
         semantic_rank = self._rank_value(memory.id, vector_rank)
         keyword_rank_value = self._rank_value(memory.id, keyword_rank)
@@ -748,6 +841,18 @@ class MemoryManager:
             sources.append("entity")
         if temporal_rank_value is not None:
             sources.append("temporal")
+        score_details = self._memory_score_details(
+            memory,
+            keyword_score,
+            vector_rank,
+            keyword_rank,
+            entity_rank,
+            temporal_rank,
+            current_context=current_context,
+            as_of=as_of,
+        )
+        temporal = score_details["temporal"]
+        applicability = score_details["applicability"]
         memory.retrieval_debug = {
             "sources": sources,
             "semantic_rank": semantic_rank,
@@ -755,9 +860,27 @@ class MemoryManager:
             "entity_rank": entity_rank_value,
             "temporal_rank": temporal_rank_value,
             "keyword_score": round(float(keyword_score or 0.0), 6),
-            "risk_priority": 0.22 if self._is_risk_or_health_memory(memory) else 0.0,
+            "risk_priority": score_details["risk_priority"],
             "importance": float(memory.importance or 0.0),
-            "recency": float(memory.recency_score or 0.0),
+            "recency": temporal.score,
+            "reference_time": temporal.reference_time.isoformat() if temporal.reference_time else None,
+            "age_days": temporal.age_days,
+            "half_life_days": temporal.half_life_days,
+            "temporal_floor": temporal.floor,
+            "temporal_score": temporal.score,
+            "temporal_policy": temporal.policy,
+            "applicability_score": applicability.score,
+            "applicability_adjustment": applicability.adjustment,
+            "applicability_reasons": applicability.reasons,
+            "score_components": {
+                "rrf": round(score_details["rrf_score"], 6),
+                "bm25": round(score_details["bm25_component"], 6),
+                "importance": round(score_details["importance_component"], 6),
+                "temporal": round(score_details["temporal_component"], 6),
+                "applicability": round(score_details["applicability_component"], 6),
+                "risk_priority": round(score_details["risk_priority"], 6),
+                "opinion_penalty": round(score_details["opinion_penalty"], 6),
+            },
             "final_score": memory.final_score,
         }
 

@@ -45,7 +45,7 @@ def test_registry_description():
 def test_registry_info_returns_full_metadata():
     info = registry.info("coach_coaching_reply")
     assert info["id"] == "coach_coaching_reply"
-    assert info["version"] == "1.0"
+    assert info["version"] == "1.1"
     assert "coaching" in info["description"].lower()
     assert "last_modified" in info
 

@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "mode": "conversation_first",
+  "thread_role": "master_learning_control",
+  "learner_runs_terminal": false,
+  "codex_executes_commands": true,
+  "prediction_before_execution": true,
+  "error_analysis_required": true,
+  "default_module_order": [
+    "01_data_contracts",
+    "02_dataset_governance",
+    "03_intent_and_routing",
+    "04_retrieval_and_reranking",
+    "05_tool_planning",
+    "06_business_modeling",
+    "07_sft_and_dpo",
+    "08_evaluation_and_interview"
+  ],
+  "mastery_evidence": [
+    "concept_explanation",
+    "experiment_prediction",
+    "code_or_data_variant",
+    "failure_analysis",
+    "experiment_log",
+    "interview_summary"
+  ],
+  "artifacts": {
+    "progress": "algorithm/research_state/learning_progress.json",
+    "experiment_logs": "logs/experiments",
+    "protocol": "docs/LEARNING_CONTROL_PROTOCOL.md"
+  }
+}

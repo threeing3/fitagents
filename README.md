@@ -211,7 +211,7 @@ PostgreSQL 统一保存：
 - 在 AutoDL 上使用独立训练依赖运行 QLoRA/DPO。
 - 保存数据 manifest、实验配置、评测报告和模型卡。
 
-项目还提供“学习模式”，用于把每个算法模块变成可练习、可验收、可面试表达的课程：
+项目还提供“学习模式”，用于把每个算法模块变成可练习、可验收、可面试表达的课程。默认采用 conversation-first（对话优先）方式：你在 Codex 对话中回答概念题和实验预测，由 Codex 执行命令、展示结果、维护进度和实验日志，你不需要自己操作终端。
 
 ```powershell
 python -m algorithm.learning.mode list
@@ -222,6 +222,7 @@ python -m algorithm.learning.mode progress
 ```
 
 学习方法和 4–6 周能力地图见 [`docs/LEARNING_MODE.md`](docs/LEARNING_MODE.md)。
+学习总控协议见 [`docs/LEARNING_CONTROL_PROTOCOL.md`](docs/LEARNING_CONTROL_PROTOCOL.md)，机器可读配置见 [`algorithm/research_state/learning_control.json`](algorithm/research_state/learning_control.json)。
 
 推荐先阅读：
 
@@ -229,6 +230,7 @@ python -m algorithm.learning.mode progress
 - `docs/DATA_GOVERNANCE.md`
 - `docs/EVALUATION_PROTOCOL.md`
 - `docs/MODEL_CARD.md`
+- `docs/INTERVIEW_DEMO_SCRIPT.md`
 
 最小数据管线：
 
@@ -240,12 +242,23 @@ python -m algorithm.datasets.build_preference_dataset algorithm/datasets/manifes
 python -m algorithm.app_algorithms.intent_baseline tests/evals/intent_eval_cases.json
 ```
 
+需要在真实轨迹不足时做学习实验，可使用一键数据集总工厂；合成样本会显式标记来源，不会伪装成真实业务数据：
+
+```powershell
+python -m algorithm.datasets.build_bundle --input algorithm/datasets/manifests/training_examples.jsonl --output-dir algorithm/datasets/manifests --synthetic-count 700 --seed 42
+python -m algorithm.business.business_baseline --count 240 --seed 42 --experiment-id business-baseline-v1 --output <report.json>
+python -m algorithm.app_algorithms.memory_retrieval_eval
+```
+
 AutoDL 训练入口：
 
 ```powershell
 pip install -r algorithm/training/requirements-training.txt
+python -m algorithm.training.sft.train_qlora --config algorithm/training/configs/sft_qwen3b.json --dry-run
 python -m algorithm.training.sft.train_qlora --config algorithm/training/configs/sft_qwen3b.json
+python -m algorithm.training.dpo.train_dpo --config algorithm/training/configs/dpo_qwen3b.json --dry-run
 python -m algorithm.training.dpo.train_dpo --config algorithm/training/configs/dpo_qwen3b.json
 ```
 
 只有在 `preference_pairs.jsonl` 含有经过审核的 `chosen/rejected` 对后才运行 DPO；数据不足时保持空文件，不从未标注回复推断偏好。
+因此，真实数据导出的 DPO dry-run 失败且提示数据集为空是预期的安全门禁；完成合成/专家偏好数据审核后，再把配置中的 `dataset_path` 指向非空文件。

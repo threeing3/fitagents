@@ -229,26 +229,26 @@ class TestSemanticCacheService:
 class TestCoachAgentCacheIntegration:
     def test_cache_service_initialized(self):
         """CoachAgentService should initialize SemanticCacheService in __init__."""
-        with open("fast_api/app/services/coach_agent.py") as f:
+        with open("fast_api/app/services/coach_agent.py", encoding="utf-8") as f:
             content = f.read()
         assert "self.cache = SemanticCacheService(db, self.model_provider)" in content
 
     def test_coaching_reply_checks_cache(self):
         """_coaching_reply should check cache before LLM call."""
-        with open("fast_api/app/services/coach_agent.py") as f:
+        with open("fast_api/app/services/coach_agent.py", encoding="utf-8") as f:
             content = f.read()
         assert "# Check semantic cache first" in content
         assert "self.cache.get(system_prompt, user_prompt)" in content
 
     def test_coaching_reply_caches_result(self):
         """_coaching_reply should cache successful LLM replies."""
-        with open("fast_api/app/services/coach_agent.py") as f:
+        with open("fast_api/app/services/coach_agent.py", encoding="utf-8") as f:
             content = f.read()
         assert "self.cache.set(system_prompt, user_prompt, live_reply" in content
 
     def test_stream_caches_result(self):
         """_coaching_reply_stream should cache after streaming completes."""
-        with open("fast_api/app/services/coach_agent.py") as f:
+        with open("fast_api/app/services/coach_agent.py", encoding="utf-8") as f:
             content = f.read()
         # Should collect chunks into a list and cache the full reply
         assert "chunks: list[str] = []" in content

@@ -39,6 +39,9 @@ MODEL_WINDOWS: dict[str, int] = {
     "claude-3.5-sonnet": 180_000,
     "claude-3-opus": 180_000,
     "deepseek-chat": 64_000,
+    # DeepSeek V4 official API models advertise a 1M-token context window.
+    "deepseek-v4-pro": 1_000_000,
+    "deepseek-v4-flash": 1_000_000,
     "qwen-max": 32_000,
     "qwen-plus": 128_000,
     "unknown": 8_000,  # Safe default
@@ -454,6 +457,8 @@ def build_context_packet_with_budget(
     knowledge = context_packet.get("knowledge_context") or {}
     manager.set_knowledge(knowledge)
 
+    if history is None:
+        history = context_packet.get("recent_conversation") or []
     if history:
         manager.set_history(history)
 
@@ -466,5 +471,10 @@ def build_context_packet_with_budget(
     if manager.budgets["knowledge"].truncated:
         compacted_packet["knowledge_context"] = manager._knowledge
         compacted_packet["_knowledge_truncated"] = True
+
+    if manager.budgets["history"].items:
+        compacted_packet["recent_conversation"] = manager.budgets["history"].items
+    if manager.budgets["history"].truncated:
+        compacted_packet["_history_truncated"] = True
 
     return compacted_packet, manager.stats()

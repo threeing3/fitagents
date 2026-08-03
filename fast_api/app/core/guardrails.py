@@ -39,7 +39,7 @@ class Flag:
 @dataclass
 class GuardrailResult:
     """Result of running guardrails on a response."""
-    action: Severity                              # Overall verdict
+    action: Severity | None = None                  # Overall verdict
     flags: list[Flag] = field(default_factory=list)
     blocked_replacement: str | None = None        # Replacement text if BLOCK
     passed: bool = True                           # Convenience — True if not BLOCK
@@ -78,13 +78,13 @@ def _compile_rules() -> list[RuleFunc]:
     def _medication_discontinuation(response: str, _ctx: dict[str, Any] | None) -> list[Flag]:
         """Detect advice to stop or change prescribed medication."""
         patterns = [
-            (r"(?i)stop\s+taking?\s+(?:your\s+)?(?:medication|medicine|prescription|pills?|drugs?)", "stop_medication"),
+            (r"(?i)stop\s+taking?\s+(?:your\s+)?(?:[A-Za-z]+\s+){0,3}(?:medication|medicine|prescription|pills?|drugs?)", "stop_medication"),
             (r"(?i)don'?t\s+(?:need\s+)?(?:to\s+)?take\s+(?:your\s+)?(?:medication|medicine|pills?)", "dont_take_medication"),
             (r"(?i)(?:you\s+)?should(?:n'?t)?\s+(?:be\s+)?(?:taking|using)\s+(?:your\s+)?(?:medication|medicine)", "shouldnt_take_medication"),
             (r"(?i)(?:reduce|cut|halve)\s+(?:your\s+)?(?:medication|medicine|dose|dosage)", "reduce_medication"),
             (r"(?i)wean\s+(?:yourself\s+)?off\s+(?:your\s+)?(?:medication|medicine)", "wean_off_medication"),
             (r"(?i)replace\s+(?:your\s+)?(?:medication|medicine)\s+with", "replace_medication"),
-            (r"(?i)(?:停|不[用要]|不要[用吃]|戒掉|减少|减量)\s*(?:你[的]?)?(?:药|药物|药品|处方药)", "stop_medication_cn"),
+            (r"(?i)(?:停(?:止|用|掉)?|不[用要]|不要[用吃]|戒掉|减少|减量)\s*(?:你[的]?)?(?:药|药物|药品|处方药|赛治)", "stop_medication_cn"),
         ]
         flags: list[Flag] = []
         for pattern, rule_id in patterns:
@@ -102,8 +102,9 @@ def _compile_rules() -> list[RuleFunc]:
     def _medical_diagnosis(response: str, _ctx: dict[str, Any] | None) -> list[Flag]:
         """Detect attempts to give medical diagnoses."""
         patterns = [
-            (r"(?i)(?:you\s+(?:may\s+)?have|you'?re\s+suffering\s+from|this\s+is\s+definitely|you'?ve\s+got)\s+(?:a\s+)?(?:condition|disease|disorder|illness|syndrome|cancer|tumou?r|thyroid\s+disease|diabetes|heart\s+disease)", "medical_diagnosis"),
+            (r"(?i)(?:you\s+(?:may\s+)?have|you'?re\s+suffering\s+from|this\s+is\s+definitely|you'?ve\s+got)\s+(?:a\s+)?(?:(?:thyroid\s+)?(?:condition|disease|disorder)|hyperthyroidism|hypothyroidism|illness|syndrome|cancer|tumou?r|diabetes|heart\s+disease)", "medical_diagnosis"),
             (r"(?i)(?:diagnos|diagnosable)\s+(?:you\s+)?(?:with|as)", "diagnose_with"),
+            (r"(?i)(?:你|您)[^。！？\n]{0,20}(?:可能|疑似|患有|得了|有)\s*(?:甲亢|甲减|桥本|糖尿病|心脏病|癌症|肿瘤|疾病|病症)", "medical_diagnosis_cn"),
             (r"(?i)(?:你|您)(?:可能)?[得有患了]\s*(?:什么|某[种些]|一[种些])?\s*(?:病|疾病|病症|癌症|肿瘤|心脏病|糖尿病|甲亢|甲减|桥本)", "medical_diagnosis_cn"),
             (r"(?i)(?:this\s+is\s+a\s+clear\s+sign\s+of|this\s+means\s+you\s+have)", "clear_sign_of"),
             (r"(?i)(?:你的|您的).*(?:症状|情况).*(?:就是|肯定是|绝对是|一定是)", "diagnosis_cn2"),
@@ -114,7 +115,7 @@ def _compile_rules() -> list[RuleFunc]:
             if match:
                 # Only flag if context doesn't already include a safety framing
                 # (e.g., "you should see a doctor if you have" is fine)
-                surrounding = response[max(0, match.start()-40):match.end()+40]
+                surrounding = response[max(0, match.start()-40):match.end()+120]
                 if re.search(r"(?i)(?:see|consult|visit|talk\s+to)\s+(?:a\s+)?(?:doctor|physician|specialist|GP)", surrounding):
                     continue
                 flags.append(Flag(
@@ -132,7 +133,7 @@ def _compile_rules() -> list[RuleFunc]:
             (r"(?i)(?:eat|consume|have|only)\s+(?:under\s+)?(\d{2,4})\s*(?:-\s*\d+)?\s*(?:calories?|kcal|cal)(?:\s*(?:a\s+)?day)?", "low_calorie"),
             (r"(?i)(?:每天|每日|一天)[只就]?\s*(?:吃|摄入)\s*(\d{2,4})\s*(?:卡|大卡|千卡|卡路里)", "low_calorie_cn"),
             (r"(?i)(?:limit|restrict)\s+(?:yourself|calories?)\s+to\s+(\d{2,4})\s*(?:calories?|kcal)", "restrict_calories"),
-            (r"(?i)fast\s+(?:for|more\s+than)\s+\d+\s+(?:days?|hours?)", "extended_fast"),
+            (r"(?i)fast(?:ing)?\s+(?:for|more\s+than)\s+\d+\s+(?:days?|hours?)", "extended_fast"),
         ]
         flags: list[Flag] = []
         for pattern, rule_id in patterns:
@@ -171,11 +172,11 @@ def _compile_rules() -> list[RuleFunc]:
         """Detect advice to ignore pain and continue training."""
         patterns = [
             (r"(?i)(?:train|work\s*out|exercise|push|go)\s+(?:through|despite|regardless\s+of)\s+(?:the\s+)?(?:pain|injury|hurt)", "train_through_pain"),
-            (r"(?i)(?:ignore|disregard|don'?t\s+worry\s+about)\s+(?:the\s+)?(?:pain|sharp\s+pain|injury)", "ignore_pain"),
+            (r"(?i)(?:ignore|disregard|don'?t\s+worry\s+about)\s+(?:the\s+)?(?:[A-Za-z]+\s+)?(?:pain|sharp\s+pain|injury)", "ignore_pain"),
             (r"(?i)(?:pain|injury)\s+(?:is|it'?s)\s+(?:just|only|nothing|fine|normal|ok)", "pain_is_fine"),
             (r"(?i)(?:no\s+pain\s+no\s+gain|pain\s+is\s+weakness\s+leaving)", "no_pain_no_gain"),
             (r"(?i)(?:别[管怕]|不[要怕用]|忍[着住]|[坚忍]持[一一下]|继续).*(?:疼|痛|伤)", "push_through_pain_cn"),
-            (r"(?i)(?:疼[痛]|伤).*(?:没[事关]|不[要紧]|正[常的])", "pain_normal_cn"),
+            (r"(?i)(?:疼(?:痛)?|伤).*(?:没[事关]|不[要紧]|正[常的])", "pain_normal_cn"),
         ]
         flags: list[Flag] = []
         for pattern, rule_id in patterns:
@@ -193,7 +194,7 @@ def _compile_rules() -> list[RuleFunc]:
     def _skip_warmup(response: str, _ctx: dict[str, Any] | None) -> list[Flag]:
         """Detect advice to skip warmup."""
         patterns = [
-            (r"(?i)(?:no\s+need|don'?t\s+(?:need|have|bother)|skip|unnecessary)\s+(?:to\s+)?(?:warm\s*up|warmup)", "skip_warmup"),
+            (r"(?i)(?:no\s+need|don'?t\s+(?:need|have|bother)|skip|unnecessary|must\s+never)\s+(?:to\s+)?(?:warm\s*up|warmup)", "skip_warmup"),
             (r"(?i)warm(?:-|\s*)up(?:s)?\s+(?:is|are|it'?s)\s+(?:unnecessary|a\s+waste|useless|pointless|overrated)", "warmup_unnecessary"),
         ]
         return [
@@ -206,7 +207,8 @@ def _compile_rules() -> list[RuleFunc]:
     def _dangerous_supplements(response: str, _ctx: dict[str, Any] | None) -> list[Flag]:
         """Detect advice promoting dangerous or illegal supplements."""
         patterns = [
-            (r"(?i)(?:take|use|try|recommend|suggest)\s+(?:steroids?|anabolics?|SARMs|clenbuterol|DNP|trenbolone|dianabol)", "dangerous_supplement"),
+            (r"(?i)(?:take|use|try|recommend|suggest)\s+(?:steroids?|anabolics?|SARMs|clenbuterol|DNP|trenbolone|dianabol|ostarine)", "dangerous_supplement"),
+            (r"(?i)\bSARMs?\b.*(?:safer|recommend|suggest|try)|(?:recommend|suggest|try).{0,40}\bSARMs?\b", "dangerous_supplement"),
             (r"(?i)(?:减肥药|类固醇|瘦肉精)", "dangerous_supplement_cn"),
             (r"(?i)(?:snort|inject\s+(?:yourself\s+)?with|intravenous)", "dangerous_administration"),
         ]
@@ -361,9 +363,16 @@ def run_guardrails(
         else:
             replacement = BLOCK_REPLACEMENT_GENERIC
 
+        # A hard block replaces the response, so warning flags on the same
+        # candidate are not actionable to the caller and would mislead
+        # downstream training-data labeling.
+        block_flags = [
+            f for f in all_flags
+            if f.severity == Severity.BLOCK or f.rule_id != "missing_medical_disclaimer"
+        ]
         return GuardrailResult(
             action=Severity.BLOCK,
-            flags=all_flags,
+            flags=block_flags,
             blocked_replacement=replacement,
             passed=False,
         )
