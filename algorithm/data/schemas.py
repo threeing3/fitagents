@@ -62,6 +62,7 @@ class TrainingExample:
     quality_labels: dict[str, float | int | str | bool] = field(default_factory=dict)
     guardrail_result: dict[str, Any] = field(default_factory=dict)
     outcome: OutcomeLabel | None = None
+    feedback_id: str | None = None
     model_version: str = "unknown"
     prompt_version: str = "unknown"
     rule_version: str = "unknown"
@@ -82,6 +83,16 @@ class TrainingExample:
             errors.append(f"unknown source: {self.source}")
         if self.split not in VALID_SPLITS:
             errors.append(f"unknown split: {self.split}")
+        if self.feedback_id is not None and (
+            not isinstance(self.feedback_id, str) or not self.feedback_id.strip()
+        ):
+            errors.append("feedback_id must be a non-empty string when provided")
+        if (
+            self.outcome
+            and self.outcome.label_source == "user_feedback"
+            and (not isinstance(self.feedback_id, str) or not self.feedback_id.strip())
+        ):
+            errors.append("feedback_id is required when outcome.label_source is user_feedback")
         if not 0.0 <= (self.outcome.label_confidence if self.outcome else 0.0) <= 1.0:
             errors.append("outcome.label_confidence must be in [0, 1]")
         return errors

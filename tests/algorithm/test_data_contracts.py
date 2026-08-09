@@ -1,7 +1,7 @@
 import json
 
 from algorithm.data.deduplicate import deduplicate_records
-from algorithm.data.schemas import PreferencePair, ToolDecisionExample, TrainingExample
+from algorithm.data.schemas import OutcomeLabel, PreferencePair, ToolDecisionExample, TrainingExample
 from algorithm.data.split_dataset import split_records
 from algorithm.data.validate_dataset import validate_training_rows
 
@@ -15,7 +15,48 @@ def test_training_example_validation_and_roundtrip():
         split="test",
     )
     assert example.validate() == []
-    assert TrainingExample.from_dict(json.loads(json.dumps(example.to_dict()))).example_id == "ex-1"
+    restored = TrainingExample.from_dict(json.loads(json.dumps(example.to_dict())))
+    assert restored.example_id == "ex-1"
+    assert restored.feedback_id is None
+
+
+def test_feedback_id_is_required_only_for_user_feedback_labels():
+    without_feedback = TrainingExample(
+        example_id="feedback-missing",
+        task_type="coach_response",
+        user_message="训练后膝盖疼，怎么办？",
+        source="agent_trace",
+        outcome=OutcomeLabel(label_source="user_feedback", label_confidence=0.9),
+    )
+    assert "feedback_id is required" in " ".join(without_feedback.validate())
+
+    with_feedback = TrainingExample(
+        example_id="feedback-present",
+        task_type="coach_response",
+        user_message="训练后膝盖疼，怎么办？",
+        source="agent_trace",
+        feedback_id="fb-001",
+        outcome=OutcomeLabel(label_source="user_feedback", label_confidence=0.9),
+    )
+    assert with_feedback.validate() == []
+
+    synthetic = TrainingExample(
+        example_id="synthetic-no-feedback",
+        task_type="coach_response",
+        user_message="今天如何训练？",
+        source="synthetic",
+    )
+    assert synthetic.validate() == []
+
+
+def test_feedback_id_rejects_blank_values():
+    example = TrainingExample(
+        example_id="feedback-blank",
+        task_type="coach_response",
+        user_message="今天如何训练？",
+        feedback_id="  ",
+    )
+    assert "feedback_id must be a non-empty string" in " ".join(example.validate())
 
 
 def test_validation_detects_duplicate_ids_and_unknown_source():
