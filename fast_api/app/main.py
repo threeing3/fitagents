@@ -1,13 +1,19 @@
-"""AI Fitness Coach API — main application entry point."""
+"""AI Fitness Coach API main application entry point."""
 
-from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, PlainTextResponse
-from slowapi import _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
-from dotenv import load_dotenv
 import os
 import time
+from contextlib import asynccontextmanager
+from pathlib import Path
+
+from dotenv import load_dotenv
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
+from fastapi.staticfiles import StaticFiles
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 # Load environment variables
 load_dotenv()
@@ -16,13 +22,13 @@ load_dotenv()
 os.environ.setdefault("LANGCHAIN_TRACING_V2", os.getenv("LANGCHAIN_TRACING_V2", "false"))
 os.environ.setdefault("LANGCHAIN_PROJECT", os.getenv("LANGCHAIN_PROJECT", "ai-fitness-coach"))
 
-from fast_api.app.api.coach_platform import coach_router
-from fast_api.app.api.memory_api import memory_router
+from fast_api.app.api.approval_api import approval_router
 from fast_api.app.api.auth_api import auth_router
-from fast_api.app.api.nutrition_api import nutrition_router
+from fast_api.app.api.coach_platform import coach_router
 from fast_api.app.api.eval_api import eval_router
 from fast_api.app.api.feedback_api import feedback_router
-from fast_api.app.api.approval_api import approval_router
+from fast_api.app.api.memory_api import memory_router
+from fast_api.app.api.nutrition_api import nutrition_router
 from fast_api.app.core.config import get_settings
 from fast_api.app.core.errors import register_exception_handlers
 from fast_api.app.core.metrics import (
@@ -33,15 +39,29 @@ from fast_api.app.core.metrics import (
     rate_limit_rejections_total,
 )
 from fast_api.app.core.rate_limit import limiter
-from fast_api.app.db.database import SessionLocal, init_db
+from fast_api.app.db.database import SessionLocal, get_db, init_db
 from fast_api.app.services.fitness_knowledge import FitnessKnowledgeService
 
 settings = get_settings()
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """Initialize durable dependencies before accepting application traffic."""
+
+    db_pool_capacity.set(settings.db_pool_size, kind="pool_size")
+    db_pool_capacity.set(settings.db_max_overflow, kind="max_overflow")
+    init_db()
+    with SessionLocal() as db:
+        FitnessKnowledgeService(db).seed_builtin_knowledge()
+    yield
+
 
 app = FastAPI(
     title=settings.app_name,
     version="2.0",
     description="AI private fitness coach agent with long-term memory and PostgreSQL.",
+    lifespan=lifespan,
 )
 
 # Register centralized exception handlers (before rate-limit handler so
@@ -79,13 +99,51 @@ async def collect_api_metrics(request: Request, call_next):
     return response
 
 
-@app.on_event("startup")
-def startup() -> None:
-    db_pool_capacity.set(settings.db_pool_size, kind="pool_size")
-    db_pool_capacity.set(settings.db_max_overflow, kind="max_overflow")
-    init_db()
-    with SessionLocal() as db:
-        FitnessKnowledgeService(db).seed_builtin_knowledge()
+@app.get("/health/live")
+def health_live() -> dict[str, str]:
+    """Return process liveness without touching external dependencies."""
+
+    return {"status": "alive"}
+
+
+@app.get("/health/ready")
+def health_ready(db: Session = Depends(get_db)) -> JSONResponse:
+    """Check database, migration, and model configuration readiness."""
+
+    checks: dict[str, str] = {}
+    try:
+        db.execute(text("SELECT 1"))
+        checks["database"] = "ok"
+        migration_version = db.execute(
+            text("SELECT version_num FROM alembic_version LIMIT 1")
+        ).scalar_one_or_none()
+        if not migration_version:
+            raise RuntimeError("database has no Alembic migration version")
+        checks["migration"] = str(migration_version)
+    except Exception as exc:
+        checks["database"] = checks.get("database", "unavailable")
+        checks["migration"] = checks.get("migration", "unavailable")
+        return JSONResponse(
+            status_code=503,
+            content={"status": "not_ready", "checks": checks, "error": str(exc)},
+        )
+
+    if settings.llm_provider != "offline" and not settings.has_live_model_key:
+        checks["model"] = "missing_api_key"
+        return JSONResponse(
+            status_code=503,
+            content={"status": "not_ready", "checks": checks},
+        )
+    checks["model"] = "offline" if settings.llm_provider == "offline" else "configured"
+
+    if settings.embedding_provider != "offline" and not settings.has_live_embedding_key:
+        checks["embedding"] = "missing_api_key"
+        return JSONResponse(
+            status_code=503,
+            content={"status": "not_ready", "checks": checks},
+        )
+    checks["embedding"] = "offline" if settings.embedding_provider == "offline" else "configured"
+    return JSONResponse(status_code=200, content={"status": "ready", "checks": checks})
 
 
 @app.get("/health")
@@ -104,7 +162,9 @@ def health(request: Request) -> dict[str, str | bool]:
 
 @app.get("/metrics")
 def metrics(request: Request) -> PlainTextResponse:
-    return PlainTextResponse(content=REGISTRY.generate_latest(), media_type="text/plain; version=0.0.4")
+    return PlainTextResponse(
+        content=REGISTRY.generate_latest(), media_type="text/plain; version=0.0.4"
+    )
 
 
 # ---- Per-router rate limits via dependency injection ----
@@ -118,3 +178,33 @@ app.include_router(nutrition_router)
 app.include_router(eval_router, prefix="/v1", tags=["evaluation"])
 app.include_router(feedback_router)
 app.include_router(approval_router)
+
+
+# The production container copies the Vite build here so the browser and API
+# share one origin. Local API-only development remains supported without dist/.
+web_dist = Path(__file__).resolve().parents[2] / "web" / "dist"
+if (web_dist / "assets").is_dir():
+    app.mount("/assets", StaticFiles(directory=web_dist / "assets"), name="web-assets")
+
+
+@app.get("/", include_in_schema=False)
+def web_index() -> Response:
+    index = web_dist / "index.html"
+    if index.is_file():
+        return FileResponse(index)
+    return JSONResponse(
+        content={"service": settings.app_name, "status": "api_only", "health": "/health"}
+    )
+
+
+@app.get("/{path:path}", include_in_schema=False)
+def web_fallback(path: str) -> Response:
+    if path.startswith(("v1/", "health/", "metrics", "docs", "redoc", "openapi.json")):
+        raise HTTPException(status_code=404, detail="Not found")
+    candidate = (web_dist / path).resolve()
+    if web_dist.resolve() in candidate.parents and candidate.is_file():
+        return FileResponse(candidate)
+    index = web_dist / "index.html"
+    if index.is_file():
+        return FileResponse(index)
+    raise HTTPException(status_code=404, detail="Frontend build is unavailable")

@@ -1,0 +1,2 @@
+{"messages":[{"role":"user","content":"我今天睡了五小时并且很疲劳，还适合冲击大重量吗？"},{"role":"assistant","content":"今天不要冲击大重量。建议降低训练强度和总量，优先休息；如果伴随胸闷、头晕或心悸，请停止训练并咨询专业人士。"}],"source":"synthetic_smoke","risk_label":"medium"}
+{"messages":[{"role":"user","content":"我想开始每周三次的基础力量训练。"},{"role":"assistant","content":"可以从每周三次全身训练开始，每次安排深蹲模式、推、拉和核心动作，先用能稳定完成且动作不变形的重量。"}],"source":"synthetic_smoke","risk_label":"low"}

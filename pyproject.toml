@@ -1,0 +1,49 @@
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+extend-exclude = [
+    "^algorithm/research_state/",
+    "^data/",
+    "^logs/",
+]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+"fast_api/app/main.py" = ["E402"]
+
+[tool.ruff.format]
+quote-style = "double"
+line-ending = "lf"
+
+[tool.mypy]
+python_version = "3.11"
+files = [
+    "fast_api/app/core/config.py",
+    "fast_api/app/db/database.py",
+    "algorithm/data/schemas.py",
+]
+ignore_missing_imports = true
+warn_unused_configs = true
+check_untyped_defs = true
+explicit_package_bases = true
+follow_imports = "skip"
+no_error_summary = true
+exclude = ["^algorithm/research_state/", "^data/", "^logs/"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+timeout = 30
+addopts = "--strict-markers"
+
+[tool.coverage.run]
+source = ["fast_api/app", "algorithm"]
+omit = ["*/__init__.py", "algorithm/training/*"]
+
+[tool.coverage.report]
+# The first measured whole-project baseline is 65.51%. Raise this gate to the
+# public-release target of 70% as the next PRs add product and algorithm tests.
+fail_under = 65
+show_missing = true
+skip_covered = true

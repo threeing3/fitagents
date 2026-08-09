@@ -231,6 +231,7 @@ python -m algorithm.learning.mode progress
 - `docs/EVALUATION_PROTOCOL.md`
 - `docs/MODEL_CARD.md`
 - `docs/INTERVIEW_DEMO_SCRIPT.md`
+- `docs/CI_AND_DEPLOYMENT.md`
 
 最小数据管线：
 
