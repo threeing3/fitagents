@@ -28,13 +28,13 @@ except ModuleNotFoundError:  # pragma: no cover - depends on local optional depe
 
 
 settings = get_settings()
-EmbeddingColumnType = Vector(settings.vector_dimension) if settings.use_pgvector and Vector is not None else JSONB
+EmbeddingColumnType = (
+    Vector(settings.vector_dimension) if settings.use_pgvector and Vector is not None else JSONB
+)
 
 
 class TimestampMixin:
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
@@ -86,7 +86,9 @@ class BodyMetric(Base, TimestampMixin):
     __tablename__ = "body_metrics"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
     measured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     weight_kg: Mapped[float | None] = mapped_column(Float)
     body_fat_percent: Mapped[float | None] = mapped_column(Float)
@@ -97,7 +99,9 @@ class FitnessGoal(Base, TimestampMixin):
     __tablename__ = "fitness_goals"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
     goal_type: Mapped[str] = mapped_column(String(64))
     target: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(32), default="active")
@@ -107,11 +111,15 @@ class ConversationSession(Base, TimestampMixin):
     __tablename__ = "conversation_sessions"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
     title: Mapped[str] = mapped_column(String(200), default="AI Coach Session")
     status: Mapped[str] = mapped_column(String(32), default="active")
     conversation_summary: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
-    summary_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    summary_updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     user: Mapped[User] = relationship(back_populates="sessions")
     messages: Mapped[list["ChatMessage"]] = relationship(back_populates="session")
@@ -121,8 +129,12 @@ class ChatMessage(Base, TimestampMixin):
     __tablename__ = "chat_messages"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    session_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("conversation_sessions.id", ondelete="CASCADE"), index=True)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("conversation_sessions.id", ondelete="CASCADE"), index=True
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
     role: Mapped[str] = mapped_column(String(32))
     content: Mapped[str] = mapped_column(Text)
     message_metadata: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
@@ -138,23 +150,41 @@ class PendingQuestion(Base, TimestampMixin):
     __tablename__ = "pending_questions"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    session_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("conversation_sessions.id", ondelete="CASCADE"), index=True)
-    assistant_message_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("chat_messages.id", ondelete="SET NULL"), nullable=True, index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("conversation_sessions.id", ondelete="CASCADE"), index=True
+    )
+    assistant_message_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("chat_messages.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     question_type: Mapped[str] = mapped_column(String(80), index=True)
     prompt_text: Mapped[str] = mapped_column(Text)
     options_json: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
     status: Mapped[str] = mapped_column(String(32), default="pending", index=True)
     answer_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
-    resolved_message_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("chat_messages.id", ondelete="SET NULL"), nullable=True, index=True)
-    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    resolved_message_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("chat_messages.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
 
 
 class TrainingPlan(Base, TimestampMixin):
     __tablename__ = "training_plans"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
     status: Mapped[str] = mapped_column(String(32), default="active", index=True)
     week_start: Mapped[date] = mapped_column(Date, default=date.today)
     plan_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
@@ -165,7 +195,9 @@ class WorkoutLog(Base, TimestampMixin):
     __tablename__ = "workout_logs"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
     performed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     workout_name: Mapped[str] = mapped_column(String(200), default="Workout")
     exercises: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
@@ -179,7 +211,9 @@ class MealLog(Base, TimestampMixin):
     __tablename__ = "meal_logs"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
     logged_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     meals: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
     calories: Mapped[float | None] = mapped_column(Float)
@@ -191,10 +225,14 @@ class MealLog(Base, TimestampMixin):
 
 class DailyCheckin(Base, TimestampMixin):
     __tablename__ = "daily_checkins"
-    __table_args__ = (UniqueConstraint("user_id", "checkin_date", name="uq_daily_checkins_user_date"),)
+    __table_args__ = (
+        UniqueConstraint("user_id", "checkin_date", name="uq_daily_checkins_user_date"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
     checkin_date: Mapped[date] = mapped_column(Date, default=date.today)
     sleep_hours: Mapped[float | None] = mapped_column(Float)
     fatigue: Mapped[int | None] = mapped_column(Integer)
@@ -210,7 +248,9 @@ class LongTermMemory(Base, TimestampMixin):
     __tablename__ = "long_term_memories"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
     memory_type: Mapped[str] = mapped_column(String(64), index=True)
     memory_network: Mapped[str] = mapped_column(String(40), default="world", index=True)
     fact_kind: Mapped[str] = mapped_column(String(80), default="unknown", index=True)
@@ -230,7 +270,9 @@ class LongTermMemory(Base, TimestampMixin):
     evidence: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
     valid_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     valid_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    parent_memory_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("long_term_memories.id", ondelete="SET NULL"))
+    parent_memory_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("long_term_memories.id", ondelete="SET NULL")
+    )
     last_accessed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     access_count: Mapped[int] = mapped_column(Integer, default=0)
     embedding: Mapped[list[float] | None] = mapped_column(EmbeddingColumnType, nullable=True)
@@ -240,9 +282,15 @@ class MemoryLink(Base, TimestampMixin):
     __tablename__ = "memory_links"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    source_memory_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("long_term_memories.id", ondelete="CASCADE"), index=True)
-    target_memory_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("long_term_memories.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    source_memory_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("long_term_memories.id", ondelete="CASCADE"), index=True
+    )
+    target_memory_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("long_term_memories.id", ondelete="CASCADE"), index=True
+    )
     link_type: Mapped[str] = mapped_column(String(40), index=True)
     reason: Mapped[str | None] = mapped_column(Text)
     link_metadata: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
@@ -252,7 +300,9 @@ class UserPreference(Base, TimestampMixin):
     __tablename__ = "user_preferences"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
     category: Mapped[str] = mapped_column(String(80), index=True)
     content: Mapped[str] = mapped_column(Text)
     strength_score: Mapped[float] = mapped_column(Float, default=0.6)
@@ -267,13 +317,17 @@ class RiskNote(Base, TimestampMixin):
     __tablename__ = "risk_notes"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
     body_part: Mapped[str | None] = mapped_column(String(80), index=True)
     risk_type: Mapped[str] = mapped_column(String(80), index=True)
     description: Mapped[str] = mapped_column(Text)
     severity_score: Mapped[float] = mapped_column(Float, default=0.5)
     confidence_score: Mapped[float] = mapped_column(Float, default=0.75)
-    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    first_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow
+    )
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     status: Mapped[str] = mapped_column(String(32), default="active", index=True)
     valid_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -283,8 +337,12 @@ class WorkoutSession(Base, TimestampMixin):
     __tablename__ = "workout_sessions"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    plan_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("training_plans.id", ondelete="SET NULL"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    plan_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("training_plans.id", ondelete="SET NULL"), index=True
+    )
     session_date: Mapped[date] = mapped_column(Date, default=date.today, index=True)
     session_name: Mapped[str] = mapped_column(String(200), default="Workout")
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -299,8 +357,12 @@ class ExerciseLog(Base, TimestampMixin):
     __tablename__ = "exercise_logs"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    session_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("workout_sessions.id", ondelete="CASCADE"), index=True)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("workout_sessions.id", ondelete="CASCADE"), index=True
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
     exercise_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     exercise_name: Mapped[str] = mapped_column(String(160), index=True)
     set_index: Mapped[int] = mapped_column(Integer, default=1)
@@ -317,7 +379,9 @@ class NutritionLog(Base, TimestampMixin):
     __tablename__ = "nutrition_logs"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
     log_date: Mapped[date] = mapped_column(Date, default=date.today, index=True)
     meal_type: Mapped[str | None] = mapped_column(String(80), index=True)
     food_name: Mapped[str] = mapped_column(Text)
@@ -335,10 +399,14 @@ class NutritionLog(Base, TimestampMixin):
 
 class NutritionDailySummary(Base, TimestampMixin):
     __tablename__ = "nutrition_daily_summaries"
-    __table_args__ = (UniqueConstraint("user_id", "summary_date", name="uq_nutrition_daily_user_date"),)
+    __table_args__ = (
+        UniqueConstraint("user_id", "summary_date", name="uq_nutrition_daily_user_date"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
     summary_date: Mapped[date] = mapped_column(Date, default=date.today, index=True)
     total_calories: Mapped[float | None] = mapped_column(Float)
     total_protein_g: Mapped[float | None] = mapped_column(Float)
@@ -356,7 +424,9 @@ class RecoveryLog(Base, TimestampMixin):
     __table_args__ = (UniqueConstraint("user_id", "log_date", name="uq_recovery_user_date"),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
     log_date: Mapped[date] = mapped_column(Date, default=date.today, index=True)
     sleep_hours: Mapped[float | None] = mapped_column(Float)
     sleep_quality_score: Mapped[float | None] = mapped_column(Float)
@@ -371,7 +441,9 @@ class SymptomLog(Base, TimestampMixin):
     __tablename__ = "symptom_logs"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
     symptom_date: Mapped[date] = mapped_column(Date, default=date.today, index=True)
     body_part: Mapped[str | None] = mapped_column(String(80), index=True)
     symptom_type: Mapped[str] = mapped_column(String(80), index=True)
@@ -386,7 +458,9 @@ class MemoryBlock(Base, TimestampMixin):
     __table_args__ = (UniqueConstraint("user_id", "block_type", name="uq_memory_blocks_user_type"),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
     block_type: Mapped[str] = mapped_column(String(80), index=True)
     title: Mapped[str] = mapped_column(String(160))
     content: Mapped[str] = mapped_column(Text)
@@ -399,7 +473,9 @@ class MemoryCatalog(Base, TimestampMixin):
     __tablename__ = "memory_catalog"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
     category: Mapped[str] = mapped_column(String(80), index=True)
     title: Mapped[str] = mapped_column(String(160))
     summary: Mapped[str] = mapped_column(Text)
@@ -410,14 +486,18 @@ class MemoryCatalog(Base, TimestampMixin):
     query_hints: Mapped[list[str]] = mapped_column(JSONB, default=list)
     child_table: Mapped[str | None] = mapped_column(String(120))
     child_filter: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
-    last_updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    last_updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow
+    )
 
 
 class AgentDecision(Base, TimestampMixin):
     __tablename__ = "agent_decisions"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
     decision_type: Mapped[str] = mapped_column(String(80), index=True)
     input_summary: Mapped[str] = mapped_column(Text)
     context_used: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
@@ -432,8 +512,12 @@ class DecisionOutcome(Base, TimestampMixin):
     __table_args__ = (UniqueConstraint("decision_id", name="uq_decision_outcomes_decision_id"),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    decision_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("agent_decisions.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    decision_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agent_decisions.id", ondelete="CASCADE"), index=True
+    )
     outcome_type: Mapped[str] = mapped_column(String(80), index=True)
     outcome_status: Mapped[str] = mapped_column(String(40), index=True)
     outcome_summary: Mapped[str] = mapped_column(Text)
@@ -441,7 +525,9 @@ class DecisionOutcome(Base, TimestampMixin):
     evidence: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
     observed_start_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     observed_end_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
-    reflected_memory_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("long_term_memories.id", ondelete="SET NULL"))
+    reflected_memory_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("long_term_memories.id", ondelete="SET NULL")
+    )
     confidence_score: Mapped[float] = mapped_column(Float, default=0.7)
 
 
@@ -454,8 +540,15 @@ class DecisionEvaluationPlan(Base, TimestampMixin):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    decision_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("agent_decisions.id", ondelete="CASCADE"), unique=True, index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    decision_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("agent_decisions.id", ondelete="CASCADE"),
+        unique=True,
+        index=True,
+    )
     status: Mapped[str] = mapped_column(String(32), default="scheduled", index=True)
     evaluation_type: Mapped[str] = mapped_column(String(80), index=True)
     baseline_snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
@@ -482,8 +575,14 @@ class DecisionFollowup(Base, TimestampMixin):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    evaluation_plan_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("decision_evaluation_plans.id", ondelete="CASCADE"), index=True)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    evaluation_plan_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("decision_evaluation_plans.id", ondelete="CASCADE"),
+        index=True,
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
     question_type: Mapped[str] = mapped_column(String(80), index=True)
     question_payload: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     trigger_type: Mapped[str] = mapped_column(String(40), default="scheduled")
@@ -499,7 +598,9 @@ class MemoryExport(Base, TimestampMixin):
     __tablename__ = "memory_exports"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
     export_type: Mapped[str] = mapped_column(String(80), default="compact")
     status: Mapped[str] = mapped_column(String(32), default="queued", index=True)
     file_path: Mapped[str | None] = mapped_column(Text)
@@ -513,8 +614,12 @@ class AgentRun(Base, TimestampMixin):
     __tablename__ = "agent_runs"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    session_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("conversation_sessions.id", ondelete="SET NULL"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    session_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("conversation_sessions.id", ondelete="SET NULL"), index=True
+    )
     run_type: Mapped[str] = mapped_column(String(80))
     status: Mapped[str] = mapped_column(String(32), default="completed")
     nodes: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
@@ -533,7 +638,9 @@ class BackgroundTask(Base, TimestampMixin):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
     task_type: Mapped[str] = mapped_column(String(80), index=True)
     status: Mapped[str] = mapped_column(String(32), default="queued", index=True)
     payload_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
@@ -549,7 +656,9 @@ class AgentTaskState(Base, TimestampMixin):
     __tablename__ = "agent_task_states"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
     task_type: Mapped[str] = mapped_column(String(80), index=True)
     title: Mapped[str] = mapped_column(String(200))
     objective: Mapped[str] = mapped_column(Text)
@@ -560,17 +669,27 @@ class AgentTaskState(Base, TimestampMixin):
     constraints: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     next_actions: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
     progress_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
-    source_run_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("agent_runs.id", ondelete="SET NULL"), index=True)
-    last_observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    source_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agent_runs.id", ondelete="SET NULL"), index=True
+    )
+    last_observed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow
+    )
 
 
 class AgentTaskEvent(Base, TimestampMixin):
     __tablename__ = "agent_task_events"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    task_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("agent_task_states.id", ondelete="CASCADE"), index=True)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    agent_run_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("agent_runs.id", ondelete="SET NULL"), index=True)
+    task_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agent_task_states.id", ondelete="CASCADE"), index=True
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    agent_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agent_runs.id", ondelete="SET NULL"), index=True
+    )
     event_type: Mapped[str] = mapped_column(String(80), index=True)
     summary: Mapped[str] = mapped_column(Text)
     payload_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
@@ -580,9 +699,15 @@ class AgentRunReplay(Base, TimestampMixin):
     __tablename__ = "agent_run_replays"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    agent_run_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("agent_runs.id", ondelete="CASCADE"), unique=True, index=True)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    session_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("conversation_sessions.id", ondelete="SET NULL"), index=True)
+    agent_run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agent_runs.id", ondelete="CASCADE"), unique=True, index=True
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    session_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("conversation_sessions.id", ondelete="SET NULL"), index=True
+    )
     request_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     state_snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     tool_plan_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
@@ -595,7 +720,9 @@ class ToolCall(Base, TimestampMixin):
     __tablename__ = "tool_calls"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    agent_run_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("agent_runs.id", ondelete="CASCADE"), index=True)
+    agent_run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agent_runs.id", ondelete="CASCADE"), index=True
+    )
     tool_name: Mapped[str] = mapped_column(String(120))
     input_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     output_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
@@ -648,9 +775,15 @@ class EvalResult(Base, TimestampMixin):
     __tablename__ = "eval_results"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    eval_case_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("eval_cases.id", ondelete="SET NULL"), index=True)
-    eval_run_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("eval_runs.id", ondelete="SET NULL"), index=True)
-    agent_run_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("agent_runs.id", ondelete="SET NULL"), index=True)
+    eval_case_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("eval_cases.id", ondelete="SET NULL"), index=True
+    )
+    eval_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("eval_runs.id", ondelete="SET NULL"), index=True
+    )
+    agent_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agent_runs.id", ondelete="SET NULL"), index=True
+    )
     score: Mapped[float] = mapped_column(Float, default=0)
     passed: Mapped[bool] = mapped_column(Boolean, default=False)
     details: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
@@ -749,20 +882,71 @@ class CoachingCase(Base, TimestampMixin):
 
 class UserFeedback(Base, TimestampMixin):
     __tablename__ = "user_feedback"
-    __table_args__ = (
-        UniqueConstraint("user_id", "message_id", name="uq_user_feedback_message"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", "message_id", name="uq_user_feedback_message"),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    session_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("conversation_sessions.id", ondelete="SET NULL"), index=True, nullable=True)
-    message_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("chat_messages.id", ondelete="SET NULL"), nullable=True, index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    session_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("conversation_sessions.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    )
+    message_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("chat_messages.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     rating: Mapped[int] = mapped_column(Integer)
     category: Mapped[str | None] = mapped_column(String(64), default=None)
     comment: Mapped[str | None] = mapped_column(Text, default=None)
     coach_reply_snapshot: Mapped[str | None] = mapped_column(Text, default=None)
     user_message_snapshot: Mapped[str | None] = mapped_column(Text, default=None)
     metadata_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+
+
+class UsageEvent(Base):
+    """Durable reservation for one externally billed model call."""
+
+    __tablename__ = "usage_events"
+    __table_args__ = (
+        Index("ix_usage_events_day_user", "event_date", "user_id"),
+        Index("ix_usage_events_day_status", "event_date", "status"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    event_date: Mapped[date] = mapped_column(Date, default=date.today, nullable=False)
+    event_type: Mapped[str] = mapped_column(String(48), default="model_call")
+    provider: Mapped[str] = mapped_column(String(48), default="unknown")
+    model_name: Mapped[str] = mapped_column(String(120), default="unknown")
+    endpoint: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), default="reserved")
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class DemoResetState(Base):
+    """Tracks the last non-destructive demo account rotation."""
+
+    __tablename__ = "demo_reset_states"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    demo_key: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
+    active_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    reset_date: Mapped[date] = mapped_column(Date, nullable=False)
+    reset_count: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
 class SemanticCache(Base, TimestampMixin):
@@ -777,5 +961,7 @@ class SemanticCache(Base, TimestampMixin):
     response: Mapped[str] = mapped_column(Text, nullable=False)
     model_name: Mapped[str] = mapped_column(String(120), default="unknown")
     hit_count: Mapped[int] = mapped_column(Integer, default=1)
-    last_hit_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_hit_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
     ttl_seconds: Mapped[int] = mapped_column(Integer, default=86400)

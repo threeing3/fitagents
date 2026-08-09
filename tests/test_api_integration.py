@@ -165,7 +165,7 @@ def test_register_creates_user_and_returns_jwt():
         "/v1/auth/register",
         json={
             "email": "test@example.com",
-            "password": "secure123",
+            "password": "secure1234",
             "display_name": "Test User",
         },
     )
@@ -188,7 +188,7 @@ def test_register_duplicate_email_returns_409():
         "/v1/auth/register",
         json={
             "email": "dupe@example.com",
-            "password": "secure123",
+            "password": "secure1234",
         },
     )
 
@@ -197,7 +197,7 @@ def test_register_duplicate_email_returns_409():
         "/v1/auth/register",
         json={
             "email": "dupe@example.com",
-            "password": "secure456",
+            "password": "secure4567",
         },
     )
 
@@ -211,7 +211,7 @@ def test_register_short_password_returns_422():
         "/v1/auth/register",
         json={
             "email": "short@example.com",
-            "password": "ab",  # Too short (min 6)
+            "password": "ab",  # Too short (min 10)
         },
     )
 
@@ -225,7 +225,7 @@ def test_register_invalid_email_returns_422():
         "/v1/auth/register",
         json={
             "email": "not-an-email",
-            "password": "secure123",
+            "password": "secure1234",
         },
     )
 
@@ -341,7 +341,7 @@ def test_me_returns_user_info_with_valid_token():
         "/v1/auth/register",
         json={
             "email": "me@example.com",
-            "password": "secure123",
+            "password": "secure1234",
             "display_name": "Me User",
         },
     )
@@ -362,7 +362,7 @@ def test_update_me_updates_username_and_avatar():
         "/v1/auth/register",
         json={
             "email": "profile@example.com",
-            "password": "secure123",
+            "password": "secure1234",
             "display_name": "Profile User",
         },
     )
@@ -442,7 +442,7 @@ def test_create_chat_session_with_valid_token():
         "/v1/auth/register",
         json={
             "email": "chat@example.com",
-            "password": "secure123",
+            "password": "secure1234",
             "display_name": "Chat User",
         },
     )
@@ -469,7 +469,7 @@ def test_dashboard_returns_403_for_other_users_data():
         "/v1/auth/register",
         json={
             "email": "user1@example.com",
-            "password": "secure123",
+            "password": "secure1234",
         },
     )
     user1_id = r1.json()["user_id"]
@@ -478,7 +478,7 @@ def test_dashboard_returns_403_for_other_users_data():
         "/v1/auth/register",
         json={
             "email": "user2@example.com",
-            "password": "secure456",
+            "password": "secure4567",
         },
     )
     token2 = r2.json()["access_token"]
@@ -499,7 +499,7 @@ def test_chat_sessions_and_agent_runs_are_user_isolated():
         "/v1/auth/register",
         json={
             "email": "isolated1@example.com",
-            "password": "secure123",
+            "password": "secure1234",
         },
     )
     token1 = r1.json()["access_token"]
@@ -507,7 +507,7 @@ def test_chat_sessions_and_agent_runs_are_user_isolated():
         "/v1/auth/register",
         json={
             "email": "isolated2@example.com",
-            "password": "secure456",
+            "password": "secure4567",
         },
     )
     token2 = r2.json()["access_token"]
@@ -589,7 +589,7 @@ def test_create_memory_item_with_valid_token():
         "/v1/auth/register",
         json={
             "email": "memory@example.com",
-            "password": "secure123",
+            "password": "secure1234",
         },
     )
     token = resp.json()["access_token"]
@@ -621,7 +621,7 @@ def test_list_memory_items_with_valid_token():
         "/v1/auth/register",
         json={
             "email": "list@example.com",
-            "password": "secure123",
+            "password": "secure1234",
         },
     )
     token = resp.json()["access_token"]
@@ -656,7 +656,7 @@ def test_retain_memory_with_valid_token_returns_hindsight_fields():
         "/v1/auth/register",
         json={
             "email": "retain@example.com",
-            "password": "secure123",
+            "password": "secure1234",
         },
     )
     token = resp.json()["access_token"]
@@ -690,7 +690,7 @@ def test_search_memory_with_hindsight_filters_still_accepts_legacy_fields():
         "/v1/auth/register",
         json={
             "email": "search-hindsight@example.com",
-            "password": "secure123",
+            "password": "secure1234",
         },
     )
     token = resp.json()["access_token"]
@@ -733,7 +733,7 @@ def test_reflect_memory_with_valid_token_returns_created_memories():
         "/v1/auth/register",
         json={
             "email": "reflect@example.com",
-            "password": "secure123",
+            "password": "secure1234",
         },
     )
     token = resp.json()["access_token"]
@@ -786,7 +786,7 @@ def test_reflect_weekly_memory_with_valid_token_returns_weekly_observations():
         "/v1/auth/register",
         json={
             "email": "weekly-reflect@example.com",
-            "password": "secure123",
+            "password": "secure1234",
         },
     )
     token = resp.json()["access_token"]

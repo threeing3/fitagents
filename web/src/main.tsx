@@ -9,28 +9,37 @@ import {
   Zap,
   LogOut,
   UserCircle,
+  FlaskConical,
+  Languages,
 } from "lucide-react";
-import type { SessionState, Dashboard, ChatMessage, AgentTraceItem, ViewName } from "./types";
-import { createSession, fetchDashboard, fetchSessionMessages, listSessions, pause, streamChat } from "./api";
+import type { SessionState, Dashboard, ChatMessage, AgentTraceItem, ViewName, UsageSummary } from "./types";
+import { createSession, fetchDashboard, fetchSessionMessages, fetchUsageSummary, listSessions, pause, streamChat } from "./api";
 import { ChatView } from "./ChatView";
 import { DashboardView } from "./DashboardView";
 import { CheckinView } from "./CheckinView";
 import { AccountView } from "./AccountView";
 import { AuthProvider, useAuth } from "./AuthContext";
 import { LoginView } from "./LoginView";
+import { AlgorithmLabView } from "./AlgorithmLabView";
+import { LanguageProvider, useLanguage } from "./LanguageContext";
 import "./styles.css";
 
 const TYPEWRITER_DELAY_MS = 16;
-const INTRO_MESSAGE: ChatMessage = {
-  role: "assistant",
-  content: "Hi, I'm your AI fitness coach. Tell me your age, height, weight, goals, training experience, and available equipment - I'll build your profile and create a personalized plan.",
-};
+function introMessage(isZh: boolean): ChatMessage {
+  return {
+    role: "assistant",
+    content: isZh
+      ? "你好，我是你的 AI 健身教练。请告诉我年龄、身高、体重、目标、训练经验和可用器械，我会逐步建立档案并给出安全建议。"
+      : "Hi, I'm your AI fitness coach. Tell me your age, height, weight, goals, training experience, and available equipment.",
+  };
+}
 
 function AppContent() {
   const auth = useAuth();
+  const { isZh, language, setLanguage } = useLanguage();
   const [session, setSession] = useState<SessionState | null>(null);
   const [activeView, setActiveView] = useState<ViewName>("chat");
-  const [messages, setMessages] = useState<ChatMessage[]>([INTRO_MESSAGE]);
+  const [messages, setMessages] = useState<ChatMessage[]>([introMessage(isZh)]);
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
@@ -38,6 +47,7 @@ function AppContent() {
   const [agentTrace, setAgentTrace] = useState<AgentTraceItem[]>([]);
   const [latestRunId, setLatestRunId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [usage, setUsage] = useState<UsageSummary | null>(null);
 
   // ---- session init (runs after auth is ready) ----
   useEffect(() => {
@@ -70,12 +80,12 @@ function AppContent() {
 
         const history = await fetchSessionMessages(active.session_id);
         if (cancelled) return;
-        setMessages(history.length > 0 ? history : [INTRO_MESSAGE]);
+        setMessages(history.length > 0 ? history : [introMessage(isZh)]);
         if (history.length > 0) {
-          setNotice(`Loaded ${history.length} saved messages from your last session.`);
+          setNotice(isZh ? `已加载上次会话的 ${history.length} 条消息。` : `Loaded ${history.length} saved messages from your last session.`);
         }
       } catch (error: any) {
-        if (!cancelled) setNotice(`Backend unavailable: ${error.message}`);
+        if (!cancelled) setNotice(isZh ? `服务暂不可用：${error.message}` : `Backend unavailable: ${error.message}`);
       }
     }
 
@@ -83,6 +93,11 @@ function AppContent() {
     return () => {
       cancelled = true;
     };
+  }, [auth.user, isZh]);
+
+  useEffect(() => {
+    if (!auth.user) return;
+    fetchUsageSummary().then(setUsage).catch(() => setUsage(null));
   }, [auth.user]);
 
   useEffect(() => {
@@ -105,7 +120,7 @@ function AppContent() {
       const userText = text.trim();
       setBusy(true);
       setNotice("");
-      setAgentStatus("Thinking...");
+      setAgentStatus(isZh ? "正在思考…" : "Thinking...");
       setAgentTrace([]);
       setLatestRunId(null);
       setMessages((prev) => [
@@ -183,11 +198,12 @@ function AppContent() {
         }
 
         if (!assistantText.trim()) {
-          await appendChars("I've recorded your input. Tell me more about your goals, training conditions, or how you're feeling today.");
+          await appendChars(isZh ? "我已记录你的输入。可以继续告诉我目标、训练条件或今天的状态。" : "I've recorded your input. Tell me more about your goals, training conditions, or how you're feeling today.");
         }
-        setNotice("Response saved. Agent continues with your profile & memory.");
-        setAgentStatus("Done");
+        setNotice(isZh ? "回复已保存，智能体会继续维护档案与记忆。" : "Response saved. Agent continues with your profile & memory.");
+        setAgentStatus(isZh ? "完成" : "Done");
         await refreshDashboard(session.user_id);
+        fetchUsageSummary().then(setUsage).catch(() => setUsage(null));
       } catch (err: any) {
         setMessages((prev) => {
           const next = [...prev];
@@ -199,7 +215,7 @@ function AppContent() {
         setBusy(false);
       }
     },
-    [session],
+    [session, isZh],
   );
 
   // ---- dashboard derived ----
@@ -215,7 +231,8 @@ function AppContent() {
     return (
       <div className="auth-loading">
         <Dumbbell size={36} className="auth-loading-icon" />
-        <span>Loading...</span>
+        <span>{isZh ? "正在连接服务…" : "Loading..."}</span>
+        <small>{isZh ? "免费实例冷启动可能需要约一分钟" : "A free instance can take about a minute to wake"}</small>
       </div>
     );
   }
@@ -236,13 +253,17 @@ function AppContent() {
         </div>
 
         <nav className="sidebar-nav">
-          <NavItem icon={<MessageCircle size={20} />} label="Chat" active={activeView === "chat"} onClick={() => setActiveView("chat")} collapsed={!sidebarOpen} />
-          <NavItem icon={<LayoutDashboard size={20} />} label="Dashboard" active={activeView === "dashboard"} onClick={() => setActiveView("dashboard")} collapsed={!sidebarOpen} />
-          <NavItem icon={<ClipboardCheck size={20} />} label="Check-in" active={activeView === "checkin"} onClick={() => setActiveView("checkin")} collapsed={!sidebarOpen} />
-          <NavItem icon={<UserCircle size={20} />} label="Account" active={activeView === "account"} onClick={() => setActiveView("account")} collapsed={!sidebarOpen} />
+          <NavItem icon={<MessageCircle size={20} />} label={isZh ? "对话" : "Chat"} active={activeView === "chat"} onClick={() => setActiveView("chat")} collapsed={!sidebarOpen} />
+          <NavItem icon={<LayoutDashboard size={20} />} label={isZh ? "概览" : "Dashboard"} active={activeView === "dashboard"} onClick={() => setActiveView("dashboard")} collapsed={!sidebarOpen} />
+          <NavItem icon={<ClipboardCheck size={20} />} label={isZh ? "打卡" : "Check-in"} active={activeView === "checkin"} onClick={() => setActiveView("checkin")} collapsed={!sidebarOpen} />
+          <NavItem icon={<FlaskConical size={20} />} label={isZh ? "算法实验" : "Algorithm Lab"} active={activeView === "algorithm"} onClick={() => setActiveView("algorithm")} collapsed={!sidebarOpen} />
+          <NavItem icon={<UserCircle size={20} />} label={isZh ? "账号" : "Account"} active={activeView === "account"} onClick={() => setActiveView("account")} collapsed={!sidebarOpen} />
         </nav>
 
         <div className="sidebar-footer">
+          <button className="sidebar-language" type="button" onClick={() => setLanguage(language === "zh" ? "en" : "zh")}>
+            <Languages size={14} /> {sidebarOpen && (isZh ? "English" : "中文")}
+          </button>
           <div className="session-badge">
             <div className={`status-dot ${session ? "live" : "dead"}`} />
             {sidebarOpen && <span>{session ? "Session live" : "Connecting..."}</span>}
@@ -277,6 +298,11 @@ function AppContent() {
 
       {/* ---- Main ---- */}
       <div className="main-area">
+        {usage && !usage.live_calls_available && (
+          <div className="quota-banner">
+            {isZh ? "今日在线模型额度已用完，已自动切换为确定性离线回复。" : "Today's live-model quota is exhausted. Deterministic offline replies are active."}
+          </div>
+        )}
         {/* Notice bar */}
         {notice && (
           <div className="notice-bar">
@@ -319,6 +345,7 @@ function AppContent() {
         )}
 
         {activeView === "account" && <AccountView />}
+        {activeView === "algorithm" && <AlgorithmLabView />}
       </div>
     </div>
   );
@@ -360,9 +387,11 @@ function compactMeta(event: Record<string, any>): Record<string, any> {
 // ---- mount ----
 function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <LanguageProvider>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </LanguageProvider>
   );
 }
 

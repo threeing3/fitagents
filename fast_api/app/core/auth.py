@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 import jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
@@ -35,6 +35,7 @@ def decode_access_token(token: str) -> dict | None:
 
 
 def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
     db: Session = Depends(get_db),
 ) -> models.User:
@@ -42,14 +43,19 @@ def get_current_user(
 
     Raises 401 if the token is missing, invalid, or the user no longer exists.
     """
-    if credentials is None:
+    token = (
+        credentials.credentials
+        if credentials is not None
+        else request.cookies.get(settings.auth_cookie_name)
+    )
+    if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing authentication token. Include Authorization: Bearer <token>",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    payload = decode_access_token(credentials.credentials)
+    payload = decode_access_token(token)
     if payload is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -78,13 +84,19 @@ def get_current_user(
 
 
 def get_optional_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
     db: Session = Depends(get_db),
 ) -> models.User | None:
     """Like get_current_user but returns None instead of raising 401 when unauthenticated."""
-    if credentials is None:
+    token = (
+        credentials.credentials
+        if credentials is not None
+        else request.cookies.get(settings.auth_cookie_name)
+    )
+    if not token:
         return None
-    payload = decode_access_token(credentials.credentials)
+    payload = decode_access_token(token)
     if payload is None:
         return None
     user_id = payload.get("sub")

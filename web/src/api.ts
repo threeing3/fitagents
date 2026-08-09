@@ -1,36 +1,27 @@
-import type { AuthUser, ChatMessage, Dashboard, PlanResponse, CheckinResult, SessionState, AgentRunDetail } from "./types";
+import type { AgentRunDetail, AlgorithmSummary, AuthUser, ChatMessage, CheckinResult, Dashboard, PlanResponse, SessionState, UsageSummary } from "./types";
 
 const DEFAULT_API_BASE_URL = import.meta.env.DEV
   ? "http://127.0.0.1:1015"
   : window.location.origin;
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL?.trim() || DEFAULT_API_BASE_URL).replace(/\/$/, "");
-const TOKEN_KEY = "ai_fitness_token";
-
-function getAuthHeaders(): Record<string, string> {
-  const token = localStorage.getItem(TOKEN_KEY);
-  if (token) {
-    return { Authorization: `Bearer ${token}` };
-  }
-  return {};
-}
-
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const authHeaders = getAuthHeaders();
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: { "Content-Type": "application/json", ...authHeaders, ...(options.headers || {}) },
     ...options,
+    credentials: "include",
+    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
   });
-  if (response.status === 401) {
-    // Token expired or invalid — clear auth and reload to show login
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem("ai_fitness_user");
-    window.location.reload();
-    throw new Error("Session expired. Please sign in again.");
-  }
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(text || response.statusText);
+    let detail = text || response.statusText;
+    try {
+      const parsed = JSON.parse(text);
+      detail = String(parsed.detail || parsed.message || parsed.error?.message || detail);
+    } catch {
+      // Keep the non-JSON upstream message.
+    }
+    throw new Error(detail);
   }
+  if (response.status === 204) return undefined as T;
   return response.json();
 }
 
@@ -56,6 +47,14 @@ export async function updateAccount(payload: {
     method: "PATCH",
     body: JSON.stringify(payload),
   });
+}
+
+export async function fetchUsageSummary(): Promise<UsageSummary> {
+  return api("/v1/usage/summary");
+}
+
+export async function fetchAlgorithmSummary(): Promise<AlgorithmSummary> {
+  return api("/v1/algorithm/summary");
 }
 
 export async function listSessions(): Promise<Array<SessionState & { title: string; created_at: string }>> {
@@ -116,10 +115,10 @@ export function streamChat(
   userId: string,
   message: string,
 ): Promise<Response> {
-  const authHeaders = getAuthHeaders();
   return fetch(`${API_BASE_URL}/v1/chat/messages/stream`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders },
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ session_id: sessionId, user_id: userId, message }),
   });
 }

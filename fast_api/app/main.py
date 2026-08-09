@@ -1,6 +1,7 @@
 """AI Fitness Coach API main application entry point."""
 
 import os
+import secrets
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -22,6 +23,7 @@ load_dotenv()
 os.environ.setdefault("LANGCHAIN_TRACING_V2", os.getenv("LANGCHAIN_TRACING_V2", "false"))
 os.environ.setdefault("LANGCHAIN_PROJECT", os.getenv("LANGCHAIN_PROJECT", "ai-fitness-coach"))
 
+from fast_api.app.api.algorithm_api import algorithm_router
 from fast_api.app.api.approval_api import approval_router
 from fast_api.app.api.auth_api import auth_router
 from fast_api.app.api.coach_platform import coach_router
@@ -29,6 +31,7 @@ from fast_api.app.api.eval_api import eval_router
 from fast_api.app.api.feedback_api import feedback_router
 from fast_api.app.api.memory_api import memory_router
 from fast_api.app.api.nutrition_api import nutrition_router
+from fast_api.app.api.usage_api import usage_router
 from fast_api.app.core.config import get_settings
 from fast_api.app.core.errors import register_exception_handlers
 from fast_api.app.core.metrics import (
@@ -40,6 +43,7 @@ from fast_api.app.core.metrics import (
 )
 from fast_api.app.core.rate_limit import limiter
 from fast_api.app.db.database import SessionLocal, get_db, init_db
+from fast_api.app.services.demo_accounts import DemoAccountService
 from fast_api.app.services.fitness_knowledge import FitnessKnowledgeService
 
 settings = get_settings()
@@ -49,11 +53,13 @@ settings = get_settings()
 async def lifespan(_: FastAPI):
     """Initialize durable dependencies before accepting application traffic."""
 
+    settings.validate_runtime()
     db_pool_capacity.set(settings.db_pool_size, kind="pool_size")
     db_pool_capacity.set(settings.db_max_overflow, kind="max_overflow")
     init_db()
     with SessionLocal() as db:
         FitnessKnowledgeService(db).seed_builtin_knowledge()
+        DemoAccountService(db, settings).ensure_today()
     yield
 
 
@@ -96,6 +102,9 @@ async def collect_api_metrics(request: Request, call_next):
     api_request_latency_seconds.observe(time.perf_counter() - start, endpoint=endpoint)
     if response.status_code == 429:
         rate_limit_rejections_total.inc(endpoint=endpoint)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("X-Frame-Options", "DENY")
     return response
 
 
@@ -162,6 +171,15 @@ def health(request: Request) -> dict[str, str | bool]:
 
 @app.get("/metrics")
 def metrics(request: Request) -> PlainTextResponse:
+    authorization = request.headers.get("authorization", "")
+    bearer = authorization[7:] if authorization.lower().startswith("bearer ") else ""
+    supplied = request.headers.get("x-metrics-token") or bearer
+    if (
+        not settings.metrics_token
+        or not supplied
+        or not secrets.compare_digest(supplied, settings.metrics_token)
+    ):
+        raise HTTPException(status_code=401, detail="Metrics authentication required")
     return PlainTextResponse(
         content=REGISTRY.generate_latest(), media_type="text/plain; version=0.0.4"
     )
@@ -178,6 +196,8 @@ app.include_router(nutrition_router)
 app.include_router(eval_router, prefix="/v1", tags=["evaluation"])
 app.include_router(feedback_router)
 app.include_router(approval_router)
+app.include_router(usage_router)
+app.include_router(algorithm_router)
 
 
 # The production container copies the Vite build here so the browser and API

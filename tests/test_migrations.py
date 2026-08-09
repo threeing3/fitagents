@@ -1,22 +1,17 @@
 """Tests for Alembic migration setup."""
+
 import os
-
-import pytest
-
 
 # ---- Migration file exists ----
 
+
 def test_alembic_ini_exists():
-    ini_path = os.path.join(
-        os.path.dirname(__file__), "..", "alembic.ini"
-    )
+    ini_path = os.path.join(os.path.dirname(__file__), "..", "alembic.ini")
     assert os.path.exists(ini_path), "alembic.ini missing"
 
 
 def test_alembic_env_exists():
-    env_path = os.path.join(
-        os.path.dirname(__file__), "..", "alembic", "env.py"
-    )
+    env_path = os.path.join(os.path.dirname(__file__), "..", "alembic", "env.py")
     assert os.path.exists(env_path), "alembic/env.py missing"
 
 
@@ -28,16 +23,16 @@ def test_initial_migration_exists():
 
 
 def test_migration_script_template_exists():
-    tmpl_path = os.path.join(
-        os.path.dirname(__file__), "..", "alembic", "script.py.mako"
-    )
+    tmpl_path = os.path.join(os.path.dirname(__file__), "..", "alembic", "script.py.mako")
     assert os.path.exists(tmpl_path), "script.py.mako missing"
 
 
 # ---- Initial migration structure ----
 
+
 def test_migration_has_revision_id():
     from importlib import util as import_util
+
     mig_path = os.path.join(
         os.path.dirname(__file__), "..", "alembic", "versions", "001_initial_schema.py"
     )
@@ -50,6 +45,7 @@ def test_migration_has_revision_id():
 
 def test_migration_has_upgrade_and_downgrade():
     from importlib import util as import_util
+
     mig_path = os.path.join(
         os.path.dirname(__file__), "..", "alembic", "versions", "001_initial_schema.py"
     )
@@ -63,7 +59,9 @@ def test_migration_has_upgrade_and_downgrade():
 def test_migration_creates_all_core_tables():
     """Verify the initial migration includes all expected table names."""
     with open(
-        os.path.join(os.path.dirname(__file__), "..", "alembic", "versions", "001_initial_schema.py"),
+        os.path.join(
+            os.path.dirname(__file__), "..", "alembic", "versions", "001_initial_schema.py"
+        ),
         encoding="utf-8",
     ) as f:
         content = f.read()
@@ -111,7 +109,9 @@ def test_migration_creates_all_core_tables():
 
 def test_migration_downgrade_drops_all_tables():
     with open(
-        os.path.join(os.path.dirname(__file__), "..", "alembic", "versions", "001_initial_schema.py"),
+        os.path.join(
+            os.path.dirname(__file__), "..", "alembic", "versions", "001_initial_schema.py"
+        ),
         encoding="utf-8",
     ) as f:
         content = f.read()
@@ -135,10 +135,9 @@ def test_migration_downgrade_drops_all_tables():
 
 # ---- database.py uses Alembic ----
 
+
 def test_init_db_references_alembic():
-    db_path = os.path.join(
-        os.path.dirname(__file__), "..", "fast_api", "app", "db", "database.py"
-    )
+    db_path = os.path.join(os.path.dirname(__file__), "..", "fast_api", "app", "db", "database.py")
     with open(db_path, encoding="utf-8") as f:
         content = f.read()
     assert "alembic" in content, "init_db should reference alembic"
@@ -146,24 +145,21 @@ def test_init_db_references_alembic():
 
 
 def test_database_py_no_longer_has_manual_migration():
-    db_path = os.path.join(
-        os.path.dirname(__file__), "..", "fast_api", "app", "db", "database.py"
-    )
+    db_path = os.path.join(os.path.dirname(__file__), "..", "fast_api", "app", "db", "database.py")
     with open(db_path, encoding="utf-8") as f:
         content = f.read()
-    assert "_migrate_existing_schema" not in content, (
-        "_migrate_existing_schema should be removed"
-    )
-    assert "ALTER TABLE" not in content, (
-        "No raw ALTER TABLE statements should remain"
-    )
+    assert "_migrate_existing_schema" not in content, "_migrate_existing_schema should be removed"
+    assert "ALTER TABLE" not in content, "No raw ALTER TABLE statements should remain"
 
 
 # ---- Index coverage ----
 
+
 def test_migration_includes_key_indexes():
     with open(
-        os.path.join(os.path.dirname(__file__), "..", "alembic", "versions", "001_initial_schema.py"),
+        os.path.join(
+            os.path.dirname(__file__), "..", "alembic", "versions", "001_initial_schema.py"
+        ),
         encoding="utf-8",
     ) as f:
         content = f.read()
@@ -189,9 +185,7 @@ def test_migration_includes_key_indexes():
 
 
 def test_alembic_env_imports_base_metadata():
-    env_path = os.path.join(
-        os.path.dirname(__file__), "..", "alembic", "env.py"
-    )
+    env_path = os.path.join(os.path.dirname(__file__), "..", "alembic", "env.py")
     with open(env_path, encoding="utf-8") as f:
         content = f.read()
     assert "from fast_api.app.db.database import Base" in content
@@ -199,9 +193,7 @@ def test_alembic_env_imports_base_metadata():
 
 
 def test_alembic_env_imports_models():
-    env_path = os.path.join(
-        os.path.dirname(__file__), "..", "alembic", "env.py"
-    )
+    env_path = os.path.join(os.path.dirname(__file__), "..", "alembic", "env.py")
     with open(env_path, encoding="utf-8") as f:
         content = f.read()
     assert "import fast_api.app.db.models" in content
@@ -227,3 +219,25 @@ def test_decision_evaluation_migration_exists_and_follows_background_tasks():
     assert '"decision_evaluation_plans"' in content
     assert '"decision_followups"' in content
     assert "ix_decision_evaluation_plans_status_next_check" in content
+
+
+def test_product_safety_migration_is_additive_and_preserves_rollback_data():
+    from importlib import util as import_util
+
+    mig_path = os.path.join(
+        os.path.dirname(__file__),
+        "..",
+        "alembic",
+        "versions",
+        "013_product_safety_and_usage.py",
+    )
+    spec = import_util.spec_from_file_location("product_safety_migration", mig_path)
+    mod = import_util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    content = open(mig_path, encoding="utf-8").read()
+
+    assert mod.revision == "013_product_safety_and_usage"
+    assert mod.down_revision == "012_compatibility_repairs"
+    assert "CREATE TABLE IF NOT EXISTS usage_events" in content
+    assert "CREATE TABLE IF NOT EXISTS demo_reset_states" in content
+    assert "DROP TABLE" not in content

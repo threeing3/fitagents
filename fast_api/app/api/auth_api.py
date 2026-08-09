@@ -1,23 +1,32 @@
 """Authentication API: register, login, account profile, and current user."""
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+import secrets
+
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from fast_api.app.core.auth import create_access_token, get_current_user
+from fast_api.app.core.config import get_settings
+from fast_api.app.core.rate_limit import limiter
 from fast_api.app.core.security import hash_password, verify_password
 from fast_api.app.db import models
 from fast_api.app.db.database import get_db
+from fast_api.app.services.demo_accounts import DemoAccountService
 
 auth_router = APIRouter(prefix="/v1/auth", tags=["auth"])
+settings = get_settings()
 
 
 class RegisterRequest(BaseModel):
     email: EmailStr
-    password: str = Field(min_length=6, max_length=128)
+    password: str = Field(min_length=10, max_length=128)
+    invite_code: str | None = Field(default=None, max_length=256)
     display_name: str = Field(default="Fitness User", min_length=1, max_length=120)
-    username: str | None = Field(default=None, min_length=3, max_length=80, pattern=r"^[a-zA-Z0-9_.-]+$")
+    username: str | None = Field(
+        default=None, min_length=3, max_length=80, pattern=r"^[a-zA-Z0-9_.-]+$"
+    )
     avatar_url: str | None = Field(default=None, max_length=1000)
 
 
@@ -48,7 +57,9 @@ class UserResponse(BaseModel):
 
 class AccountUpdateRequest(BaseModel):
     display_name: str | None = Field(default=None, min_length=1, max_length=120)
-    username: str | None = Field(default=None, min_length=3, max_length=80, pattern=r"^[a-zA-Z0-9_.-]+$")
+    username: str | None = Field(
+        default=None, min_length=3, max_length=80, pattern=r"^[a-zA-Z0-9_.-]+$"
+    )
     avatar_url: str | None = Field(default=None, max_length=1000)
     timezone: str | None = Field(default=None, max_length=64)
 
@@ -69,7 +80,9 @@ def _suggest_username(email: str, display_name: str, db: Session) -> str:
     base = "".join(ch for ch in base if ch.isalnum() or ch in "_.-").strip("._-") or "fitness-user"
     candidate = base[:70]
     suffix = 0
-    while db.scalar(select(models.User).where(func.lower(models.User.username) == candidate.lower())):
+    while db.scalar(
+        select(models.User).where(func.lower(models.User.username) == candidate.lower())
+    ):
         suffix += 1
         candidate = f"{base[:64]}-{suffix}"
     return candidate
@@ -87,6 +100,24 @@ def _token_response(user: models.User) -> TokenResponse:
     )
 
 
+def _set_auth_cookie(response: Response, token: str) -> None:
+    response.set_cookie(
+        key=settings.auth_cookie_name,
+        value=token,
+        max_age=settings.jwt_expire_minutes * 60,
+        httponly=True,
+        secure=settings.auth_cookie_secure,
+        samesite=settings.auth_cookie_samesite,
+        path="/",
+    )
+
+
+def _login_response(user: models.User, response: Response) -> TokenResponse:
+    payload = _token_response(user)
+    _set_auth_cookie(response, payload.access_token)
+    return payload
+
+
 def _user_response(user: models.User) -> UserResponse:
     return UserResponse(
         user_id=str(user.id),
@@ -99,10 +130,24 @@ def _user_response(user: models.User) -> UserResponse:
 
 
 @auth_router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-def register(request: Request, payload: RegisterRequest, db: Session = Depends(get_db)):
+@limiter.limit(settings.rate_limit_auth_register)
+def register(
+    request: Request,
+    response: Response,
+    payload: RegisterRequest,
+    db: Session = Depends(get_db),
+):
     """Create a new user account and return a JWT token."""
+    if settings.invite_code:
+        supplied_code = payload.invite_code or ""
+        if not secrets.compare_digest(supplied_code, settings.invite_code):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="Invalid invite code."
+            )
     email = _normalize_email(str(payload.email))
-    username = _normalize_username(payload.username) or _suggest_username(email, payload.display_name, db)
+    username = _normalize_username(payload.username) or _suggest_username(
+        email, payload.display_name, db
+    )
     existing = db.scalar(
         select(models.User).where(
             or_(models.User.email == email, func.lower(models.User.username) == username.lower())
@@ -131,11 +176,17 @@ def register(request: Request, payload: RegisterRequest, db: Session = Depends(g
     db.commit()
     db.refresh(user)
 
-    return _token_response(user)
+    return _login_response(user, response)
 
 
 @auth_router.post("/login", response_model=TokenResponse)
-def login(request: Request, payload: LoginRequest, db: Session = Depends(get_db)):
+@limiter.limit(settings.rate_limit_auth_login)
+def login(
+    request: Request,
+    response: Response,
+    payload: LoginRequest,
+    db: Session = Depends(get_db),
+):
     """Authenticate with email or username and password, return a JWT token."""
     identifier = (payload.identifier or payload.email or "").strip().lower()
     if not identifier:
@@ -154,7 +205,35 @@ def login(request: Request, payload: LoginRequest, db: Session = Depends(get_db)
             detail="Invalid email/username or password.",
         )
 
-    return _token_response(user)
+    return _login_response(user, response)
+
+
+@auth_router.post("/demo", response_model=TokenResponse)
+@limiter.limit(settings.rate_limit_auth_login)
+def demo_login(request: Request, response: Response, db: Session = Depends(get_db)):
+    """Open the server-managed demo account without exposing its password."""
+
+    if not settings.demo_mode:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Demo mode is disabled.")
+    user = DemoAccountService(db, settings).active_user()
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Demo unavailable."
+        )
+    return _login_response(user, response)
+
+
+@auth_router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+def logout(response: Response) -> Response:
+    response.delete_cookie(
+        key=settings.auth_cookie_name,
+        path="/",
+        secure=settings.auth_cookie_secure,
+        httponly=True,
+        samesite=settings.auth_cookie_samesite,
+    )
+    response.status_code = status.HTTP_204_NO_CONTENT
+    return response
 
 
 @auth_router.get("/me", response_model=UserResponse)

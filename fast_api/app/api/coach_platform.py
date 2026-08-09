@@ -32,9 +32,10 @@ from fast_api.app.schemas.agent import (
     UserProfileInput,
     WorkoutLogRequest,
 )
+from fast_api.app.services.agent_task_state import AgentTaskStateService
 from fast_api.app.services.background_tasks import BackgroundTaskQueue
 from fast_api.app.services.coach_agent import CoachAgentService
-from fast_api.app.services.agent_task_state import AgentTaskStateService
+from fast_api.app.services.model_provider import ModelProvider
 from fast_api.app.services.plan_reviewer import PlanReviewer
 
 coach_router = APIRouter()
@@ -45,7 +46,10 @@ def get_service(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ) -> CoachAgentService:
-    return CoachAgentService(db)
+    return CoachAgentService(
+        db,
+        ModelProvider(user_id=current_user.id, endpoint="coach"),
+    )
 
 
 @coach_router.post("/chat/sessions", response_model=ChatSessionResponse)
@@ -73,7 +77,9 @@ def list_chat_sessions(
     sessions = db.scalars(
         select(models.ConversationSession)
         .where(models.ConversationSession.user_id == current_user.id)
-        .order_by(desc(models.ConversationSession.updated_at), desc(models.ConversationSession.created_at))
+        .order_by(
+            desc(models.ConversationSession.updated_at), desc(models.ConversationSession.created_at)
+        )
         .limit(max(1, min(limit, 100)))
     ).all()
     return [
@@ -137,7 +143,9 @@ async def send_chat_message(
 ):
     try:
         return await service.handle_chat_message(
-            payload.session_id, current_user.id, payload.message,
+            payload.session_id,
+            current_user.id,
+            payload.message,
         )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

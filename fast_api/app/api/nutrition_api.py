@@ -1,11 +1,12 @@
 """Nutrition API — food photo recognition and meal logging."""
 
-import uuid
+import warnings
+from io import BytesIO
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile
-from fastapi.responses import JSONResponse
-from sqlalchemy import desc, func, select
+from PIL import Image, UnidentifiedImageError
+from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
 from fast_api.app.core.auth import get_current_user
@@ -24,10 +25,14 @@ def get_nutrition_service(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ) -> NutritionService:
-    return NutritionService(db)
+    return NutritionService(
+        db,
+        ModelProvider(user_id=current_user.id, endpoint="nutrition.recognize"),
+    )
 
 
 # ---- Analyze food photo ----
+
 
 @nutrition_router.post("/recognize")
 @limiter.limit(settings.rate_limit_nutrition)
@@ -45,7 +50,7 @@ async def recognize_food_photo(
     The result is NOT persisted automatically — use POST /v1/nutrition/meals/save
     to save after reviewing/editing.
     """
-    # Validate file type
+    # Validate the declared type, bounded bytes, decoded format, and pixel count.
     allowed_types = {"image/jpeg", "image/png", "image/webp"}
     media_type = image.content_type or "image/jpeg"
     if media_type not in allowed_types:
@@ -54,21 +59,56 @@ async def recognize_food_photo(
             detail=f"Unsupported image type: {media_type}. Supported: JPEG, PNG, WebP.",
         )
 
-    # Read image bytes (limit to 10 MB)
-    image_bytes = await image.read()
-    if len(image_bytes) > 10 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="Image too large. Maximum 10 MB.")
+    content_length = request.headers.get("content-length")
+    if (
+        content_length
+        and content_length.isdigit()
+        and int(content_length) > settings.max_upload_bytes
+    ):
+        raise HTTPException(status_code=413, detail="Image exceeds the upload limit.")
+
+    chunks: list[bytes] = []
+    total = 0
+    while chunk := await image.read(64 * 1024):
+        total += len(chunk)
+        if total > settings.max_upload_bytes:
+            raise HTTPException(status_code=413, detail="Image exceeds the upload limit.")
+        chunks.append(chunk)
+    image_bytes = b"".join(chunks)
 
     if len(image_bytes) == 0:
         raise HTTPException(status_code=400, detail="Empty image file.")
 
+    expected_format = {"image/jpeg": "JPEG", "image/png": "PNG", "image/webp": "WEBP"}
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            with Image.open(BytesIO(image_bytes)) as parsed:
+                if parsed.format != expected_format[media_type]:
+                    raise HTTPException(
+                        status_code=400, detail="Image content does not match its type."
+                    )
+                width, height = parsed.size
+                if width * height > settings.max_image_pixels:
+                    raise HTTPException(
+                        status_code=413, detail="Image pixel count exceeds the limit."
+                    )
+                parsed.verify()
+    except HTTPException:
+        raise
+    except (UnidentifiedImageError, OSError, SyntaxError, Image.DecompressionBombWarning):
+        raise HTTPException(status_code=400, detail="Image could not be safely decoded.") from None
+
     result = await service.analyze_food_photo(
-        current_user.id, image_bytes, media_type,
+        current_user.id,
+        image_bytes,
+        media_type,
     )
     return result
 
 
 # ---- Save meal from analysis ----
+
 
 @nutrition_router.post("/meals/save")
 def save_meal_from_analysis(
@@ -87,7 +127,9 @@ def save_meal_from_analysis(
 
     corrected = analysis.pop("corrected", False)
     service.save_meal_from_analysis(
-        current_user.id, analysis, corrected_by_user=corrected,
+        current_user.id,
+        analysis,
+        corrected_by_user=corrected,
     )
     return {
         "status": "saved",
@@ -98,6 +140,7 @@ def save_meal_from_analysis(
 
 # ---- List meals ----
 
+
 @nutrition_router.get("/meals")
 def list_meals(
     days: int = Query(default=7, ge=1, le=90, description="Days of history"),
@@ -106,6 +149,7 @@ def list_meals(
 ) -> list[dict[str, Any]]:
     """List recent nutrition log entries."""
     from datetime import date, timedelta
+
     cutoff = date.today() - timedelta(days=days)
 
     logs = db.scalars(
@@ -140,6 +184,7 @@ def list_meals(
 
 # ---- Daily summary ----
 
+
 @nutrition_router.get("/summary")
 def daily_summary(
     days: int = Query(default=7, ge=1, le=90),
@@ -148,6 +193,7 @@ def daily_summary(
 ) -> list[dict[str, Any]]:
     """Get nutrition daily summaries."""
     from datetime import date, timedelta
+
     cutoff = date.today() - timedelta(days=days)
 
     summaries = db.scalars(

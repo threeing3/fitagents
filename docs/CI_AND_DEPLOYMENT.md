@@ -10,7 +10,7 @@ Every pull request to `main` must pass:
 2. Mypy checks for the typed configuration, database, and training-data contract boundary.
 3. The complete backend test suite on Python 3.11 and 3.12.
 4. Whole-project coverage of at least 65% during the foundation phase. The public-release target remains 70% and must be enabled before the release PR.
-5. Frontend TypeScript checking, Vitest component tests, and the Vite production build.
+5. Frontend TypeScript checking, Vitest component tests, Playwright Chromium end-to-end tests, and the Vite production build.
 6. Full-stack multi-stage Docker image build.
 7. OpenAPI schema generation.
 8. Python and npm dependency audits plus Gitleaks secret scanning.
@@ -30,6 +30,8 @@ Push-Location web
 npm ci
 npm run typecheck
 npm test
+npx playwright install chromium
+npm run test:e2e
 npm run build
 npm audit --audit-level=high --registry=https://registry.npmjs.org
 Pop-Location
