@@ -7,6 +7,7 @@
     "dev": "vite",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --coverage=false",
+    "test:e2e": "playwright test",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0"
   },
@@ -16,6 +17,7 @@
     "react-dom": "18.3.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@testing-library/jest-dom": "6.6.3",
     "@testing-library/react": "16.3.2",
     "@types/react": "18.3.12",

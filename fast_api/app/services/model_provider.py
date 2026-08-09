@@ -2,6 +2,7 @@ import base64
 import hashlib
 import json
 import logging
+import uuid
 from typing import Iterable
 
 import httpx
@@ -11,6 +12,7 @@ from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from fast_api.app.core.config import Settings, get_settings
 from fast_api.app.core.prompts import registry
 from fast_api.app.core.retry import retry_with_backoff
+from fast_api.app.services.usage_quota import UsageQuotaService
 
 logger = logging.getLogger(__name__)
 
@@ -18,14 +20,39 @@ logger = logging.getLogger(__name__)
 class ModelProvider:
     """Provider abstraction for Qwen, DeepSeek, OpenAI, and offline fallback."""
 
-    def __init__(self, settings: Settings | None = None):
+    def __init__(
+        self,
+        settings: Settings | None = None,
+        *,
+        user_id: uuid.UUID | None = None,
+        endpoint: str | None = None,
+        quota_service: UsageQuotaService | None = None,
+    ):
         self.settings = settings or get_settings()
+        self.user_id = user_id
+        self.endpoint = endpoint
+        self.quota_service = quota_service or UsageQuotaService(self.settings)
+        self.quota_exhausted = False
 
     def has_live_model(self) -> bool:
-        return self.settings.has_live_model_key
+        if not self.settings.has_live_model_key:
+            return False
+        snapshot = self.quota_service.snapshot(self.user_id)
+        self.quota_exhausted = not snapshot.live_calls_available
+        return snapshot.live_calls_available
+
+    def _reserve_live_call(self) -> bool:
+        allowed = self.quota_service.reserve(
+            self.user_id,
+            provider=self.settings.llm_provider,
+            model_name=self.settings.chat_model,
+            endpoint=self.endpoint,
+        )
+        self.quota_exhausted = not allowed
+        return allowed
 
     def chat_model(self, temperature: float = 0.4) -> ChatOpenAI | None:
-        if not self.settings.has_live_model_key:
+        if not self.settings.has_live_model_key or not self._reserve_live_call():
             return None
 
         kwargs = {
@@ -71,7 +98,7 @@ class ModelProvider:
         Defaults to gpt-4o-mini (cost-effective for food recognition).
         Falls back to the regular chat model if the provider is OpenAI-compatible.
         """
-        if not self.settings.has_live_model_key:
+        if not self.settings.has_live_model_key or not self._reserve_live_call():
             return None
 
         model_name = getattr(self.settings, "vision_model", None) or "gpt-4o-mini"
@@ -91,7 +118,9 @@ class ModelProvider:
         return ChatOpenAI(**kwargs)
 
     @retry_with_backoff(max_retries=2, base_delay=1.0, max_delay=10.0)
-    async def recognize_food(self, image_bytes: bytes, media_type: str = "image/jpeg") -> dict | None:
+    async def recognize_food(
+        self, image_bytes: bytes, media_type: str = "image/jpeg"
+    ) -> dict | None:
         """Analyze a food photo with a vision model and return structured nutrition data.
 
         Args:
@@ -113,10 +142,12 @@ class ModelProvider:
 
         system_prompt = registry.get("food_recognition")
 
-        user_message = HumanMessage(content=[
-            {"type": "text", "text": "Analyze this food photo and return the JSON."},
-            {"type": "image_url", "image_url": {"url": data_uri}},
-        ])
+        user_message = HumanMessage(
+            content=[
+                {"type": "text", "text": "Analyze this food photo and return the JSON."},
+                {"type": "image_url", "image_url": {"url": data_uri}},
+            ]
+        )
 
         response = await model.ainvoke([SystemMessage(content=system_prompt), user_message])
         text = str(response.content)
@@ -127,6 +158,7 @@ class ModelProvider:
     def _parse_food_json(self, text: str) -> dict | None:
         """Extract and validate the food recognition JSON from model output."""
         import re
+
         cleaned = re.sub(r"^```(?:json)?\s*", "", text.strip())
         cleaned = re.sub(r"\s*```$", "", cleaned)
         try:
@@ -189,12 +221,17 @@ class ModelProvider:
                 if attempt == max_retries:
                     break
                 from fast_api.app.core.retry import _is_retryable
+
                 if not _is_retryable(exc):
                     break
-                import asyncio, random
-                delay = min(base_delay * (2 ** attempt), 30.0)
+                import asyncio
+                import random
+
+                delay = min(base_delay * (2**attempt), 30.0)
                 delay *= 0.5 + random.random()
-                logger.warning("Stream retry %d/%d after %.1fs: %s", attempt + 1, max_retries, delay, exc)
+                logger.warning(
+                    "Stream retry %d/%d after %.1fs: %s", attempt + 1, max_retries, delay, exc
+                )
                 await asyncio.sleep(delay)
         logger.error("stream_coach_reply failed after %d attempts: %s", max_retries + 1, last_exc)
         raise last_exc

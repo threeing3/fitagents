@@ -2,12 +2,20 @@ import React, { useEffect, useRef, useState } from "react";
 import { Bot, Send, Sparkles, ChevronDown, ChevronRight, Clock, Zap, Brain, Target, Activity, ShieldCheck, Wrench, CheckCircle, XCircle } from "lucide-react";
 import { fetchAgentRun } from "./api";
 import type { SessionState, ChatMessage, AgentTraceItem, AgentRunDetail } from "./types";
+import { useLanguage } from "./LanguageContext";
 
 const SUGGESTIONS = [
   { icon: <Target size={14} />, text: "Generate my training plan" },
   { icon: <Brain size={14} />, text: "Adjust plan based on my fatigue" },
   { icon: <Zap size={14} />, text: "What should I eat today?" },
   { icon: <Clock size={14} />, text: "Log today's workout" },
+];
+
+const SUGGESTIONS_ZH = [
+  { icon: <Target size={14} />, text: "为我生成训练计划" },
+  { icon: <Brain size={14} />, text: "根据我的疲劳状态调整计划" },
+  { icon: <Zap size={14} />, text: "我今天应该怎么吃？" },
+  { icon: <Clock size={14} />, text: "记录今天的训练" },
 ];
 
 type Props = {
@@ -22,6 +30,7 @@ type Props = {
 };
 
 export function ChatView({ messages, busy, session, agentStatus, agentTrace, latestRunId, profileComplete, onSend }: Props) {
+  const { isZh } = useLanguage();
   const [input, setInput] = useState("");
   const [runDetail, setRunDetail] = useState<AgentRunDetail | null>(null);
   const [runDetailLoading, setRunDetailLoading] = useState(false);
@@ -69,7 +78,7 @@ export function ChatView({ messages, busy, session, agentStatus, agentTrace, lat
           <Bot size={24} />
           <div>
             <h2>AI Coach</h2>
-            <p>{profileComplete ? "Profile ready" : "Building your profile..."}</p>
+            <p>{profileComplete ? (isZh ? "档案已就绪" : "Profile ready") : (isZh ? "正在建立档案…" : "Building your profile...")}</p>
           </div>
         </div>
 
@@ -78,7 +87,7 @@ export function ChatView({ messages, busy, session, agentStatus, agentTrace, lat
           {messages.map((msg, i) => (
             <div key={i} className={`msg-row ${msg.role}`}>
               <div className="msg-avatar">
-                {msg.role === "assistant" ? <Bot size={18} /> : <span>You</span>}
+                {msg.role === "assistant" ? <Bot size={18} /> : <span>{isZh ? "你" : "You"}</span>}
               </div>
               <div className="msg-stack">
                 {msg.role === "assistant" && i === messages.length - 1 && (busy || agentTrace.length > 0) && (
@@ -106,7 +115,7 @@ export function ChatView({ messages, busy, session, agentStatus, agentTrace, lat
         {/* suggestions */}
         {messages.length <= 1 && (
           <div className="suggestion-chips">
-            {SUGGESTIONS.map((s, i) => (
+            {(isZh ? SUGGESTIONS_ZH : SUGGESTIONS).map((s, i) => (
               <button key={i} className="chip" onClick={() => onSend(s.text)} disabled={busy || !session}>
                 {s.icon}
                 <span>{s.text}</span>
@@ -123,7 +132,7 @@ export function ChatView({ messages, busy, session, agentStatus, agentTrace, lat
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
             }}
-            placeholder="Tell your coach about your goals, today's state, or ask for advice..."
+            placeholder={isZh ? "告诉教练你的目标、今天的状态，或提出问题……" : "Tell your coach about your goals, today's state, or ask for advice..."}
             rows={2}
           />
           <button className="send-btn" onClick={handleSend} disabled={busy || !session || !input.trim()}>
@@ -154,7 +163,7 @@ type StepState = {
   detail?: string;
 };
 
-function buildPhases(trace: AgentTraceItem[], busy: boolean, status: string): { phases: Phase[]; activeStage: string | null } {
+function buildPhases(trace: AgentTraceItem[], busy: boolean, status: string, isZh: boolean): { phases: Phase[]; activeStage: string | null } {
   const steps = trace.filter(t => t.type === "step");
   const stepMap = new Map<string, StepState>();
 
@@ -174,7 +183,7 @@ function buildPhases(trace: AgentTraceItem[], busy: boolean, status: string): { 
 
   // If busy and no completed steps yet, mark the first expected steps as pending/running
   if (busy && steps.length === 0) {
-    stepMap.set("planning", { tool_name: "planning", description: "Planning execution steps...", status: "running" });
+    stepMap.set("planning", { tool_name: "planning", description: isZh ? "正在规划执行步骤…" : "Planning execution steps...", status: "running" });
   }
 
   const result: Phase[] = [];
@@ -186,13 +195,13 @@ function buildPhases(trace: AgentTraceItem[], busy: boolean, status: string): { 
   const verifierSteps = ordered.filter(s => ["response.verify", "response.repair", "guardrail.check", "ResponseVerifier", "ResponseRepair", "GuardrailCheck"].includes(s.tool_name));
 
   if (plannerSteps.length > 0) {
-    result.push({ stage: "plan", icon: <Activity size={12} />, label: "Plan & Profile", steps: plannerSteps });
+    result.push({ stage: "plan", icon: <Activity size={12} />, label: isZh ? "规划与档案" : "Plan & Profile", steps: plannerSteps });
   }
   if (executorSteps.length > 0) {
-    result.push({ stage: "execute", icon: <Zap size={12} />, label: "Context & Reply", steps: executorSteps });
+    result.push({ stage: "execute", icon: <Zap size={12} />, label: isZh ? "上下文与回复" : "Context & Reply", steps: executorSteps });
   }
   if (verifierSteps.length > 0) {
-    result.push({ stage: "verify", icon: <ShieldCheck size={12} />, label: "Verify & Repair", steps: verifierSteps });
+    result.push({ stage: "verify", icon: <ShieldCheck size={12} />, label: isZh ? "校验与修复" : "Verify & Repair", steps: verifierSteps });
   }
 
   // Determine active stage
@@ -224,17 +233,18 @@ function AgentProcessInline({
   runDetailLoading: boolean;
   onLoadDetail: () => void;
 }) {
+  const { isZh } = useLanguage();
   const [expanded, setExpanded] = useState(true);
   const [showDetail, setShowDetail] = useState(false);
 
   if (trace.length === 0 && !busy) return null;
 
-  const { phases, activeStage } = buildPhases(trace, busy, status);
+  const { phases, activeStage } = buildPhases(trace, busy, status, isZh);
   const totalSteps = phases.reduce((sum, p) => sum + p.steps.length, 0);
   const doneSteps = phases.reduce((sum, p) => sum + p.steps.filter(s => s.status === "done").length, 0);
 
   return (
-    <div className="agent-process-inline" role="status" aria-label="Agent execution progress">
+    <div className="agent-process-inline" role="status" aria-label={isZh ? "智能体执行进度" : "Agent execution progress"}>
       {/* header bar */}
       <button
         className="agent-process-bar"
@@ -244,10 +254,10 @@ function AgentProcessInline({
         <span className="agent-process-bar-left">
           <Sparkles size={13} />
           <span className="agent-process-bar-title">
-            {busy ? "Agent thinking" : "Agent process"}
+            {busy ? (isZh ? "智能体思考中" : "Agent thinking") : (isZh ? "智能体执行过程" : "Agent process")}
           </span>
           <span className="agent-process-bar-count">
-            {doneSteps}/{totalSteps} steps
+            {doneSteps}/{totalSteps} {isZh ? "步" : "steps"}
           </span>
         </span>
         <span className="agent-process-bar-right">
@@ -313,7 +323,7 @@ function AgentProcessInline({
                 onClick={() => { setShowDetail(v => !v); if (!runDetail) onLoadDetail(); }}
                 disabled={runDetailLoading}
               >
-                {runDetailLoading ? "Loading detail..." : showDetail ? "Hide detail" : "View detail"}
+                {runDetailLoading ? (isZh ? "读取详情…" : "Loading detail...") : showDetail ? (isZh ? "隐藏详情" : "Hide detail") : (isZh ? "查看详情" : "View detail")}
               </button>
             </div>
           )}
@@ -325,7 +335,7 @@ function AgentProcessInline({
         <div className="agent-run-detail">
           <div className="agent-run-detail-head">
             <span>Run {runDetail.id.slice(0, 8)}</span>
-            <span>{runDetail.run_type} · {runDetail.status} · {runDetail.nodes.length} nodes</span>
+            <span>{runDetail.run_type} · {runDetail.status} · {runDetail.nodes.length} {isZh ? "个节点" : "nodes"}</span>
           </div>
           {runDetail.tool_calls.length > 0 && (
             <div className="agent-run-detail-tools">

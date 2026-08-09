@@ -73,4 +73,23 @@ export type CheckinResult = {
 
 // ---- UI view state ----
 
-export type ViewName = "chat" | "dashboard" | "checkin" | "workout" | "account";
+export type ViewName = "chat" | "dashboard" | "checkin" | "workout" | "account" | "algorithm";
+
+export type UsageSummary = {
+  event_date: string;
+  user_used: number;
+  user_limit: number;
+  global_used: number;
+  global_limit: number;
+  live_calls_available: boolean;
+  fallback_mode: string;
+};
+
+export type AlgorithmSummary = {
+  release_stage: string;
+  disclaimer: string;
+  datasets: Array<{ name: string; size: number; source: string; status: string }>;
+  metrics: Array<{ name: string; value: number; total?: number; unit?: string; source: string }>;
+  business_outcomes: { label: string; online_claim: boolean };
+  dpo: { enabled: boolean; minimum_reviewed_pairs: number; current_reviewed_pairs: number };
+};

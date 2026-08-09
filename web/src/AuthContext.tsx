@@ -4,63 +4,42 @@ import type { AuthUser } from "./types";
 
 type AuthState = {
   user: AuthUser | null;
-  token: string | null;
   loading: boolean;
   login: (identifier: string, password: string) => Promise<void>;
-  register: (email: string, password: string, displayName: string, username?: string) => Promise<void>;
+  register: (email: string, password: string, displayName: string, username?: string, inviteCode?: string) => Promise<void>;
+  loginDemo: () => Promise<void>;
   updateProfile: (payload: { display_name?: string; username?: string; avatar_url?: string }) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthState>({
   user: null,
-  token: null,
   loading: true,
   login: async () => {},
   register: async () => {},
+  loginDemo: async () => {},
   updateProfile: async () => {},
-  logout: () => {},
+  logout: async () => {},
 });
-
-const TOKEN_KEY = "ai_fitness_token";
-const USER_KEY = "ai_fitness_user";
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const savedToken = localStorage.getItem(TOKEN_KEY);
-    const savedUser = localStorage.getItem(USER_KEY);
-    if (savedToken && savedUser) {
-      try {
-        setToken(savedToken);
-        setUser(JSON.parse(savedUser));
-      } catch {
-        localStorage.removeItem(TOKEN_KEY);
-        localStorage.removeItem(USER_KEY);
-      }
-    }
-    setLoading(false);
-  }, []);
-
-  const persist = useCallback((t: string, u: AuthUser) => {
-    localStorage.setItem(TOKEN_KEY, t);
-    localStorage.setItem(USER_KEY, JSON.stringify(u));
-    setToken(t);
-    setUser(u);
+    localStorage.removeItem("ai_fitness_token");
+    localStorage.removeItem("ai_fitness_user");
+    api<AuthUser>("/v1/auth/me")
+      .then(setUser)
+      .catch(() => setUser(null))
+      .finally(() => setLoading(false));
   }, []);
 
   const persistUser = useCallback((u: AuthUser) => {
-    localStorage.setItem(USER_KEY, JSON.stringify(u));
     setUser(u);
   }, []);
 
   const clear = useCallback(() => {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(USER_KEY);
-    setToken(null);
     setUser(null);
   }, []);
 
@@ -69,20 +48,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       method: "POST",
       body: JSON.stringify({ identifier, password }),
     });
-    persist(result.access_token, {
+    persistUser({
       user_id: result.user_id,
       email: result.email,
       username: result.username,
       display_name: result.display_name,
       avatar_url: result.avatar_url,
     });
-  }, [persist]);
+  }, [persistUser]);
 
   const register = useCallback(async (
     email: string,
     password: string,
     displayName: string,
     username?: string,
+    inviteCode?: string,
   ) => {
     const result = await api<AuthUser & { access_token: string }>("/v1/auth/register", {
       method: "POST",
@@ -91,16 +71,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         password,
         display_name: displayName,
         username: username || undefined,
+        invite_code: inviteCode || undefined,
       }),
     });
-    persist(result.access_token, {
+    persistUser({
       user_id: result.user_id,
       email: result.email,
       username: result.username,
       display_name: result.display_name,
       avatar_url: result.avatar_url,
     });
-  }, [persist]);
+  }, [persistUser]);
+
+  const loginDemo = useCallback(async () => {
+    const result = await api<AuthUser & { access_token: string }>("/v1/auth/demo", {
+      method: "POST",
+    });
+    persistUser({
+      user_id: result.user_id,
+      email: result.email,
+      username: result.username,
+      display_name: result.display_name,
+      avatar_url: result.avatar_url,
+    });
+  }, [persistUser]);
 
   const updateProfile = useCallback(async (payload: {
     display_name?: string;
@@ -111,12 +105,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     persistUser(updated);
   }, [persistUser]);
 
-  const logout = useCallback(() => {
-    clear();
+  const logout = useCallback(async () => {
+    try {
+      await api<void>("/v1/auth/logout", { method: "POST" });
+    } finally {
+      clear();
+    }
   }, [clear]);
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, updateProfile, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, loginDemo, updateProfile, logout }}>
       {children}
     </AuthContext.Provider>
   );
