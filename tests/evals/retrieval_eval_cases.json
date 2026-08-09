@@ -1,20 +1,4322 @@
 [
   {
-    "query": "睡眠不足后如何恢复训练",
-    "expected": ["m-sleep"],
+    "case_id": "retrieval-sleep-00",
+    "query": "昨晚只睡五小时",
+    "expected": [
+      "m-sleep"
+    ],
     "memories": [
-      {"id": "m-training", "text": "每周训练三次，正在进行力量训练", "vector_score": 0.42, "recency_score": 0.7, "entity_match": 0.0},
-      {"id": "m-sleep", "text": "昨晚睡眠不足，今天需要降低训练强度", "vector_score": 0.91, "recency_score": 0.8, "entity_match": 1.0},
-      {"id": "m-food", "text": "训练后补充蛋白质和碳水", "vector_score": 0.21, "recency_score": 0.3, "entity_match": 0.0}
-    ]
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
   },
   {
-    "query": "肩膀疼痛时选择什么动作",
-    "expected": ["m-shoulder"],
+    "case_id": "retrieval-sleep-01",
+    "query": "睡眠不足怎么训练",
+    "expected": [
+      "m-sleep"
+    ],
     "memories": [
-      {"id": "m-plan", "text": "当前训练计划包含推举动作", "vector_score": 0.38, "recency_score": 0.4, "entity_match": 0.0},
-      {"id": "m-shoulder", "text": "肩膀疼痛，需要避开诱发疼痛的动作", "vector_score": 0.89, "recency_score": 0.9, "entity_match": 1.0},
-      {"id": "m-sleep-2", "text": "近一周平均睡眠七小时", "vector_score": 0.12, "recency_score": 0.5, "entity_match": 0.0}
-    ]
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-sleep-02",
+    "query": "连续几天没睡好",
+    "expected": [
+      "m-sleep"
+    ],
+    "memories": [
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-sleep-03",
+    "query": "poor sleep recovery",
+    "expected": [
+      "m-sleep"
+    ],
+    "memories": [
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-sleep-04",
+    "query": "今天很困",
+    "expected": [
+      "m-sleep"
+    ],
+    "memories": [
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-sleep-05",
+    "query": "睡眠影响力量吗",
+    "expected": [
+      "m-sleep"
+    ],
+    "memories": [
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-sleep-06",
+    "query": "恢复状态很差",
+    "expected": [
+      "m-sleep"
+    ],
+    "memories": [
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-sleep-07",
+    "query": "需要因为少睡而减量吗",
+    "expected": [
+      "m-sleep"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-shoulder-00",
+    "query": "肩膀刺痛",
+    "expected": [
+      "m-shoulder"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-shoulder-01",
+    "query": "卧推肩部不适",
+    "expected": [
+      "m-shoulder"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-shoulder-02",
+    "query": "肩伤训练调整",
+    "expected": [
+      "m-shoulder"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-shoulder-03",
+    "query": "shoulder pain bench",
+    "expected": [
+      "m-shoulder"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-shoulder-04",
+    "query": "推举时肩疼",
+    "expected": [
+      "m-shoulder"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-shoulder-05",
+    "query": "肩关节恢复",
+    "expected": [
+      "m-shoulder"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-shoulder-06",
+    "query": "上肢训练疼痛",
+    "expected": [
+      "m-shoulder"
+    ],
+    "memories": [
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-shoulder-07",
+    "query": "肩部受伤记录",
+    "expected": [
+      "m-shoulder"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-fat_loss-00",
+    "query": "我的减脂目标",
+    "expected": [
+      "m-fat_loss"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-fat_loss-01",
+    "query": "体重停滞两周",
+    "expected": [
+      "m-fat_loss"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-fat_loss-02",
+    "query": "减脂期热量",
+    "expected": [
+      "m-fat_loss"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-fat_loss-03",
+    "query": "fat loss plateau",
+    "expected": [
+      "m-fat_loss"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-fat_loss-04",
+    "query": "减肥目标记录",
+    "expected": [
+      "m-fat_loss"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-fat_loss-05",
+    "query": "体重没有变化",
+    "expected": [
+      "m-fat_loss"
+    ],
+    "memories": [
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-fat_loss-06",
+    "query": "减脂依从性",
+    "expected": [
+      "m-fat_loss"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-fat_loss-07",
+    "query": "当前体重趋势",
+    "expected": [
+      "m-fat_loss"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-takeout-00",
+    "query": "经常吃外卖",
+    "expected": [
+      "m-takeout"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-takeout-01",
+    "query": "外食蛋白质",
+    "expected": [
+      "m-takeout"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-takeout-02",
+    "query": "不会自己做饭",
+    "expected": [
+      "m-takeout"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-takeout-03",
+    "query": "takeout protein",
+    "expected": [
+      "m-takeout"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-takeout-04",
+    "query": "外卖怎么减脂",
+    "expected": [
+      "m-takeout"
+    ],
+    "memories": [
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-takeout-05",
+    "query": "午餐外食选择",
+    "expected": [
+      "m-takeout"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-takeout-06",
+    "query": "高蛋白外卖",
+    "expected": [
+      "m-takeout"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-takeout-07",
+    "query": "饮食偏好外卖",
+    "expected": [
+      "m-takeout"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-bench-00",
+    "query": "卧推平台期",
+    "expected": [
+      "m-bench"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-bench-01",
+    "query": "卧推重量不涨",
+    "expected": [
+      "m-bench"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-bench-02",
+    "query": "bench stalled",
+    "expected": [
+      "m-bench"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-bench-03",
+    "query": "胸部力量停滞",
+    "expected": [
+      "m-bench"
+    ],
+    "memories": [
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-bench-04",
+    "query": "卧推进步记录",
+    "expected": [
+      "m-bench"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-bench-05",
+    "query": "三周没有加重",
+    "expected": [
+      "m-bench"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-bench-06",
+    "query": "卧推训练历史",
+    "expected": [
+      "m-bench"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-bench-07",
+    "query": "主项突破建议",
+    "expected": [
+      "m-bench"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-cycle-00",
+    "query": "黄体期疲劳",
+    "expected": [
+      "m-cycle"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-cycle-01",
+    "query": "月经周期训练",
+    "expected": [
+      "m-cycle"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-cycle-02",
+    "query": "经期力量变化",
+    "expected": [
+      "m-cycle"
+    ],
+    "memories": [
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-cycle-03",
+    "query": "luteal phase fatigue",
+    "expected": [
+      "m-cycle"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-cycle-04",
+    "query": "卵泡期表现",
+    "expected": [
+      "m-cycle"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-cycle-05",
+    "query": "痛经训练调整",
+    "expected": [
+      "m-cycle"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-cycle-06",
+    "query": "女性周期恢复",
+    "expected": [
+      "m-cycle"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-cycle-07",
+    "query": "月经前训练很累",
+    "expected": [
+      "m-cycle"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-hydration-00",
+    "query": "高温训练补水",
+    "expected": [
+      "m-hydration"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-hydration-01",
+    "query": "出汗很多喝多少水",
+    "expected": [
+      "m-hydration"
+    ],
+    "memories": [
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-hydration-02",
+    "query": "夏天健身房很热",
+    "expected": [
+      "m-hydration"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-hydration-03",
+    "query": "hydration in heat",
+    "expected": [
+      "m-hydration"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-hydration-04",
+    "query": "训练后补水",
+    "expected": [
+      "m-hydration"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-hydration-05",
+    "query": "电解质需求",
+    "expected": [
+      "m-hydration"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-hydration-06",
+    "query": "脱水影响表现",
+    "expected": [
+      "m-hydration"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-hydration-07",
+    "query": "高温环境记录",
+    "expected": [
+      "m-hydration"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-hydration",
+        "text": "高温环境训练出汗较多，需要训练前中后分阶段补水并关注电解质。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-home-00",
+    "query": "家里只有哑铃",
+    "expected": [
+      "m-home"
+    ],
+    "memories": [
+      {
+        "id": "m-home",
+        "text": "用户只在家训练，现有器材是一对哑铃，偏好三天居家计划。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-home-01",
+    "query": "居家训练器材",
+    "expected": [
+      "m-home"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-home",
+        "text": "用户只在家训练，现有器材是一对哑铃，偏好三天居家计划。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-home-02",
+    "query": "home dumbbell plan",
+    "expected": [
+      "m-home"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-home",
+        "text": "用户只在家训练，现有器材是一对哑铃，偏好三天居家计划。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-home-03",
+    "query": "不去健身房",
+    "expected": [
+      "m-home"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-home",
+        "text": "用户只在家训练，现有器材是一对哑铃，偏好三天居家计划。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-home-04",
+    "query": "哑铃训练偏好",
+    "expected": [
+      "m-home"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-home",
+        "text": "用户只在家训练，现有器材是一对哑铃，偏好三天居家计划。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-home-05",
+    "query": "家庭训练计划",
+    "expected": [
+      "m-home"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-home",
+        "text": "用户只在家训练，现有器材是一对哑铃，偏好三天居家计划。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-home-06",
+    "query": "有限器材锻炼",
+    "expected": [
+      "m-home"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-home",
+        "text": "用户只在家训练，现有器材是一对哑铃，偏好三天居家计划。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-home-07",
+    "query": "居家三天训练",
+    "expected": [
+      "m-home"
+    ],
+    "memories": [
+      {
+        "id": "m-home",
+        "text": "用户只在家训练，现有器材是一对哑铃，偏好三天居家计划。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-thyroid-00",
+    "query": "我的甲亢情况",
+    "expected": [
+      "m-thyroid"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-thyroid",
+        "text": "用户有甲亢医疗背景并遵医嘱使用赛治，训练时要关注静息心率和医生边界。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-thyroid-01",
+    "query": "甲状腺用药",
+    "expected": [
+      "m-thyroid"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-thyroid",
+        "text": "用户有甲亢医疗背景并遵医嘱使用赛治，训练时要关注静息心率和医生边界。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-thyroid-02",
+    "query": "赛治和训练",
+    "expected": [
+      "m-thyroid"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-thyroid",
+        "text": "用户有甲亢医疗背景并遵医嘱使用赛治，训练时要关注静息心率和医生边界。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-thyroid-03",
+    "query": "hyperthyroid medication",
+    "expected": [
+      "m-thyroid"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-thyroid",
+        "text": "用户有甲亢医疗背景并遵医嘱使用赛治，训练时要关注静息心率和医生边界。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-thyroid-04",
+    "query": "静息心率与甲亢",
+    "expected": [
+      "m-thyroid"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-thyroid",
+        "text": "用户有甲亢医疗背景并遵医嘱使用赛治，训练时要关注静息心率和医生边界。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-thyroid-05",
+    "query": "医疗背景记录",
+    "expected": [
+      "m-thyroid"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-thyroid",
+        "text": "用户有甲亢医疗背景并遵医嘱使用赛治，训练时要关注静息心率和医生边界。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-thyroid-06",
+    "query": "甲亢训练边界",
+    "expected": [
+      "m-thyroid"
+    ],
+    "memories": [
+      {
+        "id": "m-thyroid",
+        "text": "用户有甲亢医疗背景并遵医嘱使用赛治，训练时要关注静息心率和医生边界。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-thyroid-07",
+    "query": "是否记录了用药",
+    "expected": [
+      "m-thyroid"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-thyroid",
+        "text": "用户有甲亢医疗背景并遵医嘱使用赛治，训练时要关注静息心率和医生边界。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-weekly-00",
+    "query": "本周训练总结",
+    "expected": [
+      "m-weekly"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-weekly",
+        "text": "本周完成三次力量训练和两次打卡，七天依从性良好但睡眠略有下降。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-weekly-01",
+    "query": "过去七天完成情况",
+    "expected": [
+      "m-weekly"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-weekly",
+        "text": "本周完成三次力量训练和两次打卡，七天依从性良好但睡眠略有下降。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-weekly-02",
+    "query": "weekly workout review",
+    "expected": [
+      "m-weekly"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-weekly",
+        "text": "本周完成三次力量训练和两次打卡，七天依从性良好但睡眠略有下降。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-weekly-03",
+    "query": "本周打卡",
+    "expected": [
+      "m-weekly"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-weekly",
+        "text": "本周完成三次力量训练和两次打卡，七天依从性良好但睡眠略有下降。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-weekly-04",
+    "query": "七天训练依从性",
+    "expected": [
+      "m-weekly"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-weekly",
+        "text": "本周完成三次力量训练和两次打卡，七天依从性良好但睡眠略有下降。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-weekly-05",
+    "query": "本周恢复趋势",
+    "expected": [
+      "m-weekly"
+    ],
+    "memories": [
+      {
+        "id": "m-weekly",
+        "text": "本周完成三次力量训练和两次打卡，七天依从性良好但睡眠略有下降。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-weekly-06",
+    "query": "周复盘记录",
+    "expected": [
+      "m-weekly"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-weekly",
+        "text": "本周完成三次力量训练和两次打卡，七天依从性良好但睡眠略有下降。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
+  },
+  {
+    "case_id": "retrieval-weekly-07",
+    "query": "这周练了几次",
+    "expected": [
+      "m-weekly"
+    ],
+    "memories": [
+      {
+        "id": "m-sleep",
+        "text": "最近连续睡眠不足五小时，疲劳较高，应降低训练负荷并优先恢复。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-shoulder",
+        "text": "用户卧推和推举时肩膀刺痛，需要停止疼痛动作并评估肩部风险。",
+        "recency_score": 0.5,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-weekly",
+        "text": "本周完成三次力量训练和两次打卡，七天依从性良好但睡眠略有下降。",
+        "recency_score": 0.8,
+        "entity_match": 1.0
+      },
+      {
+        "id": "m-fat_loss",
+        "text": "用户当前目标是减脂，最近两周体重趋势停滞，需要复核热量和依从性。",
+        "recency_score": 0.6,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-takeout",
+        "text": "用户经常吃外卖且不方便做饭，偏好可执行的高蛋白外食方案。",
+        "recency_score": 0.2,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-bench",
+        "text": "卧推连续三周重量没有进步，应考虑调整次数区间并安排周期化训练。",
+        "recency_score": 0.3,
+        "entity_match": 0.0
+      },
+      {
+        "id": "m-cycle",
+        "text": "用户在黄体期容易疲劳，月经周期会影响主观恢复和训练表现。",
+        "recency_score": 0.4,
+        "entity_match": 0.0
+      }
+    ],
+    "source": "seed_eval",
+    "partition": "test",
+    "vector_status": "vector unavailable"
   }
 ]

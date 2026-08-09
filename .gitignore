@@ -21,6 +21,7 @@ __pycache__/
 venv/
 .coverage
 coverage.xml
+coverage-*.json
 htmlcov/
 
 # Logs: raw logs stay local; reviewed summaries are safe to version.

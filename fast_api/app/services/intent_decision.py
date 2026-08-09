@@ -95,39 +95,198 @@ class IntentRouter:
     ]
 
     RISK_TERMS = [
-        "疼", "疼痛", "痛", "刺痛", "胸闷", "胸口闷", "头晕", "呼吸困难", "麻木", "受伤", "拉伤",
-        "扭伤", "甲亢", "甲状腺", "吃药", "服药", "用药", "injury", "pain", "dizzy", "chest tightness",
+        "疼",
+        "疼痛",
+        "痛",
+        "刺痛",
+        "胸闷",
+        "胸口闷",
+        "头晕",
+        "呼吸困难",
+        "麻木",
+        "受伤",
+        "拉伤",
+        "扭伤",
+        "甲亢",
+        "甲状腺",
+        "吃药",
+        "服药",
+        "用药",
+        "injury",
+        "pain",
+        "dizzy",
+        "chest tightness",
         "medication",
-        "鑳搁椃", "澶存檿", "鍛煎惛鍥伴毦", "鍒虹棝", "鍙椾激", "鐢蹭孩", "鐢茬姸鑵",
+        "鑳搁椃",
+        "澶存檿",
+        "鍛煎惛鍥伴毦",
+        "鍒虹棝",
+        "鍙椾激",
+        "鐢蹭孩",
+        "鐢茬姸鑵",
     ]
     HARD_RISK_TERMS = ["胸闷", "胸口闷", "头晕", "呼吸困难", "麻木", "chest tightness", "dizzy"]
-    RECOVERY_TERMS = ["睡", "睡眠", "疲劳", "累", "酸痛", "恢复", "压力", "心率", "recovery", "sleep", "tired"]
+    RECOVERY_TERMS = [
+        "睡",
+        "睡眠",
+        "疲劳",
+        "累",
+        "酸痛",
+        "恢复",
+        "压力",
+        "心率",
+        "recovery",
+        "sleep",
+        "tired",
+    ]
     PLAN_TERMS = [
-        "训练计划", "健身计划", "生成计划", "制定计划", "做个计划", "出个计划", "给我计划", "帮我计划",
-        "安排训练", "安排一个", "今天练什么", "今天应该练什么", "今天应该干什么", "今天干什么",
-        "今日训练", "练什么", "明天练什么", "一周计划", "workout plan", "training plan",
-        "what should i do today", "what should i train", "should i train", "train chest tomorrow",
-        "璁粌璁", "鍋ヨ韩璁", "鐢熸垚璁", "鍒跺畾璁", "浠婂ぉ缁冧粈涔", "浠婂ぉ搴旇",
+        "训练计划",
+        "健身计划",
+        "生成计划",
+        "制定计划",
+        "做个计划",
+        "出个计划",
+        "给我计划",
+        "帮我计划",
+        "安排训练",
+        "安排一个",
+        "今天练什么",
+        "今天应该练什么",
+        "今天应该干什么",
+        "今天干什么",
+        "今日训练",
+        "练什么",
+        "明天练什么",
+        "一周计划",
+        "workout plan",
+        "training plan",
+        "what should i do today",
+        "what should i train",
+        "should i train",
+        "train chest tomorrow",
+        "璁粌璁",
+        "鍋ヨ韩璁",
+        "鐢熸垚璁",
+        "鍒跺畾璁",
+        "浠婂ぉ缁冧粈涔",
+        "浠婂ぉ搴旇",
     ]
-    NEGATED_PLAN_TERMS = ["不要", "不需要", "不用", "别", "别给", "不要生成", "先不要", "先别", "do not", "don't", "dont"]
+    NEGATED_PLAN_TERMS = [
+        "不要",
+        "不需要",
+        "不用",
+        "别",
+        "别给",
+        "不要生成",
+        "先不要",
+        "先别",
+        "do not",
+        "don't",
+        "dont",
+    ]
     TRAINING_LOG_TERMS = [
-        "完成", "做完", "练了", "练完", "训练了", "kg", "公斤", "rpe", "组", "次数",
-        "卧推", "深蹲", "硬拉", "bench", "squat", "deadlift",
-        "trained", "did bench", "did squat", "did deadlift",
-        "瀹屾垚", "鍋氬畬", "缁冧簡", "鍏枻", "鍗ф帹", "娣辫共", "纭媺",
+        "完成",
+        "做完",
+        "练了",
+        "练完",
+        "训练了",
+        "kg",
+        "公斤",
+        "rpe",
+        "组",
+        "次数",
+        "卧推",
+        "深蹲",
+        "硬拉",
+        "bench",
+        "squat",
+        "deadlift",
+        "trained",
+        "did bench",
+        "did squat",
+        "did deadlift",
+        "瀹屾垚",
+        "鍋氬畬",
+        "缁冧簡",
+        "鍏枻",
+        "鍗ф帹",
+        "娣辫共",
+        "纭媺",
     ]
-    PROGRESSION_TERMS = ["加重", "重量", "进步", "下次", "平台期", "突破", "progress", "increase", "deload", "降载", "stall", "stalled", "plateau"]
+    PROGRESSION_TERMS = [
+        "加重",
+        "重量",
+        "进步",
+        "下次",
+        "平台期",
+        "突破",
+        "progress",
+        "increase",
+        "deload",
+        "降载",
+        "stall",
+        "stalled",
+        "plateau",
+    ]
     NUTRITION_TERMS = [
-        "吃", "热量", "蛋白", "蛋白质", "碳水", "脂肪", "外卖", "外食", "饮食", "calorie", "protein", "diet",
-        "鐑噺", "铔嬬櫧", "纰虫按", "鑴傝偑", "澶栧崠", "澶栭",
+        "吃",
+        "热量",
+        "蛋白",
+        "蛋白质",
+        "碳水",
+        "脂肪",
+        "外卖",
+        "外食",
+        "饮食",
+        "calorie",
+        "protein",
+        "diet",
+        "鐑噺",
+        "铔嬬櫧",
+        "纰虫按",
+        "鑴傝偑",
+        "澶栧崠",
+        "澶栭",
     ]
     NUTRITION_LOG_TERMS = [
-        "记录饮食", "帮我记录", "早餐", "午餐", "晚餐", "加餐", "吃了",
-        "record my meal", "record", "breakfast", "lunch", "dinner", "ate",
+        "记录饮食",
+        "帮我记录",
+        "早餐",
+        "午餐",
+        "晚餐",
+        "加餐",
+        "吃了",
+        "record my meal",
+        "record",
+        "breakfast",
+        "lunch",
+        "dinner",
+        "ate",
     ]
     REVIEW_TERMS = ["周复盘", "本周", "weekly", "月复盘", "monthly", "总结"]
-    MEMORY_TERMS = ["你记得", "还记得", "我的档案", "记忆", "memory", "profile", "浣犺寰", "鎴戠殑妗ｆ"]
-    PROFILE_TERMS = ["年龄", "身高", "体重", "目标", "男", "女", "岁", "cm", "训练经验", "健身房", "器械"]
+    MEMORY_TERMS = [
+        "你记得",
+        "还记得",
+        "我的档案",
+        "记忆",
+        "memory",
+        "profile",
+        "浣犺寰",
+        "鎴戠殑妗ｆ",
+    ]
+    PROFILE_TERMS = [
+        "年龄",
+        "身高",
+        "体重",
+        "目标",
+        "男",
+        "女",
+        "岁",
+        "cm",
+        "训练经验",
+        "健身房",
+        "器械",
+    ]
 
     BODY_PART_TERMS = {
         "shoulder": ["肩", "肩膀", "肩袖", "shoulder"],
@@ -161,7 +320,9 @@ class IntentRouter:
         if self._has_risk_signal(text, ["呼吸困难", "呼吸有点困难", "胸口闷", "手麻"]):
             matched.append("injury_or_risk")
         if _has_any(text, self.REVIEW_TERMS):
-            matched.append("monthly_review" if "月" in text or "monthly" in text else "weekly_review")
+            matched.append(
+                "monthly_review" if "月" in text or "monthly" in text else "weekly_review"
+            )
         if self.is_plan_request(message):
             matched.append("training_plan")
         if _has_any(text, self.PROGRESSION_TERMS):
@@ -170,7 +331,7 @@ class IntentRouter:
             matched.append("nutrition_log")
         elif _has_any(text, self.NUTRITION_TERMS):
             matched.append("nutrition_advice")
-        if _has_any(text, self.TRAINING_LOG_TERMS):
+        if self._is_training_log(text):
             matched.append("training_log")
         if _has_any(text, self.RECOVERY_TERMS):
             matched.append("recovery_check")
@@ -182,9 +343,7 @@ class IntentRouter:
         matched = self._dedupe(matched)
         if self._is_recovery_soreness(text) and "recovery_check" in matched:
             matched = ["recovery_check"] + [
-                intent
-                for intent in matched
-                if intent not in {"recovery_check", "injury_or_risk"}
+                intent for intent in matched if intent not in {"recovery_check", "injury_or_risk"}
             ]
         if not matched:
             matched = ["general_chat"]
@@ -195,10 +354,13 @@ class IntentRouter:
         risk_level = self._risk_level(text, primary, secondary)
         missing_slots = self._missing_slots(primary, entities, profile)
         needs_clarification = bool(missing_slots) or (
-            primary == "injury_or_risk" and any(intent in secondary for intent in {"training_plan", "progression_decision"})
+            primary == "injury_or_risk"
+            and any(intent in secondary for intent in {"training_plan", "progression_decision"})
         )
         allowed_actions = self._allowed_actions(primary, secondary, risk_level, needs_clarification)
-        task_plan = self._build_task_plan(primary, secondary, allowed_actions, missing_slots, risk_level)
+        task_plan = self._build_task_plan(
+            primary, secondary, allowed_actions, missing_slots, risk_level
+        )
 
         return IntentDecision(
             primary_intent=primary,
@@ -227,14 +389,15 @@ class IntentRouter:
 
     def is_plan_request(self, message: str) -> bool:
         text = message.lower()
-        if _has_any(text, self.NEGATED_PLAN_TERMS) and _has_any(text, ["计划", "training plan", "workout plan", "generate"]):
+        if _has_any(text, self.NEGATED_PLAN_TERMS) and _has_any(
+            text, ["计划", "training plan", "workout plan", "generate"]
+        ):
             return False
         return _has_any(text, self.PLAN_TERMS)
 
     def _is_recovery_soreness(self, text: str) -> bool:
-        return (
-            "肌肉酸痛" in text
-            and any(term in text for term in ["训练后", "练后", "缓解", "恢复", "酸痛怎么"])
+        return "肌肉酸痛" in text and any(
+            term in text for term in ["训练后", "练后", "缓解", "恢复", "酸痛怎么"]
         )
 
     def _has_risk_signal(self, text: str, terms: list[str] | None = None) -> bool:
@@ -259,14 +422,16 @@ class IntentRouter:
             text,
             flags=re.IGNORECASE,
         )
-        negation_pattern = re.compile(r"(?:没有|无|未|不|并不|不是|no|not|without)\s*$", re.IGNORECASE)
+        negation_pattern = re.compile(
+            r"(?:没有|无|未|不|并不|不是|no|not|without)\s*$", re.IGNORECASE
+        )
         for term in terms:
             if term.isascii() and term.isalpha() and len(term) <= 12:
                 matches = re.finditer(rf"\b{re.escape(term)}\b", cleaned_text)
             else:
                 matches = re.finditer(re.escape(term), cleaned_text)
             for match in matches:
-                prefix = cleaned_text[max(0, match.start() - 8):match.start()]
+                prefix = cleaned_text[max(0, match.start() - 8) : match.start()]
                 if negation_pattern.search(prefix):
                     continue
                 return True
@@ -302,8 +467,11 @@ class IntentRouter:
     ) -> dict[str, bool]:
         plan_requested = primary == "training_plan" or "training_plan" in secondary
         return {
-            "generate_plan": primary == "training_plan" and risk_level != "high" and not needs_clarification,
-            "allow_plan_content": primary in {
+            "generate_plan": primary == "training_plan"
+            and risk_level != "high"
+            and not needs_clarification,
+            "allow_plan_content": primary
+            in {
                 "training_plan",
                 "training_log",
                 "progression_decision",
@@ -350,7 +518,9 @@ class IntentRouter:
                 if risk_level in {"medium", "high"}:
                     reason = "Plan generation is blocked until safety risk is clarified."
                 elif missing_slots:
-                    reason = "Plan generation is blocked until required profile slots are collected."
+                    reason = (
+                        "Plan generation is blocked until required profile slots are collected."
+                    )
                 else:
                     reason = "Plan generation is not allowed for the current primary intent."
 
@@ -439,7 +609,9 @@ class IntentRouter:
             return "high"
         return "medium"
 
-    def _missing_slots(self, primary: str, entities: dict[str, Any], profile: Any | None) -> list[str]:
+    def _missing_slots(
+        self, primary: str, entities: dict[str, Any], profile: Any | None
+    ) -> list[str]:
         missing: list[str] = []
         if primary == "training_plan":
             profile_missing = self._missing_profile_slots(profile)
@@ -462,12 +634,53 @@ class IntentRouter:
         return sum(1 for term in self.PROFILE_TERMS if term in text) >= 2
 
     def _is_profile_correction(self, text: str) -> bool:
-        return _has_any(text, ["不是我的", "档案错", "纠正", "没有肩伤", "不是肩伤", "remove", "correction"])
+        return _has_any(
+            text, ["不是我的", "档案错", "纠正", "没有肩伤", "不是肩伤", "remove", "correction"]
+        )
 
     def _is_nutrition_log(self, text: str) -> bool:
         return _has_any(text, self.NUTRITION_LOG_TERMS) and _has_any(
             text,
-            ["记录", "吃了", "早餐", "午餐", "晚餐", "record", "ate", "breakfast", "lunch", "dinner"],
+            [
+                "记录",
+                "吃了",
+                "早餐",
+                "午餐",
+                "晚餐",
+                "record",
+                "ate",
+                "breakfast",
+                "lunch",
+                "dinner",
+            ],
+        )
+
+    def _is_training_log(self, text: str) -> bool:
+        """Require an exercise/action signal; body weight alone is profile data."""
+
+        if not _has_any(text, self.TRAINING_LOG_TERMS):
+            return False
+        return _has_any(
+            text,
+            [
+                "完成",
+                "做完",
+                "练了",
+                "练完",
+                "训练了",
+                "组",
+                "次数",
+                "卧推",
+                "深蹲",
+                "硬拉",
+                "bench",
+                "squat",
+                "deadlift",
+                "trained",
+                "did bench",
+                "did squat",
+                "did deadlift",
+            ],
         )
 
     def _confidence(self, primary: str, secondary: list[str]) -> float:
@@ -475,7 +688,9 @@ class IntentRouter:
             return 0.55
         return 0.78 if secondary else 0.84
 
-    def _reason(self, primary: str, secondary: list[str], risk_level: str, needs_clarification: bool) -> str:
+    def _reason(
+        self, primary: str, secondary: list[str], risk_level: str, needs_clarification: bool
+    ) -> str:
         parts = [f"primary={primary}"]
         if secondary:
             parts.append("secondary=" + ",".join(secondary))

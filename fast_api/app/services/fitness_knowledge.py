@@ -11,7 +11,6 @@ from fast_api.app.db import models
 from fast_api.app.services.bm25 import build_weighted_document, rank_by_bm25
 from fast_api.app.services.model_provider import ModelProvider
 
-
 KNOWLEDGE_DIR = Path(__file__).resolve().parents[1] / "data" / "fitness_knowledge"
 
 
@@ -46,8 +45,10 @@ class FitnessKnowledgeService:
         plan_templates = self.select_plan_templates(intent, context_packet, query=query)
         explanation_knowledge = self.retrieve_explanation_knowledge(intent, query, context_packet)
         coaching_cases = self.retrieve_coaching_cases(intent, query, context_packet)
+        embedding_mode = self.model_provider.embedding_mode()
+        vector_available = embedding_mode != "vector_unavailable_bm25_fallback"
         return {
-            "embedding_mode": self.model_provider.embedding_mode(),
+            "embedding_mode": embedding_mode,
             "explanation_knowledge": explanation_knowledge,
             "decision_rules": decision_rules,
             "plan_templates": plan_templates,
@@ -55,13 +56,18 @@ class FitnessKnowledgeService:
             "debug": {
                 "intent": intent,
                 "query": query,
-                "retrieval_ranker": "hybrid_vector_bm25",
+                "retrieval_ranker": "hybrid_vector_bm25" if vector_available else "bm25",
+                "vector_available": vector_available,
+                "vector_status": "available" if vector_available else "vector unavailable",
                 "bm25_enabled": True,
                 "rag_used_for": ["explanation_knowledge", "coaching_cases"],
                 "structured_used_for": ["decision_rules", "plan_templates"],
                 "matched_knowledge_ids": [item["knowledge_id"] for item in explanation_knowledge],
                 "matched_knowledge_scores": [
-                    {"knowledge_id": item["knowledge_id"], "bm25_score": item.get("bm25_score", 0.0)}
+                    {
+                        "knowledge_id": item["knowledge_id"],
+                        "bm25_score": item.get("bm25_score", 0.0),
+                    }
                     for item in explanation_knowledge
                 ],
                 "matched_rule_ids": [item["rule_id"] for item in decision_rules],
@@ -81,13 +87,14 @@ class FitnessKnowledgeService:
         context_packet: dict[str, Any] | None = None,
         top_k: int = 3,
     ) -> list[dict[str, Any]]:
-        if intent in {"training_log", "memory_query"}:
+        if intent == "memory_query":
             return []
+        ranking_query = self._expand_retrieval_query(query)
         if self.db is None:
             items = self._load_json("explanation_knowledge.json")
             return [
                 self._explanation_from_seed(match.item, match.normalized_score)
-                for match in self._rank_seed_explanations(items, query)[:top_k]
+                for match in self._rank_seed_explanations(items, ranking_query)[:top_k]
             ]
 
         filters = [models.ExplanationKnowledge.status == "active"]
@@ -101,7 +108,7 @@ class FitnessKnowledgeService:
                     .limit(top_k * 3)
                 )
             )
-        ranked = self._rank_explanation_models(candidates, query)[:top_k]
+        ranked = self._rank_explanation_models(candidates, ranking_query)[:top_k]
         return [self._explanation_payload(match.item, match.normalized_score) for match in ranked]
 
     def retrieve_coaching_cases(
@@ -113,11 +120,12 @@ class FitnessKnowledgeService:
     ) -> list[dict[str, Any]]:
         if intent in {"training_log"}:
             return []
+        ranking_query = self._expand_retrieval_query(query)
         if self.db is None:
             items = self._load_json("coaching_cases.json")
             return [
                 self._case_from_seed(match.item, match.normalized_score)
-                for match in self._rank_seed_cases(items, query)[:top_k]
+                for match in self._rank_seed_cases(items, ranking_query)[:top_k]
             ]
 
         filters = [models.CoachingCase.status == "active"]
@@ -131,7 +139,7 @@ class FitnessKnowledgeService:
                     .limit(top_k * 3)
                 )
             )
-        ranked = self._rank_case_models(candidates, query)[:top_k]
+        ranked = self._rank_case_models(candidates, ranking_query)[:top_k]
         return [self._case_payload(match.item, match.normalized_score) for match in ranked]
 
     def match_decision_rules(
@@ -162,7 +170,16 @@ class FitnessKnowledgeService:
         lowered_query = query.lower()
         inferred_training_query = any(
             term in lowered_query
-            for term in ["训练计划", "健身计划", "训练分化", "哑铃", "零基础", "器材", "开始锻炼", "力量训练"]
+            for term in [
+                "训练计划",
+                "健身计划",
+                "训练分化",
+                "哑铃",
+                "零基础",
+                "器材",
+                "开始锻炼",
+                "力量训练",
+            ]
         )
         effective_intent = intent
         if intent in {"general_chat", "training_log"} and inferred_training_query:
@@ -172,10 +189,13 @@ class FitnessKnowledgeService:
         profile = context_packet.get("core_profile") or {}
         goal = profile.get("goal") or self._infer_goal_from_query(lowered_query)
         level = profile.get("experience_level") or self._infer_level_from_query(lowered_query)
-        frequency = profile.get("workout_frequency") or self._infer_frequency_from_query(lowered_query)
+        frequency = profile.get("workout_frequency") or self._infer_frequency_from_query(
+            lowered_query
+        )
         equipment = [str(item).lower() for item in profile.get("equipment_available") or []]
         if not equipment:
             equipment = self._infer_equipment_from_query(lowered_query)
+        explicit_equipment = bool(equipment)
         wanted_type = "nutrition" if effective_intent == "nutrition_advice" else "training"
         templates = self._load_templates()
         scored = []
@@ -190,10 +210,20 @@ class FitnessKnowledgeService:
             if frequency and template.get("days_per_week") in {frequency, None}:
                 score += 2
             template_equipment = [str(item).lower() for item in template.get("equipment") or []]
-            if template_equipment and any(item in equipment for item in template_equipment):
-                score += 2
+            if explicit_equipment:
+                if "bodyweight" in equipment and "bodyweight" not in template_equipment:
+                    continue
+                if "home" in equipment and any(
+                    item in {"gym", "machines", "barbell", "cable", "power_rack", "specialty_bars"}
+                    for item in template_equipment
+                ):
+                    continue
+                if template_equipment and any(item in equipment for item in template_equipment):
+                    score += 6
             if wanted_type == "nutrition":
-                memory_text = json.dumps(context_packet.get("relevant_memories") or [], ensure_ascii=False)
+                memory_text = json.dumps(
+                    context_packet.get("relevant_memories") or [], ensure_ascii=False
+                )
                 if "不自己做饭" in memory_text or "外食" in memory_text or "takeout" in memory_text:
                     score += 4
             if score > 0 or wanted_type == "nutrition":
@@ -221,44 +251,63 @@ class FitnessKnowledgeService:
         history = packet.setdefault("exercise_history", [])
         memories = packet.setdefault("relevant_memories", [])
 
-        def ensure_recovery(**values: Any) -> None:
+        def ensure_recovery(*, overwrite: bool = False, **values: Any) -> None:
             row = recovery[0] if recovery and isinstance(recovery[0], dict) else {}
-            row.update({key: value for key, value in values.items() if key not in row})
+            row.update({key: value for key, value in values.items() if overwrite or key not in row})
             if recovery:
                 recovery[0] = row
             else:
                 recovery.append(row)
 
-        def ensure_checkin(**values: Any) -> None:
+        def ensure_checkin(*, overwrite: bool = False, **values: Any) -> None:
             row = checkins[0] if checkins and isinstance(checkins[0], dict) else {}
-            row.update({key: value for key, value in values.items() if key not in row})
+            row.update({key: value for key, value in values.items() if overwrite or key not in row})
             if checkins:
                 checkins[0] = row
             else:
                 checkins.append(row)
 
         if any(term in lowered for term in ["月经前", "黄体"]):
-            profile.setdefault("biological_sex", "female")
-            ensure_checkin(menstrual_phase="luteal")
-            ensure_recovery(fatigue_score=7)
+            profile["biological_sex"] = "female"
+            ensure_checkin(overwrite=True, menstrual_phase="luteal")
+            ensure_recovery(overwrite=True, fatigue_score=7)
         elif any(term in lowered for term in ["月经刚结束", "卵泡"]):
-            profile.setdefault("biological_sex", "female")
-            ensure_checkin(menstrual_phase="follicular")
-            ensure_recovery(fatigue_score=4, sleep_hours=8)
+            profile["biological_sex"] = "female"
+            ensure_checkin(overwrite=True, menstrual_phase="follicular")
+            ensure_recovery(overwrite=True, fatigue_score=4, sleep_hours=8)
         elif any(term in lowered for term in ["月经第一天", "经期", "痛经"]):
-            profile.setdefault("biological_sex", "female")
-            ensure_checkin(menstrual_phase="menstrual", cramps_severity=8)
+            profile["biological_sex"] = "female"
+            ensure_checkin(overwrite=True, menstrual_phase="menstrual", cramps_severity=8)
 
         if any(term in lowered for term in ["没有空调", "夏天", "很热", "出很多汗"]):
             profile.setdefault("training_environment", "hot")
             ensure_checkin(sweat_level="heavy", hydration_concern=True)
 
-        week_match = re.search(r"(?:训练了|训练)\s*(\d+)\s*周", lowered)
+        week_match = re.search(r"(?:连续)?训练(?:了)?\s*(\d+)\s*周", lowered)
         if week_match:
-            profile.setdefault("consecutive_training_weeks", int(week_match.group(1)))
+            profile["consecutive_training_weeks"] = int(week_match.group(1))
+
+        rpe_match = re.search(r"rpe\s*(\d+)", lowered)
+        if rpe_match:
+            history.append({"rpe": int(rpe_match.group(1))})
 
         if "睡眠和疲劳都还好" in lowered or "睡眠和疲劳都还不错" in lowered:
-            ensure_recovery(sleep_hours=7, fatigue_score=5)
+            ensure_recovery(overwrite=True, sleep_hours=7, fatigue_score=5, motivation_score=7)
+
+        if any(
+            term in lowered
+            for term in [
+                "不想练",
+                "不想训练",
+                "不想去训练",
+                "动力下降",
+                "动力也没了",
+                "提不起劲",
+            ]
+        ):
+            ensure_recovery(overwrite=True, motivation_score=2)
+        if any(term in lowered for term in ["静息心率升高", "静息心率比平时高", "心率比平时高"]):
+            ensure_checkin(overwrite=True, resting_hr_elevated=True)
 
         if "训练前和训练后" in lowered or "训练前后" in lowered:
             rpe_match = re.search(r"rpe\s*(\d+)", lowered)
@@ -312,6 +361,47 @@ class FitnessKnowledgeService:
             return ["gym"]
         return []
 
+    def _expand_retrieval_query(self, query: str) -> str:
+        """Add small, reviewed domain synonyms before lexical retrieval."""
+
+        lowered = query.lower()
+        expansions: list[str] = []
+        groups = (
+            (
+                ["平台", "停滞", "不涨", "没有进步", "stall", "plateau"],
+                "周期化 periodization 渐进超负荷 训练变量",
+            ),
+            (
+                ["睡眠不足", "睡不好", "只睡", "失眠", "poor sleep"],
+                "睡眠 恢复 深度睡眠 生长激素 sleep recovery",
+            ),
+            (
+                ["新手", "零基础", "动作不对", "动作不太对", "动作质量"],
+                "新手适应 神经适应 动作模式 beginner adaptation",
+            ),
+            (["减载", "连续训练", "休息周", "deload"], "减载周 deload 恢复 连续训练"),
+            (["月经", "黄体", "卵泡", "痛经"], "月经周期 黄体期 卵泡期 女性训练 menstrual cycle"),
+            (
+                [
+                    "高温",
+                    "很热",
+                    "特别热",
+                    "夏天",
+                    "出汗",
+                    "很多汗",
+                    "喝水",
+                    "多少水",
+                    "补水",
+                    "hydration",
+                ],
+                "补水 脱水 电解质 高温训练 hydration performance",
+            ),
+        )
+        for triggers, addition in groups:
+            if any(trigger in lowered for trigger in triggers):
+                expansions.append(addition)
+        return " ".join([query, *expansions])
+
     def _seed_explanations(self) -> int:
         count = 0
         for item in self._load_json("explanation_knowledge.json"):
@@ -364,7 +454,9 @@ class FitnessKnowledgeService:
         count = 0
         for item in self._load_json("plan_templates.json"):
             existing = self.db.scalar(
-                select(models.PlanTemplate).where(models.PlanTemplate.template_id == item["template_id"])
+                select(models.PlanTemplate).where(
+                    models.PlanTemplate.template_id == item["template_id"]
+                )
             )
             if existing is None:
                 existing = models.PlanTemplate(template_id=item["template_id"])
@@ -426,9 +518,19 @@ class FitnessKnowledgeService:
             {
                 "injury_or_risk": {"training_plan", "exercise_selection"},
                 "recovery_check": {"progression_decision"},
-                "training_log": {"training_plan", "exercise_selection", "progression_decision", "nutrition_advice"},
+                "training_log": {
+                    "training_plan",
+                    "exercise_selection",
+                    "progression_decision",
+                    "nutrition_advice",
+                },
                 "nutrition_log": {"nutrition_advice"},
-                "general_chat": {"training_plan", "exercise_selection", "progression_decision", "nutrition_advice"},
+                "general_chat": {
+                    "training_plan",
+                    "exercise_selection",
+                    "progression_decision",
+                    "nutrition_advice",
+                },
             }.get(intent, set())
         )
         return [rule for rule in rules if rule.get("intent") in aliases]
@@ -448,10 +550,17 @@ class FitnessKnowledgeService:
     def _condition_matches(self, condition: dict[str, Any], context: dict[str, Any]) -> bool:
         if not condition:
             return True
-        if "all" in condition:
-            return all(self._predicate_matches(predicate, context) for predicate in condition["all"])
-        if "any" in condition:
-            return any(self._predicate_matches(predicate, context) for predicate in condition["any"])
+        has_group = "all" in condition or "any" in condition
+        all_matches = all(
+            self._predicate_matches(predicate, context) for predicate in condition.get("all", [])
+        )
+        any_matches = (
+            any(self._predicate_matches(predicate, context) for predicate in condition["any"])
+            if condition.get("any")
+            else True
+        )
+        if has_group:
+            return all_matches and any_matches
         return self._predicate_matches(condition, context)
 
     def _predicate_matches(self, predicate: dict[str, Any], context: dict[str, Any]) -> bool:
@@ -461,13 +570,24 @@ class FitnessKnowledgeService:
         if not values:
             return False
         if op == "contains":
-            return any(str(target).lower() in str(value).lower() for value in values if value is not None)
+            return any(
+                str(target).lower() in str(value).lower() for value in values if value is not None
+            )
         if op == ">=":
-            return any(self._to_float(value) is not None and self._to_float(value) >= float(target) for value in values)
+            return any(
+                self._to_float(value) is not None and self._to_float(value) >= float(target)
+                for value in values
+            )
         if op == "<=":
-            return any(self._to_float(value) is not None and self._to_float(value) <= float(target) for value in values)
+            return any(
+                self._to_float(value) is not None and self._to_float(value) <= float(target)
+                for value in values
+            )
         if op == "<":
-            return any(self._to_float(value) is not None and self._to_float(value) < float(target) for value in values)
+            return any(
+                self._to_float(value) is not None and self._to_float(value) < float(target)
+                for value in values
+            )
         if op == "==":
             return any(value == target for value in values)
         return False
@@ -499,11 +619,15 @@ class FitnessKnowledgeService:
                 flattened.append(value)
         return flattened
 
-    def _vector_query(self, model_class: Any, filters: list[Any], query: str, limit: int) -> list[Any]:
+    def _vector_query(
+        self, model_class: Any, filters: list[Any], query: str, limit: int
+    ) -> list[Any]:
         if self.db is None:
             return []
         try:
             query_embedding = self.model_provider.embed_text(query)
+            if query_embedding is None:
+                return []
             return list(
                 self.db.scalars(
                     select(model_class)
@@ -595,7 +719,9 @@ class FitnessKnowledgeService:
         except (TypeError, ValueError):
             return None
 
-    def _explanation_payload(self, item: models.ExplanationKnowledge, bm25_score: float = 0.0) -> dict[str, Any]:
+    def _explanation_payload(
+        self, item: models.ExplanationKnowledge, bm25_score: float = 0.0
+    ) -> dict[str, Any]:
         return {
             "knowledge_id": item.knowledge_id,
             "topic": item.topic,
@@ -606,7 +732,9 @@ class FitnessKnowledgeService:
             "bm25_score": round(bm25_score, 4),
         }
 
-    def _explanation_from_seed(self, item: dict[str, Any], bm25_score: float = 0.0) -> dict[str, Any]:
+    def _explanation_from_seed(
+        self, item: dict[str, Any], bm25_score: float = 0.0
+    ) -> dict[str, Any]:
         return {
             "knowledge_id": item["knowledge_id"],
             "topic": item["topic"],

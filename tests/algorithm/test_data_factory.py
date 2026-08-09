@@ -1,7 +1,7 @@
 import json
 
-from algorithm.data.sample_factory import build_synthetic_examples, build_synthetic_preference_pairs
 from algorithm.data.export_traces import export_training_examples
+from algorithm.data.sample_factory import build_synthetic_examples, build_synthetic_preference_pairs
 from algorithm.data.sanitize import sanitize_text
 from algorithm.data.validate_dataset import validate_training_rows
 from algorithm.datasets.build_bundle import build_bundle
@@ -26,9 +26,33 @@ def test_bundle_builds_all_task_datasets(tmp_path):
     assert counts["sft"] == report["manifest"]["split_counts"]["train"]
     assert 0 < counts["sft"] < counts["training_examples"]
     assert counts["tool_decisions"] == 18
-    assert counts["preference_pairs"] == 18
+    assert counts["safety"] == 3
+    assert counts["preference_pairs"] == 0
+    assert report["manifest"]["eligibility_counts"]["dpo_human_reviewed"] == 0
+    assert report["manifest"]["eligibility_counts"]["seed_eval_training_rows"] == 0
     manifest = json.loads((output_dir / "bundle.manifest.json").read_text(encoding="utf-8"))
     assert manifest["source_counts"] == {"synthetic": 18}
+
+
+def test_synthetic_preferences_are_explicit_opt_in(tmp_path):
+    report = build_bundle(
+        None,
+        tmp_path / "bundle",
+        synthetic_count=18,
+        seed=11,
+        include_synthetic_preferences=True,
+    )
+    assert report["manifest"]["row_counts"]["preference_pairs"] == 18
+    assert report["manifest"]["eligibility_counts"]["dpo_human_reviewed"] == 0
+
+
+def test_synthetic_factory_covers_every_scenario_in_each_split(tmp_path):
+    report = build_bundle(None, tmp_path / "bundle", synthetic_count=120, seed=42)
+    coverage = report["manifest"]["scenario_split_counts"]
+    assert len(coverage) == 6
+    assert all(
+        set(split_counts) == {"train", "validation", "test"} for split_counts in coverage.values()
+    )
 
 
 def test_exporter_allows_optional_log_directory(tmp_path):

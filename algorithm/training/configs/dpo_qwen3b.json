@@ -2,6 +2,7 @@
   "base_model": "Qwen/Qwen2.5-3B-Instruct",
   "dataset_path": "algorithm/datasets/manifests/preference_pairs.jsonl",
   "output_dir": "algorithm/research_state/experiments/dpo-qwen3b/adapter",
+  "minimum_reviewed_pairs": 150,
   "num_train_epochs": 1,
   "per_device_train_batch_size": 1,
   "gradient_accumulation_steps": 8,

@@ -314,30 +314,7 @@ def test_all_eval_cases_with_rule_expectations_pass():
         details += f" (matched_rules={f['matched_rule_ids']})"
         error_details.append(details)
 
-    # Allow some cases to fail gracefully (RAG-based matching is approximate without embeddings)
-    # Rules and templates use structured matching — these should be reliable
-    hard_pass_cases = {
-        "hyperthyroid_memory_retrieval",
-        "takeout_nutrition_template",
-        "bench_progression_rule",
-        "high_fatigue_deload_rule",
-    }
-
-    hard_failures = [f for f in failures if f["name"] in hard_pass_cases]
-    assert len(hard_failures) == 0, (
-        f"Hard-pass eval cases failed ({len(hard_failures)}): "
-        + "; ".join(f"{f['name']}: matched_rules={f['matched_rule_ids']}" for f in hard_failures)
-    )
-
-    # For the remaining cases, at least 60% should pass
-    total = len(results)
-    passed = len([r for r in results if r["passed"]])
-    pass_rate = passed / total if total > 0 else 0
-
-    assert pass_rate >= 0.6, (
-        f"Eval pass rate {pass_rate:.0%} ({passed}/{total}) below 60% threshold. "
-        f"Failures: {'; '.join(error_details[:5])}"
-    )
+    assert not failures, "Fixed business eval must remain 38/38: " + "; ".join(error_details)
 
 
 def test_eval_cases_count_matches_expected():

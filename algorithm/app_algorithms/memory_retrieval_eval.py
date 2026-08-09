@@ -27,7 +27,11 @@ def recall_at_k(retrieved: Iterable[str], expected: Iterable[str], k: int = 5) -
 
 def mean_recall_at_k(records: list[dict], k: int = 5) -> float:
     scores = [
-        recall_at_k(record.get("retrieved") or record.get("relevant_memories") or [], record.get("expected") or record.get("expected_recalled_terms") or [], k)
+        recall_at_k(
+            record.get("retrieved") or record.get("relevant_memories") or [],
+            record.get("expected") or record.get("expected_recalled_terms") or [],
+            k,
+        )
         for record in records
     ]
     return sum(scores) / len(scores) if scores else 0.0
@@ -63,9 +67,14 @@ def bm25_rank(records: list[dict[str, Any]], query: str) -> list[str]:
 
 
 def vector_rank(records: list[dict[str, Any]]) -> list[str] | None:
-    """Rank using externally supplied semantic scores, if every row has one."""
+    """Rank only provider-derived semantic scores with explicit provenance."""
 
-    if not records or any(record.get("vector_score") is None for record in records):
+    if not records or any(
+        record.get("vector_score") is None
+        or record.get("vector_score_source")
+        not in {"embedding_service", "precomputed_embedding_service"}
+        for record in records
+    ):
         return None
     indexed = list(enumerate(records))
     indexed.sort(key=lambda item: (-float(item[1].get("vector_score") or 0.0), item[0]))
@@ -78,10 +87,14 @@ def hybrid_rank(records: list[dict[str, Any]], query: str) -> tuple[list[str], d
     matches = rank_by_bm25(records, query, _memory_text)
     bm25_scores = {_memory_id(match.item): float(match.score) for match in matches}
     bm25_scores = _normalise(bm25_scores)
-    has_vector = bool(records) and all(record.get("vector_score") is not None for record in records)
-    vector_scores = _normalise(
-        {_memory_id(record): float(record.get("vector_score") or 0.0) for record in records}
-    ) if has_vector else {}
+    has_vector = vector_rank(records) is not None
+    vector_scores = (
+        _normalise(
+            {_memory_id(record): float(record.get("vector_score") or 0.0) for record in records}
+        )
+        if has_vector
+        else {}
+    )
     combined: list[tuple[float, int, str]] = []
     for index, record in enumerate(records):
         memory_id = _memory_id(record)
@@ -115,7 +128,7 @@ def evaluate_retrieval_records(records: list[dict[str, Any]], k: int = 5) -> dic
     vector_available = bool(records) and all(
         isinstance(item.get("memories"), list)
         and item["memories"]
-        and all(memory.get("vector_score") is not None for memory in item["memories"])
+        and vector_rank(item["memories"]) is not None
         for item in records
     )
     for item in records:
@@ -153,12 +166,17 @@ def evaluate_retrieval_records(records: list[dict[str, Any]], k: int = 5) -> dic
     else:
         strategies["vector"] = {
             "available": False,
-            "reason": "fixtures do not provide explicit vector_score; SHA-256 pseudo-vectors are excluded",
+            "status": "vector unavailable",
+            "reason": (
+                "no embedding-service scores with explicit provenance; "
+                "SHA-256 pseudo-vectors are excluded"
+            ),
         }
     return {
         "records": len(records),
         "k": k,
         "strategies": strategies,
+        "vector_status": "available" if vector_available else "vector unavailable",
         "embedding_policy": "explicit_vector_only_no_sha256_pseudo_vector",
     }
 

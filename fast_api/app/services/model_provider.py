@@ -1,5 +1,4 @@
 import base64
-import hashlib
 import json
 import logging
 import uuid
@@ -86,7 +85,7 @@ class ModelProvider:
     def embedding_mode(self) -> str:
         if self.settings.has_live_embedding_key:
             return f"{self.settings.embedding_provider}:{self.settings.embedding_model}"
-        return "offline_fallback"
+        return "vector_unavailable_bm25_fallback"
 
     # ----------------------------------------------------------------
     # Vision / multimodal
@@ -236,23 +235,22 @@ class ModelProvider:
         logger.error("stream_coach_reply failed after %d attempts: %s", max_retries + 1, last_exc)
         raise last_exc
 
-    def embed_text(self, text: str) -> list[float]:
+    def embed_text(self, text: str) -> list[float] | None:
+        """Return a real provider embedding or ``None`` when vectors are unavailable.
+
+        A digest is useful for exact cache keys but has no semantic geometry.
+        Returning it as a vector would make lexical fallback look like semantic
+        retrieval in offline reports, so unavailable embeddings are explicit.
+        """
+
         model = self.embeddings_model()
         if model is not None:
             try:
                 vector = model.embed_query(text)
                 return self._fit_dimension(vector)
-            except Exception:
-                return self._offline_embedding(text)
-        return self._offline_embedding(text)
-
-    def _offline_embedding(self, text: str) -> list[float]:
-        digest = hashlib.sha256(text.encode("utf-8")).digest()
-        values = []
-        for i in range(self.settings.vector_dimension):
-            raw = digest[i % len(digest)]
-            values.append((raw / 255.0) - 0.5)
-        return values
+            except Exception as exc:
+                logger.warning("Embedding provider unavailable; using BM25 fallback: %s", exc)
+        return None
 
     def _fit_dimension(self, vector: Iterable[float]) -> list[float]:
         values = list(vector)

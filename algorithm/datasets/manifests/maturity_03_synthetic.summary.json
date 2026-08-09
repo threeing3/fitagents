@@ -1,0 +1,38 @@
+{
+  "experiment_id": "maturity_03_algorithms_20260809",
+  "dataset_version": "v1-seed-42-datasets-v4",
+  "schema_version": "2026-08-09",
+  "source": "synthetic",
+  "business_outcome_label": "simulated_outcome",
+  "online_claim": false,
+  "row_counts": {
+    "training_examples": 1200,
+    "sft_train": 960,
+    "tool_decisions": 1200,
+    "safety": 200,
+    "preference_pairs": 0,
+    "dpo_human_reviewed": 0
+  },
+  "split_counts": {
+    "train": 960,
+    "validation": 120,
+    "test": 120
+  },
+  "split_percentages": {
+    "train": 80.0,
+    "validation": 10.0,
+    "test": 10.0
+  },
+  "user_count": 50,
+  "scenario_count": 6,
+  "all_scenarios_present_in_each_split": true,
+  "schema_valid_rows": 1200,
+  "schema_error_count": 0,
+  "user_split_leaks": 0,
+  "seed_eval_training_rows": 0,
+  "notes": [
+    "Exact whole-user 80/10/10 allocation for this deterministic cohort.",
+    "Raw JSONL stays in the ignored experiment directory.",
+    "No synthetic preference is eligible for DPO."
+  ]
+}

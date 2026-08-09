@@ -215,7 +215,7 @@ class Settings(BaseSettings):
             return self.qwen_embedding_model
         if self.embedding_provider == "openai":
             return self.openai_embedding_model
-        return "offline-hash-embedding"
+        return "vector-unavailable"
 
     @property
     def embedding_base_url(self) -> str | None:
