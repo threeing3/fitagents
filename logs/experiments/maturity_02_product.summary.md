@@ -39,6 +39,8 @@ The foundation PR made CI and the production image reproducible. This experiment
 
 The final frontend gate was rerun from a clean `npm ci`: type check, component test, production build, and Chromium E2E all passed. The component test includes the real language provider and verifies that legacy script-readable credentials are cleared before switching the UI to English.
 
+The first remote run found one test-isolation failure: CI's `LLM_PROVIDER=offline` environment value overrode a field-name constructor argument in the quota fixture. The fixture now uses the settings' public aliases explicitly; production quota behavior was unchanged.
+
 The local Python dependency audit timed out while querying the network and therefore has no local pass result. The GitHub CI security job remains the blocking source of truth for Python dependency and secret scans.
 
 ## Evidence provenance

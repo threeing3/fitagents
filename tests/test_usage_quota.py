@@ -43,10 +43,10 @@ def test_quota_enforces_user_and_global_daily_limits():
     user_two = _user(factory, "quota-two@example.com")
     service = UsageQuotaService(
         Settings(
-            database_url="sqlite:///:memory:",
-            use_pgvector=False,
-            daily_model_call_limit=1,
-            global_daily_model_limit=2,
+            DATABASE_URL="sqlite:///:memory:",
+            USE_PGVECTOR=False,
+            DAILY_MODEL_CALL_LIMIT=1,
+            GLOBAL_DAILY_MODEL_LIMIT=2,
         ),
         factory,
     )
@@ -63,12 +63,12 @@ def test_quota_enforces_user_and_global_daily_limits():
 
     provider = ModelProvider(
         Settings(
-            llm_provider="qwen",
-            dashscope_api_key="test-key-never-sent",
-            database_url="sqlite:///:memory:",
-            use_pgvector=False,
-            daily_model_call_limit=1,
-            global_daily_model_limit=2,
+            LLM_PROVIDER="qwen",
+            DASHSCOPE_API_KEY="test-key-never-sent",
+            DATABASE_URL="sqlite:///:memory:",
+            USE_PGVECTOR=False,
+            DAILY_MODEL_CALL_LIMIT=1,
+            GLOBAL_DAILY_MODEL_LIMIT=2,
         ),
         user_id=user_two,
         endpoint="chat",
@@ -82,11 +82,11 @@ def test_quota_enforces_user_and_global_daily_limits():
 def test_demo_initialization_is_idempotent_and_keeps_state():
     factory = _session_factory()
     settings = Settings(
-        database_url="sqlite:///:memory:",
-        use_pgvector=False,
-        demo_mode=True,
-        demo_email="demo@example.com",
-        demo_password="demo-password-123",
+        DATABASE_URL="sqlite:///:memory:",
+        USE_PGVECTOR=False,
+        DEMO_MODE=True,
+        DEMO_EMAIL="demo@example.com",
+        DEMO_PASSWORD="demo-password-123",
     )
 
     with factory() as db:
