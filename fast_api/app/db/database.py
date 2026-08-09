@@ -1,5 +1,6 @@
 import time
 from collections.abc import Generator
+from pathlib import Path
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.dialects.postgresql import JSONB
@@ -62,22 +63,24 @@ def init_db(retries: int = 20, delay_seconds: float = 1.5) -> None:
                     connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
             from fast_api.app.db import models  # noqa: F401
 
+            alembic_ini = Path(__file__).resolve().parents[3] / "alembic.ini"
             try:
-                from alembic.config import Config
                 from alembic import command
-                import os
-
-                alembic_ini = os.path.join(
-                    os.path.dirname(__file__), "..", "..", "..", "alembic.ini"
-                )
-                if os.path.exists(alembic_ini):
-                    alembic_cfg = Config(alembic_ini)
-                    command.upgrade(alembic_cfg, "head")
-                else:
-                    raise FileNotFoundError("alembic.ini not found")
-            except Exception:
-                # Fallback for fresh deployments without migration history.
+                from alembic.config import Config
+            except ImportError:
+                if settings.environment.lower() in {"production", "staging"}:
+                    raise
                 Base.metadata.create_all(bind=engine)
+                return
+
+            if not alembic_ini.is_file():
+                if settings.environment.lower() in {"production", "staging"}:
+                    raise FileNotFoundError(f"Alembic configuration not found: {alembic_ini}")
+                Base.metadata.create_all(bind=engine)
+                return
+
+            alembic_cfg = Config(str(alembic_ini))
+            command.upgrade(alembic_cfg, "head")
             return
         except Exception as exc:  # pragma: no cover - exercised in Docker startup
             last_error = exc

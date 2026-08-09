@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -16,21 +19,32 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Install lint tools
-        run: pip install ruff==0.11.0
+      - name: Install development tools
+        run: pip install -r fast_api/requirements-dev.txt
+
+      - name: Collect changed Python files
+        id: changed-python
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          files=$(git diff --name-only --diff-filter=ACMR "$BASE_SHA" "${{ github.sha }}" -- '*.py' | tr '\n' ' ')
+          echo "files=$files" >> "$GITHUB_OUTPUT"
 
       - name: Ruff check
-        run: ruff check fast_api/ tests/
-        continue-on-error: true
+        if: steps.changed-python.outputs.files != ''
+        run: ruff check ${{ steps.changed-python.outputs.files }}
 
       - name: Ruff format (dry-run)
-        run: ruff format --check fast_api/ tests/
-        continue-on-error: true
+        if: steps.changed-python.outputs.files != ''
+        run: ruff format --check ${{ steps.changed-python.outputs.files }}
 
   type-check:
     name: Type Check
@@ -43,13 +57,10 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: |
-          pip install -r fast_api/requirements.txt
-          pip install mypy==1.15.0
+        run: pip install -r fast_api/requirements-dev.txt
 
-      - name: Mypy
-        run: mypy fast_api/ --ignore-missing-imports --no-error-summary
-        continue-on-error: true
+      - name: Mypy strict boundary
+        run: mypy
 
   test:
     name: Tests (Python ${{ matrix.python-version }})
@@ -60,7 +71,7 @@ jobs:
         python-version: ["3.11", "3.12"]
 
     env:
-      DATABASE_URL: sqlite:///:memory:
+      DATABASE_URL: "sqlite:///:memory:"
       USE_PGVECTOR: "false"
       LLM_PROVIDER: offline
       EMBEDDING_PROVIDER: offline
@@ -80,22 +91,51 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('fast_api/requirements.txt') }}
+          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('fast_api/requirements*.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-${{ matrix.python-version }}-
 
       - name: Install dependencies
-        run: |
-          pip install -r fast_api/requirements.txt
+        run: pip install -r fast_api/requirements-dev.txt
 
       - name: Run tests
         run: |
-          cd fast_api
-          python -m pytest ../tests/ -v --tb=short --timeout=30
+          python -m pytest tests/ -v --tb=short --timeout=30 \
+            --cov=fast_api/app --cov=algorithm --cov-report=term-missing \
+            --cov-report=xml --cov-fail-under=65
+
+  frontend:
+    name: Frontend Quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20.19.0"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Type check
+        working-directory: web
+        run: npm run typecheck
+
+      - name: Component tests
+        working-directory: web
+        run: npm test
+
+      - name: Production build
+        working-directory: web
+        run: npm run build
 
   build:
     name: Docker Build
     runs-on: ubuntu-latest
+    needs: [frontend]
     steps:
       - uses: actions/checkout@v4
 
@@ -129,7 +169,6 @@ jobs:
 
       - name: Export OpenAPI schema
         run: |
-          cd fast_api
           python -c "
           from fast_api.app.main import app
           import json
@@ -139,8 +178,42 @@ jobs:
           print(f'OpenAPI schema has {len(schema.get(\"paths\", {}))} paths')
           "
         env:
-          DATABASE_URL: sqlite:///:memory:
+          DATABASE_URL: "sqlite:///:memory:"
           USE_PGVECTOR: "false"
           LLM_PROVIDER: offline
           EMBEDDING_PROVIDER: offline
           JWT_SECRET_KEY: validate-secret
+
+  security:
+    name: Security Scans
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20.19.0"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Audit Python runtime dependencies
+        run: |
+          pip install pip-audit==2.9.0
+          pip-audit --strict --requirement fast_api/requirements.txt
+
+      - name: Audit frontend dependencies
+        working-directory: web
+        run: |
+          npm ci
+          npm audit --audit-level=high --registry=https://registry.npmjs.org
+
+      - name: Scan repository for secrets
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

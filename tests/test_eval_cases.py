@@ -18,6 +18,7 @@ def load_eval_cases():
 
 # ---- Original tests ----
 
+
 def test_eval_cases_cover_memory_rules_templates_and_cases():
     cases = load_eval_cases()
     names = {case["name"] for case in cases}
@@ -52,6 +53,7 @@ def test_eval_cases_have_machine_checkable_expectations():
 
 # ---- Expanded: Actually run eval cases through the system ----
 
+
 def _build_minimal_context_for_case(case: dict) -> dict:
     """Build a realistic context dict from eval case hints."""
     context = {
@@ -69,7 +71,14 @@ def _build_minimal_context_for_case(case: dict) -> dict:
     if "甲亢" in inp or "甲状腺" in inp or "赛治" in inp:
         context["relevant_memories"].append({"memory_type": "medical_context", "content": "甲亢"})
         context["active_risk_notes"].append({"risk_type": "thyroid", "severity_score": 0.9})
-    if "女" in inp and ("月经" in inp or "例假" in inp or "生理" in inp or "黄体" in inp or "卵泡" in inp or "痛经" in inp):
+    if "女" in inp and (
+        "月经" in inp
+        or "例假" in inp
+        or "生理" in inp
+        or "黄体" in inp
+        or "卵泡" in inp
+        or "痛经" in inp
+    ):
         context["core_profile"]["biological_sex"] = "female"
     if "黄体" in inp:
         context["recent_checkins"].append({"menstrual_phase": "luteal"})
@@ -79,25 +88,57 @@ def _build_minimal_context_for_case(case: dict) -> dict:
         context["recent_recovery"].append({"fatigue_score": 4, "sleep_hours": 8})
     if "月经" in inp or "痛经" in inp or "经期" in inp:
         context["recent_checkins"].append({"menstrual_phase": "menstrual", "cramps_severity": 8})
-    if "睡" in inp and ("不足" in inp or "只睡" in inp or "5小时" in inp or "4小时" in inp or "6小时" in inp):
+    if "睡" in inp and (
+        "不足" in inp or "只睡" in inp or "5小时" in inp or "4小时" in inp or "6小时" in inp
+    ):
         hours = 5 if "5" in inp else (4 if "4" in inp else 5.5)
-        context["recent_recovery"].append({"sleep_hours": hours, "fatigue_score": 9, "soreness_score": 8, "consecutive_bad_sleep_days": 6})
+        context["recent_recovery"].append(
+            {
+                "sleep_hours": hours,
+                "fatigue_score": 9,
+                "soreness_score": 8,
+                "consecutive_bad_sleep_days": 6,
+            }
+        )
     if "疲劳" in inp:
         if not context["recent_recovery"]:
-            context["recent_recovery"].append({"sleep_hours": 5, "fatigue_score": 9, "motivation_score": 2})
+            context["recent_recovery"].append(
+                {"sleep_hours": 5, "fatigue_score": 9, "motivation_score": 2}
+            )
     if "卧推" in inp or "bench" in inp.lower():
-        context["exercise_history"].append({"exercise_name": "bench_press", "rpe": 8, "pain_score": 0, "completed": True})
+        context["exercise_history"].append(
+            {"exercise_name": "bench_press", "rpe": 8, "pain_score": 0, "completed": True}
+        )
     if "深蹲" in inp or "squat" in inp.lower():
-        context["exercise_history"].append({"exercise_name": "squat", "rpe": 7, "pain_score": 0, "progression_status": "stalled", "stall_weeks": 4})
+        context["exercise_history"].append(
+            {
+                "exercise_name": "squat",
+                "rpe": 7,
+                "pain_score": 0,
+                "progression_status": "stalled",
+                "stall_weeks": 4,
+            }
+        )
     if "膝盖" in inp and ("疼" in inp or "痛" in inp):
-        context["exercise_history"].append({"exercise_name": "squat", "pain_location": "knee", "pain_score": 4})
+        context["exercise_history"].append(
+            {"exercise_name": "squat", "pain_location": "knee", "pain_score": 4}
+        )
     if "肩" in inp and ("疼" in inp or "痛" in inp or "伤" in inp or "刺" in inp):
-        context["exercise_history"].append({"exercise_name": "bench_press", "pain_type": "sharp", "pain_score": 5, "pain_location": "shoulder"})
+        context["exercise_history"].append(
+            {
+                "exercise_name": "bench_press",
+                "pain_type": "sharp",
+                "pain_score": 5,
+                "pain_location": "shoulder",
+            }
+        )
     if "腰" in inp and ("疼" in inp or "痛" in inp or "伤" in inp):
         context["relevant_memories"].append({"content": "腰伤"})
     if "外食" in inp or "外卖" in inp or "不自炊" in inp or "不自己做饭" in inp:
         context["core_profile"]["dietary_preferences"] = ["takeout_friendly"]
-        context["relevant_memories"].append({"memory_type": "nutrition_habit", "content": "用户平时不自己做饭"})
+        context["relevant_memories"].append(
+            {"memory_type": "nutrition_habit", "content": "用户平时不自己做饭"}
+        )
     if "减脂" in inp or "减肥" in inp:
         context["core_profile"]["goal"] = "fat_loss"
     if "增肌" in inp and ("不涨" in inp or "没变化" in inp or "不够" in inp):
@@ -185,11 +226,12 @@ def test_intent_router_classifies_eval_cases_correctly():
     for name in critical:
         if name in expected_intents:
             case = next(c for c in cases if c["name"] == name)
-            assert router.classify(case["input"]) == expected_intents[name], \
+            assert router.classify(case["input"]) == expected_intents[name], (
                 f"Critical case {name} misclassified"
+            )
 
 
-def test_knowledge_context_matches_all_eval_cases_with_expected_knowledge():
+def _evaluate_knowledge_context_for_all_cases():
     """Run all eval cases through build_knowledge_context and verify knowledge matches."""
     service = FitnessKnowledgeService(db=None)
     cases = load_eval_cases()
@@ -253,10 +295,9 @@ def test_knowledge_context_matches_all_eval_cases_with_expected_knowledge():
 
 def test_all_eval_cases_with_rule_expectations_pass():
     """Verify all eval cases that specify rules actually trigger those rules."""
-    results = test_knowledge_context_matches_all_eval_cases_with_expected_knowledge()
+    results = _evaluate_knowledge_context_for_all_cases()
 
     failures = [r for r in results if not r["passed"]]
-    failure_names = {r["name"] for r in failures}
 
     # Build error message for debugging
     error_details = []
@@ -310,4 +351,6 @@ def test_eval_cases_all_have_unique_names():
     """Verify no duplicate eval case names."""
     cases = load_eval_cases()
     names = [c["name"] for c in cases]
-    assert len(names) == len(set(names)), f"Duplicate eval case names: {[n for n in names if names.count(n) > 1]}"
+    assert len(names) == len(set(names)), (
+        f"Duplicate eval case names: {[n for n in names if names.count(n) > 1]}"
+    )

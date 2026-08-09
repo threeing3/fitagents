@@ -1,7 +1,12 @@
 import json
 
 from algorithm.data.deduplicate import deduplicate_records
-from algorithm.data.schemas import OutcomeLabel, PreferencePair, ToolDecisionExample, TrainingExample
+from algorithm.data.schemas import (
+    OutcomeLabel,
+    PreferencePair,
+    ToolDecisionExample,
+    TrainingExample,
+)
 from algorithm.data.split_dataset import split_records
 from algorithm.data.validate_dataset import validate_training_rows
 
@@ -61,8 +66,20 @@ def test_feedback_id_rejects_blank_values():
 
 def test_validation_detects_duplicate_ids_and_unknown_source():
     rows = [
-        {"example_id": "same", "task_type": "x", "user_message": "a", "source": "agent_trace", "split": "train"},
-        {"example_id": "same", "task_type": "x", "user_message": "b", "source": "bad", "split": "train"},
+        {
+            "example_id": "same",
+            "task_type": "x",
+            "user_message": "a",
+            "source": "agent_trace",
+            "split": "train",
+        },
+        {
+            "example_id": "same",
+            "task_type": "x",
+            "user_message": "b",
+            "source": "bad",
+            "split": "train",
+        },
     ]
     report = validate_training_rows(rows)
     assert report["error_count"] >= 2
@@ -70,8 +87,22 @@ def test_validation_detects_duplicate_ids_and_unknown_source():
 
 def test_validation_detects_user_split_leakage():
     rows = [
-        {"example_id": "u-train", "user_hash": "same-user", "task_type": "x", "user_message": "a", "source": "agent_trace", "split": "train"},
-        {"example_id": "u-test", "user_hash": "same-user", "task_type": "x", "user_message": "b", "source": "agent_trace", "split": "test"},
+        {
+            "example_id": "u-train",
+            "user_hash": "same-user",
+            "task_type": "x",
+            "user_message": "a",
+            "source": "agent_trace",
+            "split": "train",
+        },
+        {
+            "example_id": "u-test",
+            "user_hash": "same-user",
+            "task_type": "x",
+            "user_message": "b",
+            "source": "agent_trace",
+            "split": "test",
+        },
     ]
     report = validate_training_rows(rows)
     assert report["user_split_leaks"] == {"same-user": ["test", "train"]}
@@ -80,8 +111,18 @@ def test_validation_detects_user_split_leakage():
 
 def test_deduplicate_and_user_split_are_deterministic():
     rows = [
-        {"user_hash": "u1", "user_message": "Hello", "assistant_response": "A", "task_type": "general"},
-        {"user_hash": "u1", "user_message": " hello ", "assistant_response": "A", "task_type": "general"},
+        {
+            "user_hash": "u1",
+            "user_message": "Hello",
+            "assistant_response": "A",
+            "task_type": "general",
+        },
+        {
+            "user_hash": "u1",
+            "user_message": " hello ",
+            "assistant_response": "A",
+            "task_type": "general",
+        },
     ]
     unique, duplicate_count = deduplicate_records(rows, ("user_message", "assistant_response"))
     split, counts = split_records(unique)
@@ -102,7 +143,10 @@ def test_user_rows_stay_in_one_partition_across_scenarios():
 
 
 def test_small_user_cohort_gets_all_evaluation_partitions_when_possible():
-    rows = [{"user_hash": f"u-{index}", "user_message": str(index), "task_type": "general"} for index in range(6)]
+    rows = [
+        {"user_hash": f"u-{index}", "user_message": str(index), "task_type": "general"}
+        for index in range(6)
+    ]
     split, counts = split_records(rows)
     assert {row["split"] for row in split} == {"train", "validation", "test"}
     assert all(counts[name] > 0 for name in ("train", "validation", "test"))
@@ -114,5 +158,7 @@ def test_preference_pair_rejects_identical_candidates():
 
 
 def test_tool_decision_contract_rejects_sequence_not_selected():
-    example = ToolDecisionExample(user_message="plan", selected_tools=["context.build"], tool_sequence=["plan.generate"])
+    example = ToolDecisionExample(
+        user_message="plan", selected_tools=["context.build"], tool_sequence=["plan.generate"]
+    )
     assert any("missing from selected_tools" in error for error in example.validate())

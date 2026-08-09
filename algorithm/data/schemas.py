@@ -6,8 +6,7 @@ import hashlib
 import json
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
-from typing import Any, ClassVar
-
+from typing import Any
 
 SCHEMA_VERSION = "2026-08-01"
 VALID_SOURCES = {
@@ -135,9 +134,13 @@ class ToolDecisionExample:
             errors.append("user_message is required")
         if self.risk_level not in {"low", "medium", "high", "critical", "unknown"}:
             errors.append(f"unknown risk_level: {self.risk_level}")
-        if not isinstance(self.selected_tools, list) or not all(isinstance(item, str) and item for item in self.selected_tools):
+        if not isinstance(self.selected_tools, list) or not all(
+            isinstance(item, str) and item for item in self.selected_tools
+        ):
             errors.append("selected_tools must be a list of non-empty strings")
-        if not isinstance(self.tool_sequence, list) or not all(isinstance(item, str) and item for item in self.tool_sequence):
+        if not isinstance(self.tool_sequence, list) or not all(
+            isinstance(item, str) and item for item in self.tool_sequence
+        ):
             errors.append("tool_sequence must be a list of non-empty strings")
         if any(item not in self.selected_tools for item in self.tool_sequence):
             errors.append("tool_sequence contains a tool missing from selected_tools")
