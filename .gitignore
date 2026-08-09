@@ -21,8 +21,11 @@ venv/
 coverage.xml
 htmlcov/
 
-# Logs
-logs/
+# Logs: raw logs stay local; reviewed summaries are safe to version.
+logs/*
+!logs/experiments/
+logs/experiments/*
+!logs/experiments/*.summary.md
 *.log
 
 # Local algorithm datasets and learner state (may contain user-provided text)

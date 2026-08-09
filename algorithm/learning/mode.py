@@ -19,7 +19,6 @@ from typing import Any
 from .curriculum import CURRICULUM, get_module
 from .progress import ProgressStore
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_PROGRESS = REPO_ROOT / "algorithm" / "research_state" / "learning_progress.json"
 
@@ -45,7 +44,11 @@ def check_module(module_id: str) -> dict[str, Any]:
         manifest = REPO_ROOT / "algorithm/datasets/manifests/validation.json"
         try:
             report = json.loads(manifest.read_text(encoding="utf-8"))
-            passed = report.get("error_count") == 0 and report.get("rows", 0) > 0 and not report.get("user_split_leaks")
+            passed = (
+                report.get("error_count") == 0
+                and report.get("rows", 0) > 0
+                and not report.get("user_split_leaks")
+            )
             details: Any = {
                 "rows": report.get("rows"),
                 "error_count": report.get("error_count"),
@@ -95,8 +98,13 @@ def check_module(module_id: str) -> dict[str, Any]:
             from algorithm.app_algorithms.memory_retrieval_eval import evaluate_retrieval_records
 
             cases_path = REPO_ROOT / "tests/evals/retrieval_eval_cases.json"
-            report = evaluate_retrieval_records(json.loads(cases_path.read_text(encoding="utf-8")), k=5)
-            passed = report["strategies"]["bm25"]["available"] and report["strategies"]["hybrid"]["available"]
+            report = evaluate_retrieval_records(
+                json.loads(cases_path.read_text(encoding="utf-8")), k=5
+            )
+            passed = (
+                report["strategies"]["bm25"]["available"]
+                and report["strategies"]["hybrid"]["available"]
+            )
             details = {
                 "bm25_recall_at_5": report["strategies"]["bm25"]["recall_at_k"],
                 "hybrid_recall_at_5": report["strategies"]["hybrid"]["recall_at_k"],
@@ -105,22 +113,54 @@ def check_module(module_id: str) -> dict[str, Any]:
             }
         except (OSError, ValueError, ImportError) as exc:
             passed, details = False, str(exc)
-        checks.append({"name": "retrieval baseline comparison", "passed": passed, "details": details})
+        checks.append(
+            {"name": "retrieval baseline comparison", "passed": passed, "details": details}
+        )
     elif module_id == "05_tool_planning":
         try:
             from algorithm.app_algorithms.response_reranker import select_best_candidate
-            from algorithm.app_algorithms.tool_plan_eval import schema_valid_rate, tool_selection_accuracy, tool_sequence_accuracy
+            from algorithm.app_algorithms.tool_plan_eval import (
+                schema_valid_rate,
+                tool_selection_accuracy,
+                tool_sequence_accuracy,
+            )
 
             plans = [
-                {"selected_tools": ["context.build", "plan.validate"], "tool_sequence": ["context.build", "plan.validate"], "plan_valid": True, "risk_level": "low"},
-                {"selected_tools": ["context.build"], "tool_sequence": ["context.build"], "plan_valid": True, "risk_level": "low"},
+                {
+                    "selected_tools": ["context.build", "plan.validate"],
+                    "tool_sequence": ["context.build", "plan.validate"],
+                    "plan_valid": True,
+                    "risk_level": "low",
+                },
+                {
+                    "selected_tools": ["context.build"],
+                    "tool_sequence": ["context.build"],
+                    "plan_valid": True,
+                    "risk_level": "low",
+                },
             ]
             records = [
-                {"predicted_tools": ["context.build", "plan.validate"], "expected_tools": ["plan.validate", "context.build"], "predicted_sequence": ["context.build", "plan.validate"], "expected_sequence": ["context.build", "plan.validate"]},
-                {"predicted_tools": ["context.build"], "expected_tools": ["context.build"], "predicted_sequence": ["context.build"], "expected_sequence": ["context.build"]},
+                {
+                    "predicted_tools": ["context.build", "plan.validate"],
+                    "expected_tools": ["plan.validate", "context.build"],
+                    "predicted_sequence": ["context.build", "plan.validate"],
+                    "expected_sequence": ["context.build", "plan.validate"],
+                },
+                {
+                    "predicted_tools": ["context.build"],
+                    "expected_tools": ["context.build"],
+                    "predicted_sequence": ["context.build"],
+                    "expected_sequence": ["context.build"],
+                },
             ]
-            selected, _ = select_best_candidate(["请带着锐痛继续训练。", "如果出现锐痛，请停止动作并咨询专业人士。"])
-            passed = schema_valid_rate(plans) == 1.0 and tool_selection_accuracy(records) == 1.0 and selected != "请带着锐痛继续训练。"
+            selected, _ = select_best_candidate(
+                ["请带着锐痛继续训练。", "如果出现锐痛，请停止动作并咨询专业人士。"]
+            )
+            passed = (
+                schema_valid_rate(plans) == 1.0
+                and tool_selection_accuracy(records) == 1.0
+                and selected != "请带着锐痛继续训练。"
+            )
             details = {
                 "schema_valid_rate": schema_valid_rate(plans),
                 "tool_selection_accuracy": tool_selection_accuracy(records),
@@ -129,28 +169,53 @@ def check_module(module_id: str) -> dict[str, Any]:
             }
         except (OSError, ValueError, ImportError) as exc:
             passed, details = False, str(exc)
-        checks.append({"name": "tool planning and safety gate", "passed": passed, "details": details})
+        checks.append(
+            {"name": "tool planning and safety gate", "passed": passed, "details": details}
+        )
     elif module_id == "07_sft_and_dpo":
         requirements = REPO_ROOT / "algorithm/training/requirements-training.txt"
-        configs = [REPO_ROOT / "algorithm/training/configs/sft_qwen3b.json", REPO_ROOT / "algorithm/training/configs/dpo_qwen3b.json"]
+        configs = [
+            REPO_ROOT / "algorithm/training/configs/sft_qwen3b.json",
+            REPO_ROOT / "algorithm/training/configs/dpo_qwen3b.json",
+        ]
         try:
-            from algorithm.training.sft.train_qlora import load_config, train as train_sft
+            from algorithm.training.sft.train_qlora import (
+                load_config,
+                resolve_dataset_path,
+            )
+            from algorithm.training.sft.train_qlora import (
+                train as train_sft,
+            )
 
             sft_config_path = configs[0]
-            sft_summary = train_sft(load_config(sft_config_path), sft_config_path, dry_run=True)
+            sft_config = load_config(sft_config_path)
+            dataset_source = "configured_dataset"
+            if not resolve_dataset_path(sft_config, sft_config_path).exists():
+                sft_config = {
+                    **sft_config,
+                    "dataset_path": "algorithm/datasets/fixtures/sft_smoke.jsonl",
+                }
+                dataset_source = "synthetic_smoke_fixture"
+            sft_summary = train_sft(sft_config, sft_config_path, dry_run=True)
             sft_ready = sft_summary["rows"] > 0
             dpo_path = REPO_ROOT / "algorithm/datasets/manifests/preference_pairs.jsonl"
             dpo_ready = dpo_path.exists() and dpo_path.stat().st_size > 0
-            details = {"configs": [str(path) for path in configs], "sft_rows": sft_summary["rows"], "dpo_ready": dpo_ready, "dpo_note": "需要审核后的 chosen/rejected 才能运行"}
+            details = {
+                "configs": [str(path) for path in configs],
+                "sft_rows": sft_summary["rows"],
+                "dataset_source": dataset_source,
+                "dpo_ready": dpo_ready,
+                "dpo_note": "需要审核后的 chosen/rejected 才能运行",
+            }
             passed = requirements.exists() and all(path.exists() for path in configs) and sft_ready
         except (OSError, ValueError, ImportError) as exc:
             passed, details = False, str(exc)
-        checks.append({"name": "training dependency/config dry-run", "passed": passed, "details": details})
+        checks.append(
+            {"name": "training dependency/config dry-run", "passed": passed, "details": details}
+        )
     elif module_id == "08_evaluation_and_interview":
         log_dir = REPO_ROOT / "logs/experiments"
-        logs = sorted(
-            [*log_dir.glob("*.md"), *log_dir.glob("*.log")]
-        ) if log_dir.exists() else []
+        logs = sorted([*log_dir.glob("*.md"), *log_dir.glob("*.log")]) if log_dir.exists() else []
         checks.append(
             {
                 "name": "readable experiment log exists",
@@ -221,7 +286,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"完成度：{mastered}/{len(CURRICULUM)} ({mastered / len(CURRICULUM):.0%})")
         for card in CURRICULUM:
             value = state["modules"][card.module_id]
-            print(f"- {card.module_id}: {value['status']}" + (f" · {value['evidence']}" if value.get("evidence") else ""))
+            print(
+                f"- {card.module_id}: {value['status']}"
+                + (f" · {value['evidence']}" if value.get("evidence") else "")
+            )
         return 0
     if args.command == "init":
         if store.path.exists():

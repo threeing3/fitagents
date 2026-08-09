@@ -38,7 +38,9 @@ def test_intent_learning_check_passes_with_current_baseline():
 
 def test_conversation_first_control_and_evaluation_log_are_configured():
     repo_root = Path(__file__).resolve().parents[2]
-    control = json.loads((repo_root / "algorithm/research_state/learning_control.json").read_text(encoding="utf-8"))
+    control = json.loads(
+        (repo_root / "algorithm/research_state/learning_control.json").read_text(encoding="utf-8")
+    )
     assert control["mode"] == "conversation_first"
     assert control["learner_runs_terminal"] is False
     assert "logs/experiments" in get_module("08_evaluation_and_interview").files
@@ -58,3 +60,21 @@ def test_retrieval_tool_and_training_checks_execute_real_smoke_experiments():
     training = check_module("07_sft_and_dpo")
     assert training["passed"] is True
     assert training["checks"][-1]["details"]["sft_rows"] > 0
+
+
+def test_training_check_uses_labeled_smoke_fixture_without_local_dataset(monkeypatch, tmp_path):
+    from algorithm.training.sft import train_qlora
+
+    real_resolver = train_qlora.resolve_dataset_path
+
+    def resolve_for_clean_clone(config, config_path=None):
+        if str(config.get("dataset_path", "")).endswith("sft_smoke.jsonl"):
+            return real_resolver(config, config_path)
+        return tmp_path / "missing-local-dataset.jsonl"
+
+    monkeypatch.setattr(train_qlora, "resolve_dataset_path", resolve_for_clean_clone)
+
+    result = check_module("07_sft_and_dpo")
+
+    assert result["passed"] is True
+    assert result["checks"][-1]["details"]["dataset_source"] == "synthetic_smoke_fixture"
