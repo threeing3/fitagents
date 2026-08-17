@@ -85,3 +85,9 @@ python -m algorithm.evaluation.run_maturity_gate --experiment-id <new-id> --outp
 - failure examples（失败样例）：只来自固定合成挑战集，不展示真实用户内容。
 
 数据文件必须保持 `source=challenge_eval`、`partition=test`、`training_eligible=false`。任何训练导出器都不得吸收该集合。当前报告是调优前基线，不因分数低而修改答案迎合现有规则。
+
+## Intent decision evaluation
+
+意图评测必须明确记录实际被测路径：`rule_only`、`deepseek`、`qwen_base`、`qwen_sft` 或 `hybrid`。规则评测不得描述为大模型评测，模拟提供器结果不得描述为真实 API 结果。
+
+每条预测必须保存 `schema_version`、模型与规则版本、数据版本、调用成功状态和各阶段延迟。DeepSeek 与后续本地模型必须使用相同测试集和相同输出 Schema，至少报告主意图、次意图、风险、澄清、结构合法率、严格组合通过率、延迟和调用成本。

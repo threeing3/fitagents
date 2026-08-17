@@ -10,6 +10,8 @@ from fast_api.app.db import models
 PHASE_BY_NODE = {
     "RequestReceived": "understand",
     "IntentRouter": "understand",
+    "IntentDecisionEngine": "understand",
+    "RuntimeRouter": "understand",
     "LLMPlanner": "plan",
     "PlannerFallback": "plan",
     "PlannerVerifier": "plan",
@@ -55,8 +57,20 @@ def _list(value: Any, limit: int = 6) -> list[str]:
 
 
 def _summary(node_name: str, output: dict[str, Any]) -> str:
-    if node_name in {"IntentRouter", "LLMPlanner", "PlannerVerifier", "AgentPlanner"}:
-        intent = output.get("intent") or output.get("primary_intent")
+    if node_name in {
+        "IntentRouter",
+        "IntentDecisionEngine",
+        "RuntimeRouter",
+        "LLMPlanner",
+        "PlannerVerifier",
+        "AgentPlanner",
+    }:
+        nested = (
+            output.get("intent_decision") if isinstance(output.get("intent_decision"), dict) else {}
+        )
+        intent = (
+            output.get("intent") or output.get("primary_intent") or nested.get("primary_intent")
+        )
         tools = _list(output.get("tool_order"))
         if not tools and isinstance(output.get("steps"), list):
             tools = [

@@ -10,6 +10,11 @@ from typing import Any
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
+from fast_api.app.core.config import get_settings
+from fast_api.app.core.guardrails import Severity as GuardrailSeverity
+from fast_api.app.core.guardrails import run_guardrails
+from fast_api.app.core.metrics import track_llm_call
+from fast_api.app.core.prompts import registry
 from fast_api.app.db import models
 from fast_api.app.schemas.agent import (
     DailyCheckinRequest,
@@ -18,11 +23,6 @@ from fast_api.app.schemas.agent import (
     UserProfileInput,
     WorkoutLogRequest,
 )
-from fast_api.app.services.fitness_math import (
-    adjustment_multiplier,
-    calculate_macro_targets,
-)
-from fast_api.app.services.context_builder import ContextBuilder
 from fast_api.app.services.agent_observability import AgentRunLogger
 from fast_api.app.services.agent_runtime import (
     AgentExecutor,
@@ -34,6 +34,7 @@ from fast_api.app.services.agent_runtime import (
     ToolRegistry,
     ToolSpec,
 )
+from fast_api.app.services.agent_task_state import AgentTaskStateService
 from fast_api.app.services.agent_tool_dispatcher import (
     ReplayRunner,
     ToolInputBuilder,
@@ -41,28 +42,29 @@ from fast_api.app.services.agent_tool_dispatcher import (
     ToolRuntimeState,
 )
 from fast_api.app.services.agent_verifier import AgentVerifier
-from fast_api.app.services.decision_logger import DecisionLogger
-from fast_api.app.services.memory_verifier import MemoryVerifier
-from fast_api.app.core.guardrails import run_guardrails, Severity as GuardrailSeverity
-from fast_api.app.core.prompts import registry
-from fast_api.app.services.fitness_knowledge import FitnessKnowledgeService, KNOWLEDGE_DIR
-from fast_api.app.services.memory_system import MemoryManager
-from fast_api.app.core.metrics import track_llm_call
-from fast_api.app.core.config import get_settings
-from fast_api.app.services.model_provider import ModelProvider
-from fast_api.app.services.semantic_cache import SemanticCacheService
-from fast_api.app.services.feedback_learner_integration import get_adaptive_system_prompt
-from fast_api.app.services.llm_agent import LLMAgentResult, LLMAgentService as LLMAgent
-from fast_api.app.services.agent_task_state import AgentTaskStateService
-from fast_api.app.services.followup_resolver import FollowupResolver
+from fast_api.app.services.context_builder import ContextBuilder
 from fast_api.app.services.context_window_manager import (
     build_context_packet_with_budget,
     estimate_tokens,
 )
+from fast_api.app.services.decision_logger import DecisionLogger
+from fast_api.app.services.feedback_learner_integration import get_adaptive_system_prompt
+from fast_api.app.services.fitness_knowledge import KNOWLEDGE_DIR, FitnessKnowledgeService
+from fast_api.app.services.fitness_math import (
+    adjustment_multiplier,
+    calculate_macro_targets,
+)
+from fast_api.app.services.followup_resolver import FollowupResolver
+from fast_api.app.services.intent_decision_engine import IntentDecisionEngine
+from fast_api.app.services.llm_agent import LLMAgentResult
+from fast_api.app.services.llm_agent import LLMAgentService as LLMAgent
 from fast_api.app.services.memory_conflict_resolver import MemoryConflictResolver
+from fast_api.app.services.memory_system import MemoryManager
+from fast_api.app.services.memory_verifier import MemoryVerifier
+from fast_api.app.services.model_provider import ModelProvider
 from fast_api.app.services.runtime_router import RuntimeRoute, RuntimeRouter
+from fast_api.app.services.semantic_cache import SemanticCacheService
 from fast_api.app.services.strategy_memory_policy import build_strategy_memory_response_note
-
 
 REQUIRED_ONBOARDING_SLOTS = [
     "age",
@@ -80,6 +82,7 @@ class CoachAgentService:
         self.model_provider = model_provider or ModelProvider()
         self.cache = SemanticCacheService(db, self.model_provider)
         self.runtime_router = RuntimeRouter()
+        self.intent_decision_engine = IntentDecisionEngine(self.model_provider)
 
     def create_session(
         self,
@@ -104,13 +107,17 @@ class CoachAgentService:
             raise ValueError("Authenticated user required — please register or log in first.")
         user = self.db.get(models.User, user_id)
         if user is None:
-            raise ValueError(f"User {user_id} not found. Register via POST /v1/auth/register first.")
+            raise ValueError(
+                f"User {user_id} not found. Register via POST /v1/auth/register first."
+            )
         return user
 
     def upsert_profile(self, profile_input: UserProfileInput) -> models.UserProfile:
         user = self.ensure_user(profile_input.user_id, profile_input.display_name)
         profile = self._get_or_create_profile(user.id)
-        self._apply_profile_payload(profile, profile_input.model_dump(exclude={"user_id", "display_name"}))
+        self._apply_profile_payload(
+            profile, profile_input.model_dump(exclude={"user_id", "display_name"})
+        )
         self._refresh_macro_targets(profile)
         self.db.commit()
         self.db.refresh(profile)
@@ -123,7 +130,8 @@ class CoachAgentService:
         message: str,
     ) -> dict[str, Any]:
         """Dispatch each turn through the lightweight RuntimeRouter."""
-        route = self._route_runtime(message)
+        profile = self._get_or_create_profile(user_id)
+        route = await self._route_runtime(message, profile=profile)
         if route.mode == "llm_driven":
             result = await self._handle_chat_llm_agent(session_id, user_id, message, route)
         else:
@@ -131,29 +139,34 @@ class CoachAgentService:
         result["runtime_route"] = route.to_dict()
         return result
 
-    def _route_runtime(self, message: str) -> RuntimeRoute:
+    async def _route_runtime(self, message: str, profile: Any | None = None) -> RuntimeRoute:
         settings = get_settings()
+        result = await self.intent_decision_engine.decide(message, profile=profile)
+        route = RuntimeRoute(
+            mode=result.runtime_mode,
+            reason=result.runtime_reason,
+            matched_rules=result.matched_rules,
+            confidence=float(result.decision.confidence.get("overall", 0.7)),
+            intent_decision=result.decision.to_dict(),
+        )
         if settings.agent_runtime_mode == "llm_driven":
-            return RuntimeRoute(
-                mode="llm_driven",
-                reason="AGENT_RUNTIME_MODE=llm_driven 强制走 LLM-driven。",
-                matched_rules=["config.force_llm_driven"],
-                confidence=1.0,
-            )
+            route.mode = "llm_driven"
+            route.reason = "AGENT_RUNTIME_MODE=llm_driven 强制走 LLM-driven。"
+            route.matched_rules = ["config.force_llm_driven"]
+            route.confidence = 1.0
+            return route
         if settings.agent_runtime_mode == "code_driven":
-            return RuntimeRoute(
-                mode="code_driven",
-                reason="AGENT_RUNTIME_MODE=code_driven 强制走 Code-driven。",
-                matched_rules=["config.force_code_driven"],
-                confidence=1.0,
-            )
+            route.mode = "code_driven"
+            route.reason = "AGENT_RUNTIME_MODE=code_driven 强制走 Code-driven。"
+            route.matched_rules = ["config.force_code_driven"]
+            route.confidence = 1.0
+            return route
         if settings.use_llm_driven_agent:
-            route = self.runtime_router.route(message)
             if route.mode == "llm_driven":
                 route.reason = "兼容 USE_LLM_DRIVEN_AGENT=true：轻量请求允许走 LLM-driven；强规则仍保持 Code-driven。"
                 route.matched_rules = ["legacy.use_llm_driven_agent"] + route.matched_rules
             return route
-        return self.runtime_router.route(message)
+        return route
 
     async def _build_code_driven_execution_plan(
         self,
@@ -236,7 +249,9 @@ class CoachAgentService:
         run_logger = AgentRunLogger("chat", user.id, session.id)
         timeline = AgentTaskTimeline(message, request_id=run_logger.request_id)
         user_msg = self._save_message(session.id, user.id, "user", message)
-        followup_resolution = FollowupResolver(self.db).resolve(user.id, session.id, message, user_msg.id)
+        followup_resolution = FollowupResolver(self.db).resolve(
+            user.id, session.id, message, user_msg.id
+        )
         effective_message = followup_resolution.normalized_message
         state_updates["followup_resolution"] = followup_resolution.to_dict()
         tool_registry = self._build_chat_tool_registry(
@@ -246,6 +261,7 @@ class CoachAgentService:
             message,
             effective_message=effective_message,
             followup_resolution=followup_resolution.to_dict(),
+            intent_decision=runtime_route.intent_decision if runtime_route else None,
         )
         executor = AgentExecutor()
         execution_plan, planner_debug = await self._build_code_driven_execution_plan(
@@ -262,20 +278,35 @@ class CoachAgentService:
         contract_issues = tool_registry.validate_contracts()
         nodes.append(run_logger.event("ToolContractAudit", {"issues": contract_issues}))
         state_updates["tool_contract_issues"] = contract_issues
-        nodes.append(run_logger.event("LLMPlanner", {
-            "raw_output": planner_debug.get("llm_planner_raw"),
-            "planner_mode": execution_plan.planner_mode,
-            "planner_fallback": planner_debug.get("planner_fallback", False),
-        }))
+        nodes.append(
+            run_logger.event(
+                "LLMPlanner",
+                {
+                    "raw_output": planner_debug.get("llm_planner_raw"),
+                    "planner_mode": execution_plan.planner_mode,
+                    "planner_fallback": planner_debug.get("planner_fallback", False),
+                },
+            )
+        )
         if planner_debug.get("planner_fallback"):
-            nodes.append(run_logger.event("PlannerFallback", {
-                "planner_fallback": True,
-                "reason": planner_debug.get("planner_fallback_reason"),
-            }))
-        nodes.append(run_logger.event("PlannerVerifier", {
-            "verified_plan": planner_debug.get("planner_verified_plan"),
-            "repair_actions": planner_debug.get("planner_repair_actions", []),
-        }))
+            nodes.append(
+                run_logger.event(
+                    "PlannerFallback",
+                    {
+                        "planner_fallback": True,
+                        "reason": planner_debug.get("planner_fallback_reason"),
+                    },
+                )
+            )
+        nodes.append(
+            run_logger.event(
+                "PlannerVerifier",
+                {
+                    "verified_plan": planner_debug.get("planner_verified_plan"),
+                    "repair_actions": planner_debug.get("planner_repair_actions", []),
+                },
+            )
+        )
         state_updates["planner"] = {
             "mode": execution_plan.planner_mode,
             "fallback": planner_debug.get("planner_fallback", False),
@@ -312,19 +343,21 @@ class CoachAgentService:
             nodes.append(run_logger.event("TaskStep", execution.started_event))
             result = execution.result
             tool_payload = self._summarize_tool_execution(result.to_trace())
-            tool_calls.append({
-                "tool_name": result.tool_name,
-                "status": result.status,
-                "input": tool_payload.get("input_json", {}),
-                "output": tool_payload.get("output_json", {}),
-                "latency_ms": result.latency_ms,
-                "attempts": result.attempts,
-                "validation_errors": result.validation_errors,
-                "repaired": result.repaired,
-                "repair_actions": result.repair_actions,
-                "contract": result.contract,
-                "idempotency_key": result.idempotency_key,
-            })
+            tool_calls.append(
+                {
+                    "tool_name": result.tool_name,
+                    "status": result.status,
+                    "input": tool_payload.get("input_json", {}),
+                    "output": tool_payload.get("output_json", {}),
+                    "latency_ms": result.latency_ms,
+                    "attempts": result.attempts,
+                    "validation_errors": result.validation_errors,
+                    "repaired": result.repaired,
+                    "repair_actions": result.repair_actions,
+                    "contract": result.contract,
+                    "idempotency_key": result.idempotency_key,
+                }
+            )
             nodes.append(run_logger.event("ToolExecutor", tool_payload))
             timeline_step.output_summary = tool_payload.get("output_json", {})
             completed_event = dict(execution.completed_event)
@@ -346,15 +379,26 @@ class CoachAgentService:
             for planned in execution_plan.steps
             if planned.tool_name and planned.key in timeline_steps
         }
-        execution_order = [planned.tool_name for planned in execution_plan.steps if planned.tool_name]
-        nodes.append(run_logger.event("AgentToolOrderDispatch", {
-            "tool_order": execution_order,
-            "planner_mode": execution_plan.planner_mode,
-        }))
+        execution_order = [
+            planned.tool_name for planned in execution_plan.steps if planned.tool_name
+        ]
+        nodes.append(
+            run_logger.event(
+                "AgentToolOrderDispatch",
+                {
+                    "tool_order": execution_order,
+                    "planner_mode": execution_plan.planner_mode,
+                },
+            )
+        )
 
         chunks: list[str] = []
         context_packet: dict[str, Any] = {}
-        extraction: dict[str, Any] = {"profile_patch": {}, "corrections": [], "ignored_candidates": []}
+        extraction: dict[str, Any] = {
+            "profile_patch": {},
+            "corrections": [],
+            "ignored_candidates": [],
+        }
         memory_verify_output: dict[str, Any] = {
             "passed": True,
             "accepted_candidates": [],
@@ -396,7 +440,11 @@ class CoachAgentService:
                 dispatcher_state.assistant_message = "".join(chunks).strip() or assistant_message
                 tool_input = input_builder.build(tool_name)
                 if tool_input.skip_reason:
-                    nodes.append(run_logger.event("ToolSkipped", output_reducer.skip(tool_name, tool_input.skip_reason)))
+                    nodes.append(
+                        run_logger.event(
+                            "ToolSkipped", output_reducer.skip(tool_name, tool_input.skip_reason)
+                        )
+                    )
                     continue
                 if tool_name == "profile.extract":
                     node_start = time.perf_counter()
@@ -407,7 +455,14 @@ class CoachAgentService:
                         self._refresh_macro_targets(profile)
                         state_updates["profile_updates"] = extraction.get("profile_patch", {})
                         state_updates["corrections"] = extraction.get("corrections", [])
-                    nodes.append(run_logger.node("ProfileExtractorAgent", node_start, extraction, {"message": message[:240]}))
+                    nodes.append(
+                        run_logger.node(
+                            "ProfileExtractorAgent",
+                            node_start,
+                            extraction,
+                            {"message": message[:240]},
+                        )
+                    )
                 elif tool_name == "memory.verify":
                     memory_verify_output = await execute_tool(tool_name, tool_input.payload, step)
                     output_reducer.reduce(tool_name, memory_verify_output)
@@ -426,31 +481,56 @@ class CoachAgentService:
                     nodes.append(run_logger.node("MemoryAgent", node_start_mem, memory_payload))
                     missing_slots = self.missing_onboarding_slots(profile)
                     onboarding_complete = not missing_slots
-                    nodes.append(run_logger.event(
-                        "IntentRouter",
-                        {"onboarding_complete": onboarding_complete, "missing_slots": missing_slots},
-                    ))
+                    nodes.append(
+                        run_logger.event(
+                            "IntentRouter",
+                            {
+                                "onboarding_complete": onboarding_complete,
+                                "missing_slots": missing_slots,
+                            },
+                        )
+                    )
                 elif tool_name == "context.build":
                     node_start_ctx = time.perf_counter()
                     context_packet = await execute_tool(tool_name, tool_input.payload, step)
                     output_reducer.reduce(tool_name, context_packet)
                     nodes.append(run_logger.node("ContextBuilder", node_start_ctx, context_packet))
                     knowledge_context = context_packet.get("knowledge_context") or {}
-                    nodes.append(run_logger.event("KnowledgeRetrieval", knowledge_context.get("debug", {})))
-                    nodes.append(run_logger.event("DecisionRules", {
-                        "matched_rule_ids": knowledge_context.get("debug", {}).get("matched_rule_ids", []),
-                        "rules": knowledge_context.get("decision_rules", []),
-                    }))
-                    nodes.append(run_logger.event("TemplateSelector", {
-                        "matched_template_ids": knowledge_context.get("debug", {}).get("matched_template_ids", []),
-                        "templates": knowledge_context.get("plan_templates", []),
-                    }))
+                    nodes.append(
+                        run_logger.event("KnowledgeRetrieval", knowledge_context.get("debug", {}))
+                    )
+                    nodes.append(
+                        run_logger.event(
+                            "DecisionRules",
+                            {
+                                "matched_rule_ids": knowledge_context.get("debug", {}).get(
+                                    "matched_rule_ids", []
+                                ),
+                                "rules": knowledge_context.get("decision_rules", []),
+                            },
+                        )
+                    )
+                    nodes.append(
+                        run_logger.event(
+                            "TemplateSelector",
+                            {
+                                "matched_template_ids": knowledge_context.get("debug", {}).get(
+                                    "matched_template_ids", []
+                                ),
+                                "templates": knowledge_context.get("plan_templates", []),
+                            },
+                        )
+                    )
                     state_updates["context_intent"] = context_packet.get("intent")
                     state_updates["knowledge_debug"] = knowledge_context.get("debug", {})
                 elif tool_name == "plan.decide":
                     plan_decision = await execute_tool(tool_name, tool_input.payload, step)
                     output_reducer.reduce(tool_name, plan_decision)
-                    nodes.append(run_logger.event("CurrentRequestPolicy", context_packet.get("current_request_policy", {})))
+                    nodes.append(
+                        run_logger.event(
+                            "CurrentRequestPolicy", context_packet.get("current_request_policy", {})
+                        )
+                    )
                     nodes.append(run_logger.event("PlanGenerationDecision", plan_decision))
                 elif tool_name == "plan.generate":
                     plan_output = await execute_tool(tool_name, tool_input.payload, step)
@@ -459,10 +539,15 @@ class CoachAgentService:
                     state_updates["generated_plan_id"] = plan_output.get("plan_id")
                     if self._build_plan_reflection_prompt(plan_output, context_packet, profile):
                         plan_output["_reflection"] = "Requested"
-                        nodes.append(run_logger.event("PlanSelfCorrection", {
-                            "step": "reflection_requested",
-                            "plan_id": plan_output.get("plan_id"),
-                        }))
+                        nodes.append(
+                            run_logger.event(
+                                "PlanSelfCorrection",
+                                {
+                                    "step": "reflection_requested",
+                                    "plan_id": plan_output.get("plan_id"),
+                                },
+                            )
+                        )
                 elif tool_name == "plan.verify":
                     plan_verify_output = await execute_tool(
                         tool_name,
@@ -486,24 +571,34 @@ class CoachAgentService:
                         assistant_message = self._safety_reply()
                         coach_payload = {"safety": True, "mode": "static_safety"}
                     elif not onboarding_complete:
-                        assistant_message = await self._live_onboarding_reply(profile, missing_slots, message)
+                        assistant_message = await self._live_onboarding_reply(
+                            profile, missing_slots, message
+                        )
                         coach_payload = {
                             "mode": "onboarding",
                             "live_model": self.model_provider.has_live_model(),
                             "missing_slots": missing_slots,
                         }
                     else:
-                        assistant_message = await self._coaching_reply(user.id, effective_message, context_packet)
+                        assistant_message = await self._coaching_reply(
+                            user.id, effective_message, context_packet
+                        )
                         coach_payload = {
                             "safety": False,
                             "live_model": self.model_provider.has_live_model(),
                             "response_chars": len(assistant_message),
                         }
                     chunks = [assistant_message]
-                    timeline.complete(step, {"response_chars": len(assistant_message), **coach_payload}, round((time.perf_counter() - node_start_reply) * 1000))
+                    timeline.complete(
+                        step,
+                        {"response_chars": len(assistant_message), **coach_payload},
+                        round((time.perf_counter() - node_start_reply) * 1000),
+                    )
                     nodes.append(run_logger.node("CoachLLM", node_start_reply, coach_payload))
                 elif tool_name == "response.verify":
-                    assistant_message = "".join(chunks).strip() or registry.get("error_coach_stream_empty")
+                    assistant_message = "".join(chunks).strip() or registry.get(
+                        "error_coach_stream_empty"
+                    )
                     response_verify_output = await execute_tool(
                         tool_name,
                         tool_input.payload,
@@ -522,7 +617,11 @@ class CoachAgentService:
                     state_updates["response_repair"] = response_repair_output
                     nodes.append(run_logger.event("ResponseRepair", response_repair_output))
                 elif tool_name == "guardrail.check":
-                    assistant_message = "".join(chunks).strip() or assistant_message or registry.get("error_coach_stream_empty")
+                    assistant_message = (
+                        "".join(chunks).strip()
+                        or assistant_message
+                        or registry.get("error_coach_stream_empty")
+                    )
                     dispatcher_state.assistant_message = assistant_message
                     tool_input = input_builder.build(tool_name)
                     guardrail_output = await execute_tool(tool_name, tool_input.payload, step)
@@ -537,30 +636,51 @@ class CoachAgentService:
                         assistant_message = guardrail_output.get("replacement") or assistant_message
                         chunks = [assistant_message]
                 elif tool_name == "response.persist":
-                    assistant_message = "".join(chunks).strip() or assistant_message or registry.get("error_coach_stream_empty")
+                    assistant_message = (
+                        "".join(chunks).strip()
+                        or assistant_message
+                        or registry.get("error_coach_stream_empty")
+                    )
                     dispatcher_state.assistant_message = assistant_message
                     tool_input = input_builder.build(tool_name)
                     persist_output = await execute_tool(tool_name, tool_input.payload, step)
                     output_reducer.reduce(tool_name, persist_output)
-                    assistant_msg = self._save_message(session.id, user.id, "assistant", assistant_message)
-                    self._remember_pending_question_from_reply(user.id, session.id, assistant_msg, assistant_message)
+                    assistant_msg = self._save_message(
+                        session.id, user.id, "assistant", assistant_message
+                    )
+                    self._remember_pending_question_from_reply(
+                        user.id, session.id, assistant_msg, assistant_message
+                    )
                     session_summary = self._compact_session_context_if_needed(session.id, user.id)
                     if session_summary:
                         state_updates["conversation_summary"] = session_summary
-                    nodes.append(run_logger.event("ResponsePersisted", {"response_chars": len(assistant_message)}))
+                    nodes.append(
+                        run_logger.event(
+                            "ResponsePersisted", {"response_chars": len(assistant_message)}
+                        )
+                    )
         except Exception as exc:
             error_text = f"\n\n{self._model_call_error_message(exc)} 请稍后重试。"
             chunks.append(error_text)
             nodes.append(run_logger.event("RuntimeError", {"error": str(exc)}))
 
-        assistant_message = "".join(chunks).strip() or assistant_message or registry.get("error_coach_stream_empty")
+        assistant_message = (
+            "".join(chunks).strip() or assistant_message or registry.get("error_coach_stream_empty")
+        )
         if assistant_msg is None:
             assistant_msg = self._save_message(session.id, user.id, "assistant", assistant_message)
-            self._remember_pending_question_from_reply(user.id, session.id, assistant_msg, assistant_message)
+            self._remember_pending_question_from_reply(
+                user.id, session.id, assistant_msg, assistant_message
+            )
             session_summary = self._compact_session_context_if_needed(session.id, user.id)
             if session_summary:
                 state_updates["conversation_summary"] = session_summary
-            nodes.append(run_logger.event("ResponsePersisted", {"response_chars": len(assistant_message), "fallback_persist": True}))
+            nodes.append(
+                run_logger.event(
+                    "ResponsePersisted",
+                    {"response_chars": len(assistant_message), "fallback_persist": True},
+                )
+            )
 
         run = models.AgentRun(
             user_id=user.id,
@@ -626,14 +746,16 @@ class CoachAgentService:
         )
 
         for call in tool_calls:
-            self.db.add(models.ToolCall(
-                agent_run_id=run.id,
-                tool_name=call["tool_name"],
-                input_json=call.get("input", {}),
-                output_json=call.get("output", {}),
-                latency_ms=call.get("latency_ms", 0),
-                status=call.get("status", "success"),
-            ))
+            self.db.add(
+                models.ToolCall(
+                    agent_run_id=run.id,
+                    tool_name=call["tool_name"],
+                    input_json=call.get("input", {}),
+                    output_json=call.get("output", {}),
+                    latency_ms=call.get("latency_ms", 0),
+                    status=call.get("status", "success"),
+                )
+            )
 
         self.db.commit()
         self.db.refresh(run)
@@ -659,7 +781,6 @@ class CoachAgentService:
                 "flags": guardrail_payload.get("flags", []),
             },
         }
-
 
     async def stream_chat_message(
         self,
@@ -691,7 +812,9 @@ class CoachAgentService:
             },
         )
         user_msg = self._save_message(session.id, user.id, "user", message)
-        followup_resolution = FollowupResolver(self.db).resolve(user.id, session.id, message, user_msg.id)
+        followup_resolution = FollowupResolver(self.db).resolve(
+            user.id, session.id, message, user_msg.id
+        )
         effective_message = followup_resolution.normalized_message
         state_updates["followup_resolution"] = followup_resolution.to_dict()
 
@@ -702,7 +825,14 @@ class CoachAgentService:
             self._refresh_macro_targets(profile)
             state_updates["profile_updates"] = extraction["profile_patch"]
             state_updates["corrections"] = extraction["corrections"]
-        nodes.append(run_logger.node("ProfileExtractorAgent", node_start, extraction, {"message": effective_message[:240]}))
+        nodes.append(
+            run_logger.node(
+                "ProfileExtractorAgent",
+                node_start,
+                extraction,
+                {"message": effective_message[:240]},
+            )
+        )
 
         node_start = time.perf_counter()
         memories_written = self.write_memories_from_message(user.id, effective_message, extraction)
@@ -723,7 +853,11 @@ class CoachAgentService:
                 async for chunk in self._stream_static_text(self._safety_reply()):
                     chunks.append(chunk)
                     yield chunk
-                nodes.append(run_logger.node("CoachLLM", node_start, {"safety": True, "mode": "static_safety"}))
+                nodes.append(
+                    run_logger.node(
+                        "CoachLLM", node_start, {"safety": True, "mode": "static_safety"}
+                    )
+                )
             elif not onboarding_complete:
                 node_start = time.perf_counter()
                 async for chunk in self._live_onboarding_reply_stream(
@@ -764,7 +898,11 @@ class CoachAgentService:
                         else "current_message_does_not_request_plan"
                     ),
                 }
-                nodes.append(run_logger.event("CurrentRequestPolicy", context_packet.get("current_request_policy", {})))
+                nodes.append(
+                    run_logger.event(
+                        "CurrentRequestPolicy", context_packet.get("current_request_policy", {})
+                    )
+                )
                 nodes.append(run_logger.event("PlanGenerationDecision", plan_decision))
                 if active_plan is None and should_generate_plan:
                     plan_result = self.generate_plan(PlanGenerateRequest(user_id=user.id))
@@ -778,12 +916,16 @@ class CoachAgentService:
                         }
                     )
                 knowledge_context = context_packet.get("knowledge_context") or {}
-                nodes.append(run_logger.event("KnowledgeRetrieval", knowledge_context.get("debug", {})))
+                nodes.append(
+                    run_logger.event("KnowledgeRetrieval", knowledge_context.get("debug", {}))
+                )
                 nodes.append(
                     run_logger.event(
                         "DecisionRules",
                         {
-                            "matched_rule_ids": knowledge_context.get("debug", {}).get("matched_rule_ids", []),
+                            "matched_rule_ids": knowledge_context.get("debug", {}).get(
+                                "matched_rule_ids", []
+                            ),
                             "rules": knowledge_context.get("decision_rules", []),
                         },
                     )
@@ -792,17 +934,19 @@ class CoachAgentService:
                     run_logger.event(
                         "TemplateSelector",
                         {
-                            "matched_template_ids": knowledge_context.get("debug", {}).get("matched_template_ids", []),
+                            "matched_template_ids": knowledge_context.get("debug", {}).get(
+                                "matched_template_ids", []
+                            ),
                             "templates": knowledge_context.get("plan_templates", []),
                         },
                     )
                 )
                 state_updates["context_intent"] = context_packet.get("intent")
                 state_updates["knowledge_debug"] = knowledge_context.get("debug", {})
-                if "feedback_debug" in locals() and feedback_debug.get("enhanced"):
-                    state_updates["feedback_learning"] = feedback_debug
                 node_start = time.perf_counter()
-                async for chunk in self._coaching_reply_stream(user.id, effective_message, context_packet):
+                async for chunk in self._coaching_reply_stream(
+                    user.id, effective_message, context_packet
+                ):
                     chunks.append(chunk)
                     yield chunk
                 nodes.append(
@@ -829,22 +973,34 @@ class CoachAgentService:
 
         # ---- Safety guardrail check ----
         guardrail_result = run_guardrails(assistant_message, user_message=message, profile=profile)
-        nodes.append(run_logger.event("GuardrailCheck", {
-            "action": guardrail_result.action.value,
-            "flag_count": len(guardrail_result.flags),
-            "flags": [{"rule_id": f.rule_id, "severity": f.severity.value, "category": f.category} for f in guardrail_result.flags],
-        }))
+        nodes.append(
+            run_logger.event(
+                "GuardrailCheck",
+                {
+                    "action": guardrail_result.action.value,
+                    "flag_count": len(guardrail_result.flags),
+                    "flags": [
+                        {"rule_id": f.rule_id, "severity": f.severity.value, "category": f.category}
+                        for f in guardrail_result.flags
+                    ],
+                },
+            )
+        )
         if guardrail_result.action == GuardrailSeverity.BLOCK:
             assistant_message = guardrail_result.blocked_replacement or assistant_message
             # Yield the replacement so the user sees the safe version
             yield assistant_message
 
         assistant_msg = self._save_message(session.id, user.id, "assistant", assistant_message)
-        self._remember_pending_question_from_reply(user.id, session.id, assistant_msg, assistant_message)
+        self._remember_pending_question_from_reply(
+            user.id, session.id, assistant_msg, assistant_message
+        )
         session_summary = self._compact_session_context_if_needed(session.id, user.id)
         if session_summary:
             state_updates["conversation_summary"] = session_summary
-        nodes.append(run_logger.event("ResponsePersisted", {"response_chars": len(assistant_message)}))
+        nodes.append(
+            run_logger.event("ResponsePersisted", {"response_chars": len(assistant_message)})
+        )
         run = models.AgentRun(
             user_id=user.id,
             session_id=session.id,
@@ -869,7 +1025,6 @@ class CoachAgentService:
         state_updates["long_term_tasks"] = long_term_tasks
         task_node = run_logger.event("LongTermTaskState", {"tasks": long_term_tasks})
         nodes.append(task_node)
-        yield step_event("LongTermTaskState", task_node, task_node.get("output", {}))
         run.nodes = nodes
         task_service.record_replay_snapshot(
             agent_run=run,
@@ -881,19 +1036,24 @@ class CoachAgentService:
             },
             state_snapshot={
                 "profile": self._profile_snapshot(profile),
-                "context_packet": self._truncate_trace_payload(context_packet if "context_packet" in locals() else {}),
+                "context_packet": self._truncate_trace_payload(
+                    context_packet if "context_packet" in locals() else {}
+                ),
                 "state_updates": self._truncate_trace_payload(state_updates),
                 "active_tasks": long_term_tasks,
             },
             tool_plan_json={
-                "execution_plan": execution_plan.to_dict(),
-                "timeline": timeline.to_dict(),
-                "tool_contracts": tool_registry.list_specs(),
-                "contract_issues": contract_issues,
+                "execution_plan": {},
+                "timeline": {},
+                "tool_contracts": [],
+                "contract_issues": [],
             },
             response_snapshot={
                 "assistant_message": assistant_message,
-                "guardrail": guardrail_payload,
+                "guardrail": {
+                    "action": guardrail_result.action.value,
+                    "flag_count": len(guardrail_result.flags),
+                },
                 "tool_calls": tool_calls,
             },
             config_snapshot={
@@ -908,10 +1068,11 @@ class CoachAgentService:
                     agent_run_id=run.id,
                     tool_name=call["tool_name"],
                     input_json=call.get("input", {}),
-                output_json=call.get("output", {}),
-                latency_ms=call.get("latency_ms", 0),
-                status=call.get("status", "success"),
-            ))
+                    output_json=call.get("output", {}),
+                    latency_ms=call.get("latency_ms", 0),
+                    status=call.get("status", "success"),
+                )
+            )
 
         self.db.commit()
         self.db.refresh(run)
@@ -925,10 +1086,14 @@ class CoachAgentService:
         message: str,
     ):
         """Dispatch streaming to LLM-driven or code-driven pipeline per turn."""
-        def event(event_type: str, **payload):
-            return json.dumps({"type": event_type, **payload}, ensure_ascii=False, default=str) + "\n"
 
-        route = self._route_runtime(message)
+        def event(event_type: str, **payload):
+            return (
+                json.dumps({"type": event_type, **payload}, ensure_ascii=False, default=str) + "\n"
+            )
+
+        profile = self._get_or_create_profile(user_id)
+        route = await self._route_runtime(message, profile=profile)
         yield event("runtime_route", **route.to_dict())
         if route.mode == "llm_driven":
             async for chunk in self._stream_chat_llm_agent(session_id, user_id, message, route):
@@ -945,7 +1110,9 @@ class CoachAgentService:
         runtime_route: RuntimeRoute | None = None,
     ):
         def event(event_type: str, **payload):
-            return json.dumps({"type": event_type, **payload}, ensure_ascii=False, default=str) + "\n"
+            return (
+                json.dumps({"type": event_type, **payload}, ensure_ascii=False, default=str) + "\n"
+            )
 
         yield event("status", text="正在思考")
         result = await self._handle_chat_llm_agent(session_id, user_id, message, runtime_route)
@@ -973,7 +1140,9 @@ class CoachAgentService:
         chunks: list[str] = []
 
         def event(event_type: str, **payload: Any) -> str:
-            return json.dumps({"type": event_type, **payload}, ensure_ascii=False, default=str) + "\n"
+            return (
+                json.dumps({"type": event_type, **payload}, ensure_ascii=False, default=str) + "\n"
+            )
 
         def step_summary(name: str, payload: dict[str, Any]) -> str:
             if name == "AgentTaskTimeline":
@@ -1080,7 +1249,9 @@ class CoachAgentService:
             execution = await executor.execute(tool_registry, timeline, timeline_step, input_json)
             step_started_node = run_logger.event("TaskStep", execution.started_event)
             nodes.append(step_started_node)
-            emitted_events.append(step_event("TaskStep", step_started_node, execution.started_event))
+            emitted_events.append(
+                step_event("TaskStep", step_started_node, execution.started_event)
+            )
             result = execution.result
             tool_payload = self._summarize_tool_execution(result.to_trace())
             tool_calls.append(
@@ -1106,7 +1277,9 @@ class CoachAgentService:
             completed_event["output_summary"] = tool_payload.get("output_json", {})
             step_completed_node = run_logger.event("TaskStep", completed_event)
             nodes.append(step_completed_node)
-            emitted_events.append(step_event("TaskStep", step_completed_node, execution.completed_event))
+            emitted_events.append(
+                step_event("TaskStep", step_completed_node, execution.completed_event)
+            )
             if result.status != "success":
                 if tool_name == "memory.write":
                     self.db.rollback()
@@ -1131,7 +1304,9 @@ class CoachAgentService:
         run_logger = AgentRunLogger("chat_stream", user.id, session.id)
         timeline = AgentTaskTimeline(message, request_id=run_logger.request_id)
         user_msg = self._save_message(session.id, user.id, "user", message)
-        followup_resolution = FollowupResolver(self.db).resolve(user.id, session.id, message, user_msg.id)
+        followup_resolution = FollowupResolver(self.db).resolve(
+            user.id, session.id, message, user_msg.id
+        )
         effective_message = followup_resolution.normalized_message
         state_updates["followup_resolution"] = followup_resolution.to_dict()
         tool_registry = self._build_chat_tool_registry(
@@ -1141,6 +1316,7 @@ class CoachAgentService:
             message,
             effective_message=effective_message,
             followup_resolution=followup_resolution.to_dict(),
+            intent_decision=runtime_route.intent_decision if runtime_route else None,
         )
         executor = AgentExecutor()
         execution_plan, planner_debug = await self._build_code_driven_execution_plan(
@@ -1158,24 +1334,33 @@ class CoachAgentService:
         nodes.append(contract_node)
         state_updates["tool_contract_issues"] = contract_issues
         yield step_event("ToolContractAudit", contract_node, contract_node.get("output", {}))
-        llm_planner_node = run_logger.event("LLMPlanner", {
-            "raw_output": planner_debug.get("llm_planner_raw"),
-            "planner_mode": execution_plan.planner_mode,
-            "planner_fallback": planner_debug.get("planner_fallback", False),
-        })
+        llm_planner_node = run_logger.event(
+            "LLMPlanner",
+            {
+                "raw_output": planner_debug.get("llm_planner_raw"),
+                "planner_mode": execution_plan.planner_mode,
+                "planner_fallback": planner_debug.get("planner_fallback", False),
+            },
+        )
         nodes.append(llm_planner_node)
         yield step_event("LLMPlanner", llm_planner_node, llm_planner_node.get("output", {}))
         if planner_debug.get("planner_fallback"):
-            fallback_node = run_logger.event("PlannerFallback", {
-                "planner_fallback": True,
-                "reason": planner_debug.get("planner_fallback_reason"),
-            })
+            fallback_node = run_logger.event(
+                "PlannerFallback",
+                {
+                    "planner_fallback": True,
+                    "reason": planner_debug.get("planner_fallback_reason"),
+                },
+            )
             nodes.append(fallback_node)
             yield step_event("PlannerFallback", fallback_node, fallback_node.get("output", {}))
-        verifier_node = run_logger.event("PlannerVerifier", {
-            "verified_plan": planner_debug.get("planner_verified_plan"),
-            "repair_actions": planner_debug.get("planner_repair_actions", []),
-        })
+        verifier_node = run_logger.event(
+            "PlannerVerifier",
+            {
+                "verified_plan": planner_debug.get("planner_verified_plan"),
+                "repair_actions": planner_debug.get("planner_repair_actions", []),
+            },
+        )
         nodes.append(verifier_node)
         yield step_event("PlannerVerifier", verifier_node, verifier_node.get("output", {}))
         state_updates["planner"] = {
@@ -1221,15 +1406,24 @@ class CoachAgentService:
             for planned in execution_plan.steps
             if planned.tool_name and planned.key in timeline_steps
         }
-        execution_order = [planned.tool_name for planned in execution_plan.steps if planned.tool_name]
-        dispatch_node = run_logger.event("AgentToolOrderDispatch", {
-            "tool_order": execution_order,
-            "planner_mode": execution_plan.planner_mode,
-        })
+        execution_order = [
+            planned.tool_name for planned in execution_plan.steps if planned.tool_name
+        ]
+        dispatch_node = run_logger.event(
+            "AgentToolOrderDispatch",
+            {
+                "tool_order": execution_order,
+                "planner_mode": execution_plan.planner_mode,
+            },
+        )
         nodes.append(dispatch_node)
         yield step_event("AgentToolOrderDispatch", dispatch_node, dispatch_node.get("output", {}))
 
-        extraction: dict[str, Any] = {"profile_patch": {}, "corrections": [], "ignored_candidates": []}
+        extraction: dict[str, Any] = {
+            "profile_patch": {},
+            "corrections": [],
+            "ignored_candidates": [],
+        }
         memory_verify_output: dict[str, Any] = {
             "passed": True,
             "accepted_candidates": [],
@@ -1255,7 +1449,9 @@ class CoachAgentService:
                 if tool_name == "profile.extract":
                     node_start = time.perf_counter()
                     yield event("status", text="正在抽取档案字段和纠错信息")
-                    extraction, emitted = await execute_tool(tool_name, {"message_chars": len(message)}, step)
+                    extraction, emitted = await execute_tool(
+                        tool_name, {"message_chars": len(message)}, step
+                    )
                     for item in emitted:
                         yield item
                     if extraction.get("profile_patch") or extraction.get("corrections"):
@@ -1263,12 +1459,16 @@ class CoachAgentService:
                         self._refresh_macro_targets(profile)
                         state_updates["profile_updates"] = extraction.get("profile_patch", {})
                         state_updates["corrections"] = extraction.get("corrections", [])
-                    node = run_logger.node("ProfileExtractorAgent", node_start, extraction, {"message": message[:240]})
+                    node = run_logger.node(
+                        "ProfileExtractorAgent", node_start, extraction, {"message": message[:240]}
+                    )
                     nodes.append(node)
                     yield step_event("ProfileExtractorAgent", node, extraction)
                 elif tool_name == "memory.verify":
                     yield event("status", text="正在校验长期记忆候选")
-                    memory_verify_output, emitted = await execute_tool(tool_name, {"extraction": extraction}, step)
+                    memory_verify_output, emitted = await execute_tool(
+                        tool_name, {"extraction": extraction}, step
+                    )
                     for item in emitted:
                         yield item
                     state_updates["memory_verification"] = memory_verify_output
@@ -1296,19 +1496,27 @@ class CoachAgentService:
                     yield step_event("MemoryAgent", node, memory_payload)
                     missing_slots = self.missing_onboarding_slots(profile)
                     onboarding_complete = not missing_slots
-                    intent_payload = {"onboarding_complete": onboarding_complete, "missing_slots": missing_slots}
+                    intent_payload = {
+                        "onboarding_complete": onboarding_complete,
+                        "missing_slots": missing_slots,
+                    }
                     intent_node = run_logger.event("IntentRouter", intent_payload)
                     nodes.append(intent_node)
                     yield step_event("IntentRouter", intent_node, intent_payload)
                 elif tool_name == "context.build":
                     if not onboarding_complete or self._requires_immediate_safety_reply(message):
-                        skip_node = run_logger.event("ToolSkipped", {"tool_name": tool_name, "reason": "onboarding_or_static_safety"})
+                        skip_node = run_logger.event(
+                            "ToolSkipped",
+                            {"tool_name": tool_name, "reason": "onboarding_or_static_safety"},
+                        )
                         nodes.append(skip_node)
                         yield step_event("ToolSkipped", skip_node, skip_node.get("output", {}))
                         continue
                     node_start = time.perf_counter()
                     yield event("status", text="正在按 Planner 顺序构建上下文包")
-                    context_packet, emitted = await execute_tool(tool_name, {"message_chars": len(message)}, step)
+                    context_packet, emitted = await execute_tool(
+                        tool_name, {"message_chars": len(message)}, step
+                    )
                     for item in emitted:
                         yield item
                     node = run_logger.node("ContextBuilder", node_start, context_packet)
@@ -1320,14 +1528,18 @@ class CoachAgentService:
                     nodes.append(knowledge_node)
                     yield step_event("KnowledgeRetrieval", knowledge_node, knowledge_payload)
                     rules_payload = {
-                        "matched_rule_ids": knowledge_context.get("debug", {}).get("matched_rule_ids", []),
+                        "matched_rule_ids": knowledge_context.get("debug", {}).get(
+                            "matched_rule_ids", []
+                        ),
                         "rules": knowledge_context.get("decision_rules", []),
                     }
                     rules_node = run_logger.event("DecisionRules", rules_payload)
                     nodes.append(rules_node)
                     yield step_event("DecisionRules", rules_node, rules_payload)
                     template_payload = {
-                        "matched_template_ids": knowledge_context.get("debug", {}).get("matched_template_ids", []),
+                        "matched_template_ids": knowledge_context.get("debug", {}).get(
+                            "matched_template_ids", []
+                        ),
                         "templates": knowledge_context.get("plan_templates", []),
                     }
                     template_node = run_logger.event("TemplateSelector", template_payload)
@@ -1337,11 +1549,16 @@ class CoachAgentService:
                     state_updates["knowledge_debug"] = knowledge_context.get("debug", {})
                 elif tool_name == "plan.decide":
                     if not context_packet:
-                        skip_node = run_logger.event("ToolSkipped", {"tool_name": tool_name, "reason": "context_not_available"})
+                        skip_node = run_logger.event(
+                            "ToolSkipped",
+                            {"tool_name": tool_name, "reason": "context_not_available"},
+                        )
                         nodes.append(skip_node)
                         yield step_event("ToolSkipped", skip_node, skip_node.get("output", {}))
                         continue
-                    plan_decision, emitted = await execute_tool(tool_name, {"context_packet": context_packet}, step)
+                    plan_decision, emitted = await execute_tool(
+                        tool_name, {"context_packet": context_packet}, step
+                    )
                     for item in emitted:
                         yield item
                     policy_payload = context_packet.get("current_request_policy", {})
@@ -1353,34 +1570,54 @@ class CoachAgentService:
                     yield step_event("PlanGenerationDecision", plan_node, plan_decision)
                 elif tool_name == "plan.generate":
                     active_plan = self.get_active_plan(user.id)
-                    if active_plan is not None or not bool(plan_decision.get("should_generate_plan")):
-                        skip_node = run_logger.event("ToolSkipped", {"tool_name": tool_name, "reason": "active_plan_exists_or_generation_not_allowed"})
+                    if active_plan is not None or not bool(
+                        plan_decision.get("should_generate_plan")
+                    ):
+                        skip_node = run_logger.event(
+                            "ToolSkipped",
+                            {
+                                "tool_name": tool_name,
+                                "reason": "active_plan_exists_or_generation_not_allowed",
+                            },
+                        )
                         nodes.append(skip_node)
                         yield step_event("ToolSkipped", skip_node, skip_node.get("output", {}))
                         continue
                     yield event("status", text="当前消息明确请求计划，正在生成训练计划")
-                    plan_output, emitted = await execute_tool(tool_name, {"reason": plan_decision.get("reason")}, step)
+                    plan_output, emitted = await execute_tool(
+                        tool_name, {"reason": plan_decision.get("reason")}, step
+                    )
                     for item in emitted:
                         yield item
                     context_packet["active_plan"] = plan_output.get("active_plan")
                     state_updates["generated_plan_id"] = plan_output.get("plan_id")
                     if self._build_plan_reflection_prompt(plan_output, context_packet, profile):
                         plan_output["_reflection"] = "Requested"
-                        reflection_node = run_logger.event("PlanSelfCorrection", {
-                            "step": "reflection_requested",
-                            "plan_id": plan_output.get("plan_id"),
-                        })
+                        reflection_node = run_logger.event(
+                            "PlanSelfCorrection",
+                            {
+                                "step": "reflection_requested",
+                                "plan_id": plan_output.get("plan_id"),
+                            },
+                        )
                         nodes.append(reflection_node)
-                        yield step_event("PlanSelfCorrection", reflection_node, reflection_node.get("output", {}))
+                        yield step_event(
+                            "PlanSelfCorrection", reflection_node, reflection_node.get("output", {})
+                        )
                 elif tool_name == "plan.verify":
                     if not plan_output:
-                        skip_node = run_logger.event("ToolSkipped", {"tool_name": tool_name, "reason": "plan_not_generated"})
+                        skip_node = run_logger.event(
+                            "ToolSkipped", {"tool_name": tool_name, "reason": "plan_not_generated"}
+                        )
                         nodes.append(skip_node)
                         yield step_event("ToolSkipped", skip_node, skip_node.get("output", {}))
                         continue
                     plan_verify_output, emitted = await execute_tool(
                         tool_name,
-                        {"plan_payload": plan_output.get("active_plan") or {}, "context_packet": context_packet},
+                        {
+                            "plan_payload": plan_output.get("active_plan") or {},
+                            "context_packet": context_packet,
+                        },
                         step,
                     )
                     for item in emitted:
@@ -1391,7 +1628,10 @@ class CoachAgentService:
                     yield step_event("PlanVerifier", verify_node, plan_verify_output)
                 elif tool_name == "plan.repair":
                     if not plan_verify_output.get("repair_actions"):
-                        skip_node = run_logger.event("ToolSkipped", {"tool_name": tool_name, "reason": "plan_repair_not_required"})
+                        skip_node = run_logger.event(
+                            "ToolSkipped",
+                            {"tool_name": tool_name, "reason": "plan_repair_not_required"},
+                        )
                         nodes.append(skip_node)
                         yield step_event("ToolSkipped", skip_node, skip_node.get("output", {}))
                         continue
@@ -1424,7 +1664,9 @@ class CoachAgentService:
                             yield event("answer_delta", text=chunk)
                         coach_payload = {"safety": True, "mode": "static_safety"}
                     elif not onboarding_complete:
-                        async for chunk in self._live_onboarding_reply_stream(profile, missing_slots, message):
+                        async for chunk in self._live_onboarding_reply_stream(
+                            profile, missing_slots, message
+                        ):
                             chunks.append(chunk)
                             yield event("answer_delta", text=chunk)
                         coach_payload = {
@@ -1433,7 +1675,9 @@ class CoachAgentService:
                             "missing_slots": missing_slots,
                         }
                     else:
-                        async for chunk in self._coaching_reply_stream(user.id, effective_message, context_packet):
+                        async for chunk in self._coaching_reply_stream(
+                            user.id, effective_message, context_packet
+                        ):
                             chunks.append(chunk)
                             yield event("answer_delta", text=chunk)
                         coach_payload = {
@@ -1442,33 +1686,52 @@ class CoachAgentService:
                             "response_chars": len("".join(chunks)),
                         }
                     assistant_message = "".join(chunks).strip()
-                    timeline.complete(step, {"response_chars": len(assistant_message), **coach_payload}, round((time.perf_counter() - node_start) * 1000))
+                    timeline.complete(
+                        step,
+                        {"response_chars": len(assistant_message), **coach_payload},
+                        round((time.perf_counter() - node_start) * 1000),
+                    )
                     yield timeline_event(step)
                     node = run_logger.node("CoachLLM", node_start, coach_payload)
                     nodes.append(node)
                     yield step_event("CoachLLM", node, coach_payload)
                 elif tool_name == "response.verify":
-                    assistant_message = "".join(chunks).strip() or registry.get("error_coach_stream_empty")
+                    assistant_message = "".join(chunks).strip() or registry.get(
+                        "error_coach_stream_empty"
+                    )
                     if not context_packet:
-                        skip_node = run_logger.event("ToolSkipped", {"tool_name": tool_name, "reason": "context_not_available"})
+                        skip_node = run_logger.event(
+                            "ToolSkipped",
+                            {"tool_name": tool_name, "reason": "context_not_available"},
+                        )
                         nodes.append(skip_node)
                         yield step_event("ToolSkipped", skip_node, skip_node.get("output", {}))
                         continue
                     response_verify_output, emitted = await execute_tool(
                         tool_name,
-                        {"assistant_message": assistant_message[:6000], "context_packet": context_packet},
+                        {
+                            "assistant_message": assistant_message[:6000],
+                            "context_packet": context_packet,
+                        },
                         step,
                     )
                     for item in emitted:
                         yield item
                     state_updates["response_verification"] = response_verify_output
-                    response_verify_node = run_logger.event("ResponseVerifier", response_verify_output)
+                    response_verify_node = run_logger.event(
+                        "ResponseVerifier", response_verify_output
+                    )
                     nodes.append(response_verify_node)
-                    yield step_event("ResponseVerifier", response_verify_node, response_verify_output)
+                    yield step_event(
+                        "ResponseVerifier", response_verify_node, response_verify_output
+                    )
                 elif tool_name == "response.repair":
                     response_verification = state_updates.get("response_verification") or {}
                     if not response_verification.get("repair_actions"):
-                        skip_node = run_logger.event("ToolSkipped", {"tool_name": tool_name, "reason": "response_repair_not_required"})
+                        skip_node = run_logger.event(
+                            "ToolSkipped",
+                            {"tool_name": tool_name, "reason": "response_repair_not_required"},
+                        )
                         nodes.append(skip_node)
                         yield step_event("ToolSkipped", skip_node, skip_node.get("output", {}))
                         continue
@@ -1485,12 +1748,20 @@ class CoachAgentService:
                         chunks = [assistant_message]
                         yield event("answer_delta", text=repair_text)
                     state_updates["response_repair"] = response_repair_output
-                    response_repair_node = run_logger.event("ResponseRepair", response_repair_output)
+                    response_repair_node = run_logger.event(
+                        "ResponseRepair", response_repair_output
+                    )
                     nodes.append(response_repair_node)
                     yield step_event("ResponseRepair", response_repair_node, response_repair_output)
                 elif tool_name == "guardrail.check":
-                    assistant_message = "".join(chunks).strip() or assistant_message or registry.get("error_coach_stream_empty")
-                    guardrail_output, emitted = await execute_tool(tool_name, {"assistant_message": assistant_message[:4000]}, step)
+                    assistant_message = (
+                        "".join(chunks).strip()
+                        or assistant_message
+                        or registry.get("error_coach_stream_empty")
+                    )
+                    guardrail_output, emitted = await execute_tool(
+                        tool_name, {"assistant_message": assistant_message[:4000]}, step
+                    )
                     for item in emitted:
                         yield item
                     guardrail_payload = {
@@ -1506,12 +1777,22 @@ class CoachAgentService:
                         chunks = [assistant_message]
                         yield event("guardrail_block", replacement=assistant_message[:200])
                 elif tool_name == "response.persist":
-                    assistant_message = "".join(chunks).strip() or assistant_message or registry.get("error_coach_stream_empty")
-                    _, emitted = await execute_tool(tool_name, {"assistant_message": assistant_message}, step)
+                    assistant_message = (
+                        "".join(chunks).strip()
+                        or assistant_message
+                        or registry.get("error_coach_stream_empty")
+                    )
+                    _, emitted = await execute_tool(
+                        tool_name, {"assistant_message": assistant_message}, step
+                    )
                     for item in emitted:
                         yield item
-                    assistant_msg = self._save_message(session.id, user.id, "assistant", assistant_message)
-                    self._remember_pending_question_from_reply(user.id, session.id, assistant_msg, assistant_message)
+                    assistant_msg = self._save_message(
+                        session.id, user.id, "assistant", assistant_message
+                    )
+                    self._remember_pending_question_from_reply(
+                        user.id, session.id, assistant_msg, assistant_message
+                    )
                     session_summary = self._compact_session_context_if_needed(session.id, user.id)
                     if session_summary:
                         state_updates["conversation_summary"] = session_summary
@@ -1527,10 +1808,14 @@ class CoachAgentService:
             yield event("error", message=str(exc), summary="Agent 运行时发生错误")
             yield event("answer_delta", text=error_text)
 
-        assistant_message = "".join(chunks).strip() or assistant_message or registry.get("error_coach_stream_empty")
+        assistant_message = (
+            "".join(chunks).strip() or assistant_message or registry.get("error_coach_stream_empty")
+        )
         if not persisted:
             assistant_msg = self._save_message(session.id, user.id, "assistant", assistant_message)
-            self._remember_pending_question_from_reply(user.id, session.id, assistant_msg, assistant_message)
+            self._remember_pending_question_from_reply(
+                user.id, session.id, assistant_msg, assistant_message
+            )
             session_summary = self._compact_session_context_if_needed(session.id, user.id)
             if session_summary:
                 state_updates["conversation_summary"] = session_summary
@@ -1612,7 +1897,9 @@ class CoachAgentService:
             self.adjust_plan(PlanAdjustRequest(user_id=user.id, reason="daily check-in signals"))
             auto_adjusted = True
 
-        task_update = AgentTaskStateService(self.db).update_from_checkin(user.id, checkin, auto_adjusted)
+        task_update = AgentTaskStateService(self.db).update_from_checkin(
+            user.id, checkin, auto_adjusted
+        )
         from fast_api.app.services.decision_evaluation import DecisionEvaluationService
 
         evaluation_updates = DecisionEvaluationService(self.db).on_user_event(
@@ -1763,9 +2050,7 @@ class CoachAgentService:
         )
         plan_json = self._build_plan_json(profile, 7, volume_multiplier=multiplier)
         reason_text = request.reason or ", ".join(reasons) or "routine plan refresh"
-        rationale = (
-            f"Adjusted plan with volume multiplier {multiplier:.2f} because {reason_text}."
-        )
+        rationale = f"Adjusted plan with volume multiplier {multiplier:.2f} because {reason_text}."
         plan = models.TrainingPlan(
             user_id=user.id,
             status="active",
@@ -1806,7 +2091,9 @@ class CoachAgentService:
 
         today_plan = {}
         if active_plan:
-            weekday = min(datetime.utcnow().weekday(), len(active_plan.plan_json.get("training_days", [])) - 1)
+            weekday = min(
+                datetime.utcnow().weekday(), len(active_plan.plan_json.get("training_days", [])) - 1
+            )
             if weekday >= 0:
                 today_plan = active_plan.plan_json.get("training_days", [])[weekday]
 
@@ -1933,9 +2220,14 @@ class CoachAgentService:
             return None
         if key == "goal":
             lowered = str(value).strip().lower()
-            if any(token in lowered for token in ["fat_loss", "fat loss", "weight loss", "cut", "lose fat"]):
+            if any(
+                token in lowered
+                for token in ["fat_loss", "fat loss", "weight loss", "cut", "lose fat"]
+            ):
                 return "fat_loss"
-            if any(token in lowered for token in ["muscle_gain", "muscle gain", "bulk", "hypertrophy"]):
+            if any(
+                token in lowered for token in ["muscle_gain", "muscle gain", "bulk", "hypertrophy"]
+            ):
                 return "muscle_gain"
             if any(token in lowered for token in ["maintenance", "maintain"]):
                 return "maintenance"
@@ -2069,7 +2361,9 @@ class CoachAgentService:
         medications = []
         if any(term in lowered for term in ["赛治", "甲巯咪唑", "methimazole"]):
             medications.append("methimazole")
-        lab_markers = [marker for marker in ["TSH", "FT3", "FT4", "TPOAb", "TgAb"] if marker.lower() in lowered]
+        lab_markers = [
+            marker for marker in ["TSH", "FT3", "FT4", "TPOAb", "TgAb"] if marker.lower() in lowered
+        ]
         if matched_conditions or has_medication:
             candidates.append(
                 {
@@ -2099,7 +2393,17 @@ class CoachAgentService:
                 }
             )
 
-        training_terms = ["卧推", "引体向上", "推肩", "深蹲", "硬拉", "bench", "pull-up", "squat", "deadlift"]
+        training_terms = [
+            "卧推",
+            "引体向上",
+            "推肩",
+            "深蹲",
+            "硬拉",
+            "bench",
+            "pull-up",
+            "squat",
+            "deadlift",
+        ]
         if any(token in lowered for token in training_terms):
             candidates.append(
                 {
@@ -2111,7 +2415,19 @@ class CoachAgentService:
                 }
             )
 
-        nutrition_terms = ["不吃", "过敏", "乳糖", "素食", "低碳", "高蛋白", "外卖", "不自己做饭", "食堂", "外食", "allergy"]
+        nutrition_terms = [
+            "不吃",
+            "过敏",
+            "乳糖",
+            "素食",
+            "低碳",
+            "高蛋白",
+            "外卖",
+            "不自己做饭",
+            "食堂",
+            "外食",
+            "allergy",
+        ]
         if any(token in lowered for token in nutrition_terms):
             candidates.append(
                 {
@@ -2136,6 +2452,7 @@ class CoachAgentService:
             )
 
         return candidates
+
     def _write_memory(
         self,
         user_id: uuid.UUID,
@@ -2150,7 +2467,9 @@ class CoachAgentService:
         valid_until: datetime | None = None,
     ) -> uuid.UUID:
         manager = MemoryManager(self.db, self.model_provider)
-        category = (memory_metadata or {}).get("category") or manager._category_from_type(memory_type)
+        category = (memory_metadata or {}).get("category") or manager._category_from_type(
+            memory_type
+        )
         summary = " ".join(content.split())
         if len(summary) > 180:
             summary = summary[:177].rstrip() + "..."
@@ -2187,7 +2506,9 @@ class CoachAgentService:
         metadata = memory.memory_metadata or {}
         injuries = metadata.get("injuries") or []
         body_part = injuries[0] if injuries else None
-        risk_type = "medical_context" if memory.memory_type == "medical_context" else "training_risk"
+        risk_type = (
+            "medical_context" if memory.memory_type == "medical_context" else "training_risk"
+        )
         existing = self.db.scalar(
             select(models.RiskNote).where(
                 models.RiskNote.user_id == user_id,
@@ -2199,8 +2520,12 @@ class CoachAgentService:
         if existing:
             existing.description = memory.summary or memory.content
             existing.last_seen_at = datetime.utcnow()
-            existing.severity_score = max(existing.severity_score or 0.5, 0.85 if risk_type == "medical_context" else 0.75)
-            existing.confidence_score = max(existing.confidence_score or 0.75, memory.confidence or 0.75)
+            existing.severity_score = max(
+                existing.severity_score or 0.5, 0.85 if risk_type == "medical_context" else 0.75
+            )
+            existing.confidence_score = max(
+                existing.confidence_score or 0.75, memory.confidence or 0.75
+            )
             return
         self.db.add(
             models.RiskNote(
@@ -2273,6 +2598,7 @@ class CoachAgentService:
         message: str,
         effective_message: str | None = None,
         followup_resolution: dict[str, Any] | None = None,
+        intent_decision: dict[str, Any] | None = None,
     ) -> ToolRegistry:
         registry = ToolRegistry()
         effective_message = effective_message or message
@@ -2316,7 +2642,12 @@ class CoachAgentService:
                 },
                 output_schema={
                     "type": "object",
-                    "required": ["passed", "accepted_candidates", "accepted_corrections", "rejected_candidates"],
+                    "required": [
+                        "passed",
+                        "accepted_candidates",
+                        "accepted_corrections",
+                        "rejected_candidates",
+                    ],
                     "properties": {
                         "passed": {"type": "boolean"},
                         "accepted_candidates": {"type": "array"},
@@ -2347,7 +2678,10 @@ class CoachAgentService:
                 input_schema={
                     "type": "object",
                     "required": ["extraction", "verification"],
-                    "properties": {"extraction": {"type": "object"}, "verification": {"type": "object"}},
+                    "properties": {
+                        "extraction": {"type": "object"},
+                        "verification": {"type": "object"},
+                    },
                 },
                 output_schema={
                     "type": "object",
@@ -2398,6 +2732,7 @@ class CoachAgentService:
                 effective_message,
                 session_id=session_id,
                 followup_resolution=followup_resolution,
+                intent_decision=intent_decision,
             ),
             repair_handler=self._repair_context_build_tool,
         )
@@ -2426,7 +2761,9 @@ class CoachAgentService:
                 risk_level="low",
                 tags=["planner"],
             ),
-            lambda payload: self._plan_generation_decision(payload.get("context_packet") or {}, user_id),
+            lambda payload: self._plan_generation_decision(
+                payload.get("context_packet") or {}, user_id
+            ),
             repair_handler=self._repair_plan_decide_tool,
         )
         registry.register(
@@ -2440,7 +2777,10 @@ class CoachAgentService:
                 output_schema={
                     "type": "object",
                     "required": ["plan_id", "active_plan"],
-                    "properties": {"plan_id": {"type": "string"}, "active_plan": {"type": "object"}},
+                    "properties": {
+                        "plan_id": {"type": "string"},
+                        "active_plan": {"type": "object"},
+                    },
                 },
                 permission_level="write",
                 side_effects=True,
@@ -2457,7 +2797,10 @@ class CoachAgentService:
                 input_schema={
                     "type": "object",
                     "required": ["plan_payload", "context_packet"],
-                    "properties": {"plan_payload": {"type": "object"}, "context_packet": {"type": "object"}},
+                    "properties": {
+                        "plan_payload": {"type": "object"},
+                        "context_packet": {"type": "object"},
+                    },
                 },
                 output_schema={
                     "type": "object",
@@ -2515,7 +2858,10 @@ class CoachAgentService:
                 input_schema={
                     "type": "object",
                     "required": ["assistant_message", "context_packet"],
-                    "properties": {"assistant_message": {"type": "string"}, "context_packet": {"type": "object"}},
+                    "properties": {
+                        "assistant_message": {"type": "string"},
+                        "context_packet": {"type": "object"},
+                    },
                 },
                 output_schema={
                     "type": "object",
@@ -2545,12 +2891,18 @@ class CoachAgentService:
                 input_schema={
                     "type": "object",
                     "required": ["verification", "context_packet"],
-                    "properties": {"verification": {"type": "object"}, "context_packet": {"type": "object"}},
+                    "properties": {
+                        "verification": {"type": "object"},
+                        "context_packet": {"type": "object"},
+                    },
                 },
                 output_schema={
                     "type": "object",
                     "required": ["repaired", "repair_text"],
-                    "properties": {"repaired": {"type": "boolean"}, "repair_text": {"type": "string"}},
+                    "properties": {
+                        "repaired": {"type": "boolean"},
+                        "repair_text": {"type": "string"},
+                    },
                 },
                 permission_level="write_candidate",
                 side_effects=False,
@@ -2582,7 +2934,9 @@ class CoachAgentService:
                 risk_level="critical",
                 tags=["safety", "guardrail"],
             ),
-            lambda payload: self._guardrail_tool(payload.get("assistant_message") or "", message, profile),
+            lambda payload: self._guardrail_tool(
+                payload.get("assistant_message") or "", message, profile
+            ),
         )
         registry.register(
             ToolSpec(
@@ -2596,7 +2950,10 @@ class CoachAgentService:
                 output_schema={
                     "type": "object",
                     "required": ["session_id", "response_chars"],
-                    "properties": {"session_id": {"type": "string"}, "response_chars": {"type": "integer"}},
+                    "properties": {
+                        "session_id": {"type": "string"},
+                        "response_chars": {"type": "integer"},
+                    },
                 },
                 permission_level="write",
                 side_effects=True,
@@ -2611,7 +2968,9 @@ class CoachAgentService:
         )
         return registry
 
-    def _plan_generation_decision(self, context_packet: dict[str, Any], user_id: uuid.UUID) -> dict[str, Any]:
+    def _plan_generation_decision(
+        self, context_packet: dict[str, Any], user_id: uuid.UUID
+    ) -> dict[str, Any]:
         active_plan = self.get_active_plan(user_id)
         should_generate_plan = self._should_generate_plan_for_context(context_packet)
         return {
@@ -2638,11 +2997,15 @@ class CoachAgentService:
         context_packet: dict[str, Any],
         profile: models.UserProfile,
     ) -> dict[str, Any]:
-        return AgentVerifier().verify_plan(
-            plan_payload,
-            self._profile_payload(profile),
-            context_packet,
-        ).to_dict()
+        return (
+            AgentVerifier()
+            .verify_plan(
+                plan_payload,
+                self._profile_payload(profile),
+                context_packet,
+            )
+            .to_dict()
+        )
 
     def _repair_plan_tool(
         self,
@@ -2665,7 +3028,9 @@ class CoachAgentService:
             except ValueError:
                 plan = None
             if plan is not None:
-                active_plan = repaired_payload.get("plan") if "plan" in repaired_payload else repaired_payload
+                active_plan = (
+                    repaired_payload.get("plan") if "plan" in repaired_payload else repaired_payload
+                )
                 if isinstance(active_plan, dict) and "plan" in active_plan:
                     active_plan = active_plan.get("plan")
                 if isinstance(active_plan, dict):
@@ -2684,11 +3049,15 @@ class CoachAgentService:
         user_message: str,
         context_packet: dict[str, Any],
     ) -> dict[str, Any]:
-        return AgentVerifier().verify_response(
-            assistant_message,
-            user_message,
-            context_packet,
-        ).to_dict()
+        return (
+            AgentVerifier()
+            .verify_response(
+                assistant_message,
+                user_message,
+                context_packet,
+            )
+            .to_dict()
+        )
 
     def _repair_response_tool(
         self,
@@ -2764,7 +3133,9 @@ class CoachAgentService:
                     models.LongTermMemory.user_id == user_id,
                     models.LongTermMemory.status == "active",
                 )
-                .order_by(desc(models.LongTermMemory.importance), desc(models.LongTermMemory.created_at))
+                .order_by(
+                    desc(models.LongTermMemory.importance), desc(models.LongTermMemory.created_at)
+                )
                 .limit(limit)
             )
         )
@@ -2898,7 +3269,6 @@ class CoachAgentService:
             f"{', '.join(profile.equipment_available or ['bodyweight', 'dumbbells'])}."
         )
 
-
     def _should_adjust_from_checkin(self, checkin: models.DailyCheckin) -> bool:
         if checkin.fatigue and checkin.fatigue >= 8:
             return True
@@ -2935,7 +3305,9 @@ class CoachAgentService:
         if profile.target_protein_g:
             suggestions.append(f"Aim for about {round(profile.target_protein_g)}g protein today.")
         if not suggestions:
-            suggestions.append("Log your workout completion and RPE after training so I can tune the next session.")
+            suggestions.append(
+                "Log your workout completion and RPE after training so I can tune the next session."
+            )
         return suggestions
 
     def _save_message(
@@ -3034,19 +3406,14 @@ class CoachAgentService:
 
         previous = session.conversation_summary or {}
         older_tail = older[-12:]
-        summary_lines = [
-            f"{m.role}: {m.content[:220]}"
-            for m in older_tail
-            if m.content
-        ]
+        summary_lines = [f"{m.role}: {m.content[:220]}" for m in older_tail if m.content]
         summary = {
             "scope": "session_level_conversation_compaction",
             "summary": (
-                str(previous.get("summary") or "").strip()
-                + "\n"
-                + "\n".join(summary_lines)
+                str(previous.get("summary") or "").strip() + "\n" + "\n".join(summary_lines)
             ).strip()[-4000:],
-            "compacted_message_count": int(previous.get("compacted_message_count") or 0) + len(older),
+            "compacted_message_count": int(previous.get("compacted_message_count") or 0)
+            + len(older),
             "kept_recent_count": keep_recent,
             "last_compacted_message_id": str(older[-1].id) if older else None,
             "token_estimate_before": token_estimate,
@@ -3111,7 +3478,9 @@ class CoachAgentService:
             debug = knowledge_context.get("debug", {})
             expected = case.get("expected") or {}
             checks = {
-                "intent": self._eval_check_equal(context_packet.get("intent"), expected.get("intent")),
+                "intent": self._eval_check_equal(
+                    context_packet.get("intent"), expected.get("intent")
+                ),
                 "knowledge": self._eval_check_contains(
                     debug.get("matched_knowledge_ids", []),
                     expected.get("must_include_knowledge", []),
@@ -3187,6 +3556,7 @@ class CoachAgentService:
     def _prepare_eval_user(self) -> models.User:
         eval_email = f"eval-{uuid.uuid4().hex[:8]}@test.local"
         from fast_api.app.core.security import hash_password
+
         user = models.User(
             id=uuid.uuid4(),
             email=eval_email,
@@ -3313,9 +3683,14 @@ class CoachAgentService:
             updates["age"] = int(age)
 
         lowered = text.lower()
-        if re.search(r"性别\s*[:：\-\*]*\s*男|\bmale\b|\bman\b|(^|[\s,，。；;])男($|[\s,，。；;])", lowered):
+        if re.search(
+            r"性别\s*[:：\-\*]*\s*男|\bmale\b|\bman\b|(^|[\s,，。；;])男($|[\s,，。；;])", lowered
+        ):
             updates["sex"] = "male"
-        elif re.search(r"性别\s*[:：\-\*]*\s*女|\bfemale\b|\bwoman\b|(^|[\s,，。；;])女($|[\s,，。；;])", lowered):
+        elif re.search(
+            r"性别\s*[:：\-\*]*\s*女|\bfemale\b|\bwoman\b|(^|[\s,，。；;])女($|[\s,，。；;])",
+            lowered,
+        ):
             updates["sex"] = "female"
 
         height = self._first_number(
@@ -3324,7 +3699,7 @@ class CoachAgentService:
                 r"height\s*[:=]?\s*(\d{2,3})\s*cm",
                 r"身高\s*[：:=\s\-]*\s*(\d{2,3})\s*cm",
                 r"身高\s*[：:=\s\-]*\s*(\d{2,3})",
-                r"(\d+(?:\.\d+)?)\s*m\b",          # "1.75m" (English meter)
+                r"(\d+(?:\.\d+)?)\s*m\b",  # "1.75m" (English meter)
                 r"(\d{3})\s*cm",
             ],
         )
@@ -3376,7 +3751,9 @@ class CoachAgentService:
         if frequency:
             updates["workout_frequency"] = int(frequency)
 
-        if any(keyword in lowered for keyword in ["beginner", "\u65b0\u624b", "\u96f6\u57fa\u7840"]):
+        if any(
+            keyword in lowered for keyword in ["beginner", "\u65b0\u624b", "\u96f6\u57fa\u7840"]
+        ):
             updates["experience_level"] = "beginner"
         elif (
             any(keyword in lowered for keyword in ["intermediate", "\u8fdb\u9636", "\u4e2d\u7ea7"])
@@ -3400,7 +3777,12 @@ class CoachAgentService:
                 "high_protein": ["high protein", "\u9ad8\u86cb\u767d"],
                 "low_carb": ["low carb", "\u4f4e\u78b3"],
                 "no_spicy": ["no spicy", "\u4e0d\u5403\u8fa3"],
-                "eat_out": ["\u4e0d\u81ea\u5df1\u505a\u996d", "\u5916\u98df", "\u98df\u5802", "takeout"],
+                "eat_out": [
+                    "\u4e0d\u81ea\u5df1\u505a\u996d",
+                    "\u5916\u98df",
+                    "\u98df\u5802",
+                    "takeout",
+                ],
                 "flexible_diet": ["\u4ec0\u4e48\u90fd\u53ef\u4ee5\u5403", "no restriction"],
             },
         )
@@ -3434,7 +3816,15 @@ class CoachAgentService:
                 "cardio": ["cardio", "\u6709\u6c27\u533a", "\u8dd1\u6b65\u673a"],
             },
         )
-        if any(keyword in lowered for keyword in ["\u5065\u8eab\u623f", "\u5546\u4e1a\u5065\u8eab\u623f", "\u5668\u68b0\u9f50\u5168", "gym"]):
+        if any(
+            keyword in lowered
+            for keyword in [
+                "\u5065\u8eab\u623f",
+                "\u5546\u4e1a\u5065\u8eab\u623f",
+                "\u5668\u68b0\u9f50\u5168",
+                "gym",
+            ]
+        ):
             equipment.extend(["gym", "barbell", "dumbbells", "machines", "cables", "cardio"])
         return sorted(set(equipment))
 
@@ -3514,9 +3904,36 @@ class CoachAgentService:
             "lower_back": ["lower back", "\u8170", "\u4e0b\u80cc"],
             "wrist": ["wrist", "\u624b\u8155"],
         }
-        injury_terms = ["injury", "pain", "hurt", "rehab", "\u4f24", "\u75bc", "\u75db", "\u4e0d\u9002", "\u5eb7\u590d", "\u523a\u75db", "\u62c9\u4f24", "\u626d\u4f24"]
-        negation_terms = ["\u6ca1\u6709", "\u6ca1\u8bf4\u8fc7", "\u65e0", "\u5426\u8ba4", "\u6ca1\u4f24", "\u4e0d\u662f", "no ", "not "]
-        training_terms = ["\u63a8\u80a9", "shoulder press", "\u5750\u59ff\u63a8\u80a9", "\u4fa7\u5e73\u4e3e"]
+        injury_terms = [
+            "injury",
+            "pain",
+            "hurt",
+            "rehab",
+            "\u4f24",
+            "\u75bc",
+            "\u75db",
+            "\u4e0d\u9002",
+            "\u5eb7\u590d",
+            "\u523a\u75db",
+            "\u62c9\u4f24",
+            "\u626d\u4f24",
+        ]
+        negation_terms = [
+            "\u6ca1\u6709",
+            "\u6ca1\u8bf4\u8fc7",
+            "\u65e0",
+            "\u5426\u8ba4",
+            "\u6ca1\u4f24",
+            "\u4e0d\u662f",
+            "no ",
+            "not ",
+        ]
+        training_terms = [
+            "\u63a8\u80a9",
+            "shoulder press",
+            "\u5750\u59ff\u63a8\u80a9",
+            "\u4fa7\u5e73\u4e3e",
+        ]
 
         injuries: list[str] = []
         corrections: list[dict[str, Any]] = []
@@ -3544,7 +3961,9 @@ class CoachAgentService:
                 sentence_lower = sentence.lower()
                 if not any(term in sentence_lower for term in terms):
                     continue
-                if any(term in sentence_lower for term in training_terms) and not any(term in sentence_lower for term in injury_terms):
+                if any(term in sentence_lower for term in training_terms) and not any(
+                    term in sentence_lower for term in injury_terms
+                ):
                     ignored_reason = "training_movement_not_injury"
                     continue
                 if any(term in sentence_lower for term in injury_terms):
@@ -3562,7 +3981,10 @@ class CoachAgentService:
                     }
                 )
 
-        if any(term in lowered for term in ["\u65e0\u4f24\u75c5", "\u6ca1\u6709\u4f24\u75c5", "no injuries"]):
+        if any(
+            term in lowered
+            for term in ["\u65e0\u4f24\u75c5", "\u6ca1\u6709\u4f24\u75c5", "no injuries"]
+        ):
             corrections.append(
                 {
                     "field": "injuries",
@@ -3613,9 +4035,7 @@ class CoachAgentService:
                 "rule_extraction": extraction,
                 "required_shape": {
                     "profile_patch": {},
-                    "corrections": [
-                        {"field": "injuries", "action": "remove", "value": "shoulder"}
-                    ],
+                    "corrections": [{"field": "injuries", "action": "remove", "value": "shoulder"}],
                 },
             },
             ensure_ascii=False,
@@ -3680,7 +4100,10 @@ class CoachAgentService:
             for correction in corrections:
                 if not isinstance(correction, dict):
                     continue
-                if correction.get("field") == "injuries" and correction.get("action") in {"remove", "clear"}:
+                if correction.get("field") == "injuries" and correction.get("action") in {
+                    "remove",
+                    "clear",
+                }:
                     extraction["corrections"].append(correction)
 
         extraction["model_patch"] = llm_patch
@@ -3692,7 +4115,7 @@ class CoachAgentService:
         message: str,
         extraction: dict[str, Any] | None = None,
         verification: dict[str, Any] | None = None,
-        ) -> list[str]:
+    ) -> list[str]:
         written = []
         extraction = extraction or self._rule_profile_extraction(message)
         profile = (
@@ -3713,8 +4136,12 @@ class CoachAgentService:
                 allergies=[],
             )
         )
-        verification = verification or self._verify_memory_tool(user_id, message, extraction, profile)
-        corrections_to_write = verification.get("accepted_corrections") or extraction.get("corrections", [])
+        verification = verification or self._verify_memory_tool(
+            user_id, message, extraction, profile
+        )
+        corrections_to_write = verification.get("accepted_corrections") or extraction.get(
+            "corrections", []
+        )
         candidates_to_write = verification.get("accepted_candidates")
         if candidates_to_write is None:
             candidates_to_write = self._memory_candidates_from_message(message, extraction)
@@ -3820,7 +4247,7 @@ class CoachAgentService:
         try:
             live_reply = await self.model_provider.coach_reply(system_prompt, user_prompt)
             tracker.success()
-        except Exception as exc:
+        except Exception:
             tracker.failure()
             return registry.get("error_model_call_onboarding").format(fallback=fallback)
         return live_reply or fallback
@@ -3854,15 +4281,21 @@ class CoachAgentService:
                 "risk_level": (payload.get("contract") or {}).get("risk_level"),
                 "permission_level": (payload.get("contract") or {}).get("permission_level"),
                 "input_schema_version": (payload.get("contract") or {}).get("input_schema_version"),
-                "output_schema_version": (payload.get("contract") or {}).get("output_schema_version"),
+                "output_schema_version": (payload.get("contract") or {}).get(
+                    "output_schema_version"
+                ),
             },
             "idempotency_key": payload.get("idempotency_key"),
             "input_json": self._summarize_tool_payload(tool_name, payload.get("input_json") or {}),
-            "output_json": self._summarize_tool_payload(tool_name, payload.get("output_json") or {}),
+            "output_json": self._summarize_tool_payload(
+                tool_name, payload.get("output_json") or {}
+            ),
             "error": payload.get("error"),
         }
 
-    def _summarize_tool_payload(self, tool_name: str | None, payload: dict[str, Any]) -> dict[str, Any]:
+    def _summarize_tool_payload(
+        self, tool_name: str | None, payload: dict[str, Any]
+    ) -> dict[str, Any]:
         if not isinstance(payload, dict):
             return {"value_type": type(payload).__name__}
 
@@ -4007,7 +4440,9 @@ class CoachAgentService:
                 "planner_fallback": payload.get("planner_fallback", False),
                 "intent": raw.get("intent") if isinstance(raw, dict) else None,
                 "tool_order": raw.get("tool_order") if isinstance(raw, dict) else [],
-                "reasoning_summary": raw.get("reasoning_summary") if isinstance(raw, dict) else None,
+                "reasoning_summary": raw.get("reasoning_summary")
+                if isinstance(raw, dict)
+                else None,
             }
         if name == "PlannerVerifier":
             plan = payload.get("verified_plan") or {}
@@ -4148,6 +4583,7 @@ class CoachAgentService:
                 "repair_actions": payload.get("repair_actions") or [],
             }
         return self._truncate_trace_payload(payload)
+
     async def _live_onboarding_reply_stream(
         self,
         profile: models.UserProfile,
@@ -4181,12 +4617,10 @@ class CoachAgentService:
         )
         tracker = track_llm_call(model=self.model_provider.settings.chat_model)
         try:
-            async for chunk in self.model_provider.stream_coach_reply(
-                system_prompt, user_prompt
-            ):
+            async for chunk in self.model_provider.stream_coach_reply(system_prompt, user_prompt):
                 yield chunk
             tracker.success()
-        except Exception as exc:
+        except Exception:
             tracker.failure()
             async for chunk in self._stream_static_text(
                 registry.get("error_model_call_onboarding").format(fallback=fallback)
@@ -4201,7 +4635,9 @@ class CoachAgentService:
     ) -> str:
         profile = self._get_or_create_profile(user_id)
         plan = self.get_active_plan(user_id)
-        context_packet = context_packet or ContextBuilder(self.db, self.model_provider).build_context_packet(user_id, message)
+        context_packet = context_packet or ContextBuilder(
+            self.db, self.model_provider
+        ).build_context_packet(user_id, message)
         context_packet = self._budget_context_packet(context_packet, "coach_coaching_reply")
         today_plan = None
         allow_plan_content = self._allow_plan_content_for_context(context_packet)
@@ -4237,13 +4673,13 @@ class CoachAgentService:
         try:
             live_reply = await self.model_provider.coach_reply(system_prompt, user_prompt)
             tracker.success()
-        except Exception as exc:
+        except Exception:
             tracker.failure()
             if self.model_provider.has_live_model():
                 return self._local_coaching_fallback(profile, plan, context_packet)
             live_reply = None
         if live_reply:
-            self.cache.set(system_prompt, user_prompt, live_reply, model_name=self.model_provider.settings.chat_model)
+            self.cache.set(system_prompt, user_prompt, live_reply, model_name=self.model_provider.settings.chat_model)  # fmt: skip
             return live_reply
 
         return self._local_coaching_fallback(profile, plan, context_packet)
@@ -4256,7 +4692,9 @@ class CoachAgentService:
     ):
         profile = self._get_or_create_profile(user_id)
         plan = self.get_active_plan(user_id)
-        context_packet = context_packet or ContextBuilder(self.db, self.model_provider).build_context_packet(user_id, message)
+        context_packet = context_packet or ContextBuilder(
+            self.db, self.model_provider
+        ).build_context_packet(user_id, message)
         context_packet = self._budget_context_packet(context_packet, "coach_coaching_reply_stream")
         today_plan = None
         allow_plan_content = self._allow_plan_content_for_context(context_packet)
@@ -4303,7 +4741,12 @@ class CoachAgentService:
                 chunks.append(str(chunk))
                 yield chunk
             full_reply = "".join(chunks)
-            self.cache.set(system_prompt, user_prompt, full_reply, model_name=self.model_provider.settings.chat_model)
+            self.cache.set(
+                system_prompt,
+                user_prompt,
+                full_reply,
+                model_name=self.model_provider.settings.chat_model,
+            )
             tracker.success()
         except Exception:
             tracker.failure()
@@ -4344,7 +4787,9 @@ class CoachAgentService:
             missing = self.missing_onboarding_slots(profile)
             if missing:
                 return self._onboarding_reply(profile, missing)
-            return "你的档案已经建好。告诉我今天的睡眠、疲劳、酸痛和训练时间，我会给你安排当天训练。"
+            return (
+                "你的档案已经建好。告诉我今天的睡眠、疲劳、酸痛和训练时间，我会给你安排当天训练。"
+            )
 
         training_days = plan.plan_json.get("training_days") or []
         today_plan = training_days[0] if training_days else {}
@@ -4420,9 +4865,7 @@ class CoachAgentService:
             "target_fat_g": profile.target_fat_g,
         }
 
-    def _onboarding_reply(
-        self, profile: models.UserProfile, missing_slots: list[str]
-    ) -> str:
+    def _onboarding_reply(self, profile: models.UserProfile, missing_slots: list[str]) -> str:
         slot_prompts = {
             "age": "年龄",
             "height_cm": "身高",
@@ -4450,9 +4893,7 @@ class CoachAgentService:
         plan = plan_output.get("active_plan") or {}
         if not plan:
             return None
-        profile_text = json.dumps(
-            self._profile_payload(profile), ensure_ascii=False, default=str
-        )
+        profile_text = json.dumps(self._profile_payload(profile), ensure_ascii=False, default=str)
         plan_text = json.dumps(plan, ensure_ascii=False, default=str)[:3000]
         return (
             "Before finalizing this plan, role-play as the user with this profile:\n"
@@ -4501,20 +4942,6 @@ class CoachAgentService:
 
     def _requires_immediate_safety_reply(self, message: str) -> bool:
         lowered = message.lower()
-        acute_terms = [
-            "sharp pain",
-            "chest pain",
-            "palpitation",
-            "dizzy",
-            "faint",
-            "numb",
-            "\u523a\u75db",
-            "\u80f8\u95f7",
-            "\u5934\u6655",
-            "\u5fc3\u6095",
-            "\u9ebb\u6728",
-            "\u660f\u53a5",
-        ]
         medical_question_terms = [
             "\u8981\u4e0d\u8981\u7ee7\u7eed\u7ec3",
             "\u80fd\u4e0d\u80fd\u7ee7\u7eed",
@@ -4530,6 +4957,7 @@ class CoachAgentService:
 
     def _build_adaptive_prompt_wrapper(self, original_builder, preferences):
         """Wrap the system prompt builder to inject learned user preferences."""
+
         def wrapper():
             prompt = original_builder()
             if preferences.get("behavioral_guidance"):
@@ -4543,9 +4971,13 @@ class CoachAgentService:
                     prompt
                     + "\n\n## Learned User Preferences (from feedback history)\n"
                     + guidance
-                    + "\n\nConfidence: " + conf_pct + "%. Evidence: " + evidence
+                    + "\n\nConfidence: "
+                    + conf_pct
+                    + "%. Evidence: "
+                    + evidence
                 )
             return prompt
+
         return wrapper
 
     async def _handle_chat_llm_agent(
@@ -4565,7 +4997,9 @@ class CoachAgentService:
         profile = self._get_or_create_profile(user.id)
 
         user_msg = self._save_message(session.id, user.id, "user", message)
-        followup_resolution = FollowupResolver(self.db).resolve(user.id, session.id, message, user_msg.id)
+        followup_resolution = FollowupResolver(self.db).resolve(
+            user.id, session.id, message, user_msg.id
+        )
         effective_message = followup_resolution.normalized_message
 
         tool_registry = self._build_chat_tool_registry(
@@ -4575,6 +5009,7 @@ class CoachAgentService:
             message,
             effective_message=effective_message,
             followup_resolution=followup_resolution.to_dict(),
+            intent_decision=runtime_route.intent_decision if runtime_route else None,
         )
 
         agent = LLMAgent(
@@ -4589,18 +5024,19 @@ class CoachAgentService:
 
         # ---- Inject learned user preferences into system prompt ----
         from fast_api.app.services.feedback_learner import (
-            FeedbackCollector, PreferenceLearner, PromptEnhancer,
+            FeedbackCollector,
+            PreferenceLearner,
         )
+
         try:
             collector = FeedbackCollector(self.db)
             learner = PreferenceLearner(collector)
-            enhancer = PromptEnhancer(learner)
             preferences = learner.learn(user.id)
             if preferences.get("behavioral_guidance"):
                 agent._build_system_prompt = self._build_adaptive_prompt_wrapper(
                     agent._build_system_prompt, preferences
                 )
-            self.nodes_extra = getattr(agent, 'nodes', [])
+            self.nodes_extra = getattr(agent, "nodes", [])
         except Exception:
             pass  # Feedback enhancement is best-effort
 
@@ -4625,12 +5061,16 @@ class CoachAgentService:
             assistant_message = result.final_response
 
         # Apply guardrail
-        guardrail_result = run_guardrails(assistant_message, user_message=effective_message, profile=profile)
+        guardrail_result = run_guardrails(
+            assistant_message, user_message=effective_message, profile=profile
+        )
         if guardrail_result.action == GuardrailSeverity.BLOCK:
             assistant_message = guardrail_result.blocked_replacement or assistant_message
 
         assistant_msg = self._save_message(session.id, user.id, "assistant", assistant_message)
-        self._remember_pending_question_from_reply(user.id, session.id, assistant_msg, assistant_message)
+        self._remember_pending_question_from_reply(
+            user.id, session.id, assistant_msg, assistant_message
+        )
         session_summary = self._compact_session_context_if_needed(session.id, user.id)
         if runtime_route is not None:
             result.nodes.append({"node": "RuntimeRouter", "output": runtime_route.to_dict()})
@@ -4703,14 +5143,16 @@ class CoachAgentService:
         )
 
         for call in result.tool_calls:
-            self.db.add(models.ToolCall(
-                agent_run_id=run.id,
-                tool_name=call["tool_name"],
-                input_json=call.get("input", {}),
-                output_json=call.get("output", {}),
-                latency_ms=call.get("latency_ms", 0),
-                status=call.get("status", "success"),
-            ))
+            self.db.add(
+                models.ToolCall(
+                    agent_run_id=run.id,
+                    tool_name=call["tool_name"],
+                    input_json=call.get("input", {}),
+                    output_json=call.get("output", {}),
+                    latency_ms=call.get("latency_ms", 0),
+                    status=call.get("status", "success"),
+                )
+            )
 
         self.db.commit()
         self.db.refresh(run)

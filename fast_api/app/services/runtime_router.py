@@ -1,8 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from fast_api.app.services.intent_decision import IntentRouter
-
+from fast_api.app.services.intent_decision import IntentDecision, IntentRouter
 
 RuntimeMode = Literal["llm_driven", "code_driven"]
 
@@ -46,7 +45,18 @@ class RuntimeRouter:
         "what is",
         "explain",
     ]
-    CHAT_TERMS = ["鼓励我", "没动力", "聊聊", "你好", "谢谢", "早上好", "晚上好", "hi", "hello", "thanks"]
+    CHAT_TERMS = [
+        "鼓励我",
+        "没动力",
+        "聊聊",
+        "你好",
+        "谢谢",
+        "早上好",
+        "晚上好",
+        "hi",
+        "hello",
+        "thanks",
+    ]
 
     PLAN_TERMS = [
         "训练计划",
@@ -62,7 +72,18 @@ class RuntimeRouter:
         "有氧",
     ]
     TRAINING_BODY_TERMS = ["胸", "背", "腿", "肩", "手臂", "核心"]
-    TRAINING_ACTION_TERMS = ["练", "训练", "动作", "组", "次数", "卧推", "深蹲", "硬拉", "划船", "推举"]
+    TRAINING_ACTION_TERMS = [
+        "练",
+        "训练",
+        "动作",
+        "组",
+        "次数",
+        "卧推",
+        "深蹲",
+        "硬拉",
+        "划船",
+        "推举",
+    ]
     NUTRITION_RECORD_TERMS = [
         "今天吃了",
         "早餐",
@@ -80,7 +101,18 @@ class RuntimeRouter:
         "计算",
     ]
     NUTRITION_CONCEPT_TERMS = ["蛋白质", "蛋白", "碳水", "脂肪"]
-    STATE_WRITE_TERMS = ["记录", "保存", "更新", "修改", "体重", "身高", "年龄", "目标", "经验", "器械"]
+    STATE_WRITE_TERMS = [
+        "记录",
+        "保存",
+        "更新",
+        "修改",
+        "体重",
+        "身高",
+        "年龄",
+        "目标",
+        "经验",
+        "器械",
+    ]
     RISK_TERMS = [
         "疼",
         "痛",
@@ -100,8 +132,17 @@ class RuntimeRouter:
         "盆底",
     ]
     PLAN_EDIT_TERMS = [
-        "调整计划", "改计划", "计划改", "改成", "换成", "替换动作", "减少训练", "增加训练",
-        "change my plan", "modify my plan", "adjust my plan",
+        "调整计划",
+        "改计划",
+        "计划改",
+        "改成",
+        "换成",
+        "替换动作",
+        "减少训练",
+        "增加训练",
+        "change my plan",
+        "modify my plan",
+        "adjust my plan",
     ]
 
     CODE_DRIVEN_INTENTS = {
@@ -123,8 +164,6 @@ class RuntimeRouter:
 
     def route(self, message: str) -> RuntimeRoute:
         text = (message or "").strip().lower()
-        matched: list[str] = []
-
         if not text:
             return RuntimeRoute(
                 mode="code_driven",
@@ -135,7 +174,9 @@ class RuntimeRouter:
 
         if self._is_pure_explanation(text):
             concept_matches = self._matches(text, self.EXPLANATION_TERMS, "explanation")
-            nutrition_concepts = self._matches(text, self.NUTRITION_CONCEPT_TERMS, "nutrition_concept")
+            nutrition_concepts = self._matches(
+                text, self.NUTRITION_CONCEPT_TERMS, "nutrition_concept"
+            )
             return RuntimeRoute(
                 mode="llm_driven",
                 reason="当前是概念解释类问题，不涉及记录、计划生成或安全风险。",
@@ -144,6 +185,20 @@ class RuntimeRouter:
             )
 
         intent_decision = self.intent_router.analyze(message)
+        return self.route_decision(intent_decision, message=message)
+
+    def route_decision(self, intent_decision: IntentDecision, *, message: str = "") -> RuntimeRoute:
+        """Choose runtime from an existing decision without classifying again."""
+
+        text = (message or "").strip().lower()
+        if self._is_pure_explanation(text):
+            return RuntimeRoute(
+                mode="llm_driven",
+                reason="当前是概念解释类问题，不涉及记录、计划生成或安全风险。",
+                matched_rules=self._matches(text, self.EXPLANATION_TERMS, "explanation"),
+                confidence=max(0.82, intent_decision.confidence),
+                intent_decision=intent_decision.to_dict(),
+            )
         if intent_decision.primary_intent in self.CODE_DRIVEN_INTENTS:
             return RuntimeRoute(
                 mode="code_driven",
@@ -157,6 +212,7 @@ class RuntimeRouter:
                 intent_decision=intent_decision.to_dict(),
             )
 
+        matched: list[str] = []
         matched.extend(self._matches(text, self.RISK_TERMS, "risk"))
         if matched:
             return RuntimeRoute(
@@ -186,7 +242,9 @@ class RuntimeRouter:
                 confidence=0.93,
             )
 
-        nutrition_record_matches = self._matches(text, self.NUTRITION_RECORD_TERMS, "nutrition_record")
+        nutrition_record_matches = self._matches(
+            text, self.NUTRITION_RECORD_TERMS, "nutrition_record"
+        )
         if nutrition_record_matches:
             return RuntimeRoute(
                 mode="code_driven",
