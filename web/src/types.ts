@@ -93,3 +93,64 @@ export type AlgorithmSummary = {
   business_outcomes: { label: string; online_claim: boolean };
   dpo: { enabled: boolean; minimum_reviewed_pairs: number; current_reviewed_pairs: number };
 };
+
+export type AgentFinding = {
+  code: string;
+  severity: "info" | "low" | "medium" | "high";
+  title: string;
+  detail: string;
+  node: string;
+};
+
+export type AgentRunAnalysis = {
+  run_id: string;
+  run_type: string;
+  status: string;
+  started_at: string;
+  completed_at?: string | null;
+  summary: string;
+  node_count: number;
+  tool_count: number;
+  total_latency_ms: number;
+  decision: {
+    intent: string;
+    planner_mode: string;
+    memory_count: number;
+    knowledge_count: number;
+    tool_names: string[];
+    verifier_issue_count: number;
+    guardrail_action: string;
+  };
+  findings: AgentFinding[];
+  timeline: Array<{
+    order: number;
+    node: string;
+    phase: string;
+    phase_label: string;
+    status: string;
+    latency_ms: number;
+    summary: string;
+  }>;
+  privacy: string;
+};
+
+export type AgentChallengeSummary = {
+  experiment_id: string;
+  source: string;
+  partition: string;
+  training_eligible: false;
+  cases: number;
+  passed: number;
+  pass_rate: number;
+  component_scores: Record<string, number>;
+  categories: Array<{ name: string; cases: number; passed: number; pass_rate: number }>;
+  failure_count: number;
+  failure_examples: Array<{
+    case_id: string;
+    category: string;
+    checks: Record<string, boolean>;
+    expected: Record<string, unknown>;
+    actual: Record<string, unknown>;
+    user_message: string;
+  }>;
+};
