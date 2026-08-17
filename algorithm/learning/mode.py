@@ -175,34 +175,30 @@ def check_module(module_id: str) -> dict[str, Any]:
     elif module_id == "07_sft_and_dpo":
         requirements = REPO_ROOT / "algorithm/training/requirements-training.txt"
         configs = [
-            REPO_ROOT / "algorithm/training/configs/sft_qwen3b.json",
+            REPO_ROOT / "algorithm/training/configs/intent_qwen3_4b_qlora.json",
             REPO_ROOT / "algorithm/training/configs/dpo_qwen3b.json",
         ]
         try:
-            from algorithm.training.sft.train_qlora import (
-                load_config,
-                resolve_dataset_path,
-            )
+            from algorithm.training.sft.train_qlora import load_config
             from algorithm.training.sft.train_qlora import (
                 train as train_sft,
             )
 
             sft_config_path = configs[0]
-            sft_config = load_config(sft_config_path)
-            dataset_source = "configured_dataset"
-            if not resolve_dataset_path(sft_config, sft_config_path).exists():
-                sft_config = {
-                    **sft_config,
-                    "dataset_path": "algorithm/datasets/fixtures/sft_smoke.jsonl",
-                }
-                dataset_source = "synthetic_smoke_fixture"
+            sft_config = {
+                **load_config(sft_config_path),
+                "train_dataset_path": "algorithm/datasets/fixtures/sft_smoke.jsonl",
+                "eval_dataset_path": "algorithm/datasets/fixtures/sft_smoke_validation.jsonl",
+            }
+            dataset_source = "versioned_smoke_fixtures"
             sft_summary = train_sft(sft_config, sft_config_path, dry_run=True)
-            sft_ready = sft_summary["rows"] > 0
+            sft_ready = sft_summary["train_rows"] > 0 and sft_summary["eval_rows"] > 0
             dpo_path = REPO_ROOT / "algorithm/datasets/manifests/preference_pairs.jsonl"
             dpo_ready = dpo_path.exists() and dpo_path.stat().st_size > 0
             details = {
                 "configs": [str(path) for path in configs],
-                "sft_rows": sft_summary["rows"],
+                "sft_train_rows": sft_summary["train_rows"],
+                "sft_eval_rows": sft_summary["eval_rows"],
                 "dataset_source": dataset_source,
                 "dpo_ready": dpo_ready,
                 "dpo_note": "需要审核后的 chosen/rejected 才能运行",

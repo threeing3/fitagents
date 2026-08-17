@@ -55,7 +55,11 @@ CURRICULUM: tuple[ModuleCard, ...] = (
         "能把 Agent 轨迹变成可信数据集，并识别 PII、重复样本、用户泄漏和合成数据冒充真实效果。",
         ("01_data_contracts",),
         ("PII redaction", "deduplication", "user-level split", "data leakage", "provenance"),
-        ("algorithm/data/export_traces.py", "algorithm/data/sanitize.py", "algorithm/data/split_dataset.py"),
+        (
+            "algorithm/data/export_traces.py",
+            "algorithm/data/sanitize.py",
+            "algorithm/data/split_dataset.py",
+        ),
         (
             "python -m algorithm.data.export_traces --output algorithm/datasets/manifests/training_examples.jsonl --db local_dev.db --log-dir logs/agent-runs",
             "python -m algorithm.data.validate_dataset algorithm/datasets/manifests/training_examples.jsonl",
@@ -99,7 +103,11 @@ CURRICULUM: tuple[ModuleCard, ...] = (
         "能比较 BM25、向量、混合召回和时间/实体重排序，并同时记录 Recall@K、延迟和 token 成本。",
         ("02_dataset_governance",),
         ("BM25", "embedding retrieval", "hybrid retrieval", "Recall@K", "reranking", "latency"),
-        ("algorithm/app_algorithms/memory_retrieval_eval.py", "tests/evals/retrieval_eval_cases.json", "fast_api/app/services/memory_system.py"),
+        (
+            "algorithm/app_algorithms/memory_retrieval_eval.py",
+            "tests/evals/retrieval_eval_cases.json",
+            "fast_api/app/services/memory_system.py",
+        ),
         ("python -m pytest -q tests/algorithm/test_retrieval_eval.py",),
         (
             "构造 10 条记忆和 3 个查询，手算 Recall@1/3/5，再和代码结果对照。",
@@ -119,7 +127,10 @@ CURRICULUM: tuple[ModuleCard, ...] = (
         "能把工具选择视为结构化预测问题，区分 Exact Match、顺序准确率、无效工具率和安全硬门。",
         ("03_intent_and_routing",),
         ("structured prediction", "tool sequence", "schema-valid rate", "guardrail", "planner"),
-        ("algorithm/app_algorithms/tool_plan_eval.py", "algorithm/app_algorithms/response_reranker.py"),
+        (
+            "algorithm/app_algorithms/tool_plan_eval.py",
+            "algorithm/app_algorithms/response_reranker.py",
+        ),
         ("python -m pytest -q tests/algorithm/test_algorithm_metrics.py",),
         (
             "为一个训练计划问题画出 intent -> tools -> validation -> response 的状态流。",
@@ -139,8 +150,15 @@ CURRICULUM: tuple[ModuleCard, ...] = (
         "能把 Agent 输出连接到接受、执行、依从性和负反馈等结果，并按用户/时间切分训练可解释模型。",
         ("02_dataset_governance", "05_tool_planning"),
         ("label leakage", "Logistic Regression", "AUROC", "calibration", "NDCG@K", "ranking"),
-        ("algorithm/business/feature_builder.py", "algorithm/business/acceptance_model.py", "algorithm/business/business_baseline.py", "algorithm/evaluation/business_eval.py"),
-        ("python -m algorithm.business.business_baseline --count 240 --seed 42 --experiment-id business-baseline --output <report.json>",),
+        (
+            "algorithm/business/feature_builder.py",
+            "algorithm/business/acceptance_model.py",
+            "algorithm/business/business_baseline.py",
+            "algorithm/evaluation/business_eval.py",
+        ),
+        (
+            "python -m algorithm.business.business_baseline --count 240 --seed 42 --experiment-id business-baseline --output <report.json>",
+        ),
         (
             "给 acceptance_model 增加一个多数类对照，解释为什么业务模型必须有简单 baseline。",
             "构造一个时间泄漏特征，观察离线指标虚高并记录原因。",
@@ -160,10 +178,14 @@ CURRICULUM: tuple[ModuleCard, ...] = (
         "能解释 SFT 和 DPO 的数据要求、训练目标、Adapter 保存方式和安全回归策略。",
         ("02_dataset_governance", "06_business_modeling"),
         ("instruction tuning", "QLoRA", "LoRA", "preference pair", "DPO", "adapter"),
-        ("algorithm/training/sft/train_qlora.py", "algorithm/training/dpo/train_dpo.py", "algorithm/training/configs"),
+        (
+            "algorithm/training/sft/train_qlora.py",
+            "algorithm/training/dpo/train_dpo.py",
+            "algorithm/training/configs",
+        ),
         (
             "pip install -r algorithm/training/requirements-training.txt",
-            "python -m algorithm.training.sft.train_qlora --config algorithm/training/configs/sft_qwen3b.json",
+            "python -m algorithm.training.sft.train_qlora --config algorithm/training/configs/intent_qwen3_4b_qlora.json --dry-run",
         ),
         (
             "手写一对 chosen/rejected，并说明偏好理由不是简单的长度偏好。",
@@ -182,9 +204,27 @@ CURRICULUM: tuple[ModuleCard, ...] = (
         "评测、实验追踪与面试表达",
         "综合能力",
         "能从假设、数据、指标、实验、结果和限制六个部分讲清楚项目，而不是只展示一个模型分数。",
-        ("03_intent_and_routing", "04_retrieval_and_reranking", "06_business_modeling", "07_sft_and_dpo"),
-        ("offline evaluation", "ablation", "reproducibility", "error analysis", "model card", "causal caution"),
-        ("algorithm/evaluation", "docs/EVALUATION_PROTOCOL.md", "docs/MODEL_CARD.md", "docs/INTERVIEW_DEMO_SCRIPT.md", "logs/experiments"),
+        (
+            "03_intent_and_routing",
+            "04_retrieval_and_reranking",
+            "06_business_modeling",
+            "07_sft_and_dpo",
+        ),
+        (
+            "offline evaluation",
+            "ablation",
+            "reproducibility",
+            "error analysis",
+            "model card",
+            "causal caution",
+        ),
+        (
+            "algorithm/evaluation",
+            "docs/EVALUATION_PROTOCOL.md",
+            "docs/MODEL_CARD.md",
+            "docs/INTERVIEW_DEMO_SCRIPT.md",
+            "logs/experiments",
+        ),
         ("python -m compileall -q fast_api tests algorithm", "python -m pytest -q tests/algorithm"),
         (
             "为一个指标提升写出 hypothesis、对照组、测试集、失败分析和下一步。",

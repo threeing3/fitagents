@@ -59,22 +59,14 @@ def test_retrieval_tool_and_training_checks_execute_real_smoke_experiments():
     assert check_module("05_tool_planning")["passed"] is True
     training = check_module("07_sft_and_dpo")
     assert training["passed"] is True
-    assert training["checks"][-1]["details"]["sft_rows"] > 0
+    assert training["checks"][-1]["details"]["sft_train_rows"] > 0
 
 
-def test_training_check_uses_labeled_smoke_fixture_without_local_dataset(monkeypatch, tmp_path):
-    from algorithm.training.sft import train_qlora
-
-    real_resolver = train_qlora.resolve_dataset_path
-
-    def resolve_for_clean_clone(config, config_path=None):
-        if str(config.get("dataset_path", "")).endswith("sft_smoke.jsonl"):
-            return real_resolver(config, config_path)
-        return tmp_path / "missing-local-dataset.jsonl"
-
-    monkeypatch.setattr(train_qlora, "resolve_dataset_path", resolve_for_clean_clone)
-
+def test_training_check_uses_versioned_train_and_validation_smoke_fixtures():
     result = check_module("07_sft_and_dpo")
 
     assert result["passed"] is True
-    assert result["checks"][-1]["details"]["dataset_source"] == "synthetic_smoke_fixture"
+    details = result["checks"][-1]["details"]
+    assert details["dataset_source"] == "versioned_smoke_fixtures"
+    assert details["sft_train_rows"] == 2
+    assert details["sft_eval_rows"] == 1

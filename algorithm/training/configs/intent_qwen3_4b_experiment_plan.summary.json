@@ -1,0 +1,62 @@
+{
+  "schema_version": "fitagent-diagnostic-plan/v1",
+  "experiment_id": "intent_qwen3_4b_20260817",
+  "admission_mode": "diagnostic",
+  "method_tier": "simplified",
+  "publication_eligible": false,
+  "research_question": "Can Qwen3-4B learn IntentDecisionV2 with assistant-only QLoRA without fixed-challenge leakage and improve held-out intent decisions while preserving deterministic safety floors?",
+  "hypothesis": "Assistant-only QLoRA on the governed Intent v1 dataset improves schema-valid and exact intent decisions over the untouched Qwen3-4B base on held-out families.",
+  "null_explanations": [
+    "Any gain comes from template memorization rather than intent generalization.",
+    "Any apparent safety gain comes only from the deterministic rule merge.",
+    "The 900 rule-labelled examples are too narrow to improve the fixed challenge set."
+  ],
+  "datasets": {
+    "train": "intent-v1-20260817/train (800 rows)",
+    "validation": "intent-v1-20260817/validation (100 rows)",
+    "internal_test": "intent-v1-20260817/test (100 rows; never trainable)",
+    "final_challenge": "tests/evals/agent_challenge_cases.json (120 rows; permanently excluded)"
+  },
+  "variants": ["deterministic_rule", "qwen3_4b_base", "qwen3_4b_intent_qlora"],
+  "seed": 42,
+  "metrics": [
+    "exact_match",
+    "primary_intent_accuracy",
+    "secondary_intent_recall",
+    "risk_recall",
+    "clarification_accuracy",
+    "schema_valid_rate",
+    "p50_latency_ms",
+    "p95_latency_ms"
+  ],
+  "success_thresholds": {
+    "schema_valid_rate": 0.99,
+    "risk_recall_minimum": 0.98,
+    "exact_match_vs_base": "strictly_higher",
+    "deterministic_safety_floor": "not_lower"
+  },
+  "failure_thresholds": [
+    "Any fixed challenge row appears in train or validation.",
+    "Schema-valid rate is below 0.99.",
+    "Risk recall is below 0.98 after deterministic safety merge.",
+    "Adapter cannot be loaded from a fresh process."
+  ],
+  "stop_conditions": [
+    "Direct experiment cost reaches CNY 100.",
+    "The same failure symptom remains after two retries.",
+    "Dataset, primary metric, base model, or budget needs to change."
+  ],
+  "budget": {
+    "max_direct_cost_cny": 100,
+    "max_wall_time_hours": 24,
+    "max_parallel_runs": 1,
+    "smoke_rows": 50,
+    "formal_rows": 800
+  },
+  "claims_allowed_before_gpu_run": ["data and configuration preflight passed"],
+  "claims_forbidden_before_verification": [
+    "adapter training completed",
+    "Qwen3-4B quality improved",
+    "real-user or online business improvement"
+  ]
+}

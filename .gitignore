@@ -43,6 +43,9 @@ algorithm/research_state/learning_progress.json
 algorithm/research_state/experiments/*
 !algorithm/research_state/experiments/.gitkeep
 
+# Immutable experiment records can contain machine metadata and large adapters.
+research_state/
+
 # OS
 .DS_Store
 Thumbs.db
