@@ -3,7 +3,7 @@ import json
 import pytest
 
 from algorithm.training.dpo.train_dpo import validate_config as validate_dpo_config
-from algorithm.training.sft.train_qlora import tokenize_with_assistant_mask
+from algorithm.training.sft.train_qlora import resolve_run_layout, tokenize_with_assistant_mask
 from algorithm.training.sft.train_qlora import (
     train as train_sft,
 )
@@ -113,6 +113,26 @@ def test_sft_validation_rejects_template_family_leakage(tmp_path):
     }
     with pytest.raises(ValueError, match="template_family"):
         validate_sft_config(config)
+
+
+def test_remote_runner_layout_uses_supplied_run_and_output_dirs(monkeypatch, tmp_path):
+    run_dir = tmp_path / "remote-run"
+    output_dir = tmp_path / "remote-output"
+    monkeypatch.setenv("RESEARCH_RUN_DIR", str(run_dir))
+    monkeypatch.setenv("RESEARCH_OUTPUT_DIR", str(output_dir))
+
+    resolved_run, adapter, remote_managed = resolve_run_layout({}, None, "ignored")
+
+    assert resolved_run == run_dir.resolve()
+    assert adapter == output_dir.resolve() / "adapter"
+    assert remote_managed is True
+
+
+def test_remote_runner_layout_requires_both_environment_paths(monkeypatch, tmp_path):
+    monkeypatch.setenv("RESEARCH_RUN_DIR", str(tmp_path / "run"))
+    monkeypatch.delenv("RESEARCH_OUTPUT_DIR", raising=False)
+    with pytest.raises(RuntimeError, match="must be set together"):
+        resolve_run_layout({}, None, "ignored")
 
 
 def test_dpo_dry_run_rejects_invalid_pairs(tmp_path):

@@ -66,18 +66,32 @@ def verify_run(run_dir: Path, *, require_adapter_reload: bool = False) -> dict[s
             )
         return report
     status = _read_json(records / "status.json")
-    if status.get("status") != "completed-technical":
-        errors.append(f"unexpected status: {status.get('status')}")
+    remote_managed = "state" in status
+    expected_status = status.get("state") if remote_managed else status.get("status")
+    allowed_status = "completed" if remote_managed else "completed-technical"
+    if expected_status != allowed_status:
+        errors.append(f"unexpected status: {expected_status}")
     manifest = _read_json(records / "run_manifest.json")
     summary = _read_json(records / "run_summary.json")
     if manifest.get("run_id") != summary.get("run_id"):
         errors.append("run_id differs between manifest and summary")
+    output_root = run_dir / "outputs" if remote_managed else run_dir / "adapter"
+    metadata_path = output_root / "training_metadata.json" if remote_managed else None
+    identity_summary = summary
+    if remote_managed:
+        if not metadata_path or not metadata_path.is_file():
+            errors.append("remote training_metadata.json is missing")
+        else:
+            identity_summary = _read_json(metadata_path)
     for key in ("dataset_version", "train_sha256", "eval_sha256", "seed"):
-        if manifest.get(key) != summary.get(key):
-            errors.append(f"{key} differs between manifest and summary")
+        if manifest.get(key) != identity_summary.get(key):
+            errors.append(f"{key} differs between manifest and training metadata")
     events = _read_jsonl(records / "events.jsonl")
-    if not events or events[-1].get("event") != "completed-technical":
-        errors.append("events do not end with completed-technical")
+    terminal_event = "run-ended" if remote_managed else "completed-technical"
+    if not events or events[-1].get("event") != terminal_event:
+        errors.append(f"events do not end with {terminal_event}")
+    if remote_managed and events and events[-1].get("state") != "completed":
+        errors.append("remote terminal event is not completed")
     metrics = _read_jsonl(records / "metrics.jsonl")
     if not metrics:
         errors.append("metrics.jsonl is empty")
@@ -86,17 +100,20 @@ def verify_run(run_dir: Path, *, require_adapter_reload: bool = False) -> dict[s
             if isinstance(value, float) and not math.isfinite(value):
                 errors.append(f"non-finite metric {key}")
     output_manifest = _read_json(records / "output_manifest.json")
-    adapter = run_dir / "adapter"
     files = output_manifest.get("files")
     if not isinstance(files, list) or not files:
         errors.append("output manifest has no adapter files")
     else:
         for item in files:
-            path = adapter / str(item.get("path"))
+            if not isinstance(item, dict):
+                errors.append("output manifest contains a non-object file entry")
+                continue
+            path = output_root / str(item.get("path"))
             if not path.is_file():
                 errors.append(f"adapter output missing: {item.get('path')}")
                 continue
-            if path.stat().st_size != item.get("bytes") or _sha256(path) != item.get("sha256"):
+            expected_bytes = item.get("size_bytes") if remote_managed else item.get("bytes")
+            if path.stat().st_size != expected_bytes or _sha256(path) != item.get("sha256"):
                 errors.append(f"adapter output checksum mismatch: {item.get('path')}")
     reload_report_path = records / "adapter_reload_report.json"
     if require_adapter_reload:

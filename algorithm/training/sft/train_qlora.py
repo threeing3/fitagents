@@ -209,6 +209,23 @@ def _set_status(records_dir: Path, status: str, **extra: Any) -> None:
     _append_jsonl(records_dir / "events.jsonl", {"timestamp": _now(), "event": status, **extra})
 
 
+def resolve_run_layout(
+    config: dict[str, Any], config_path: Path | None, run_id: str
+) -> tuple[Path, Path, bool]:
+    """Resolve local or remote-runner paths without mixing their record protocols."""
+
+    remote_run = os.getenv("RESEARCH_RUN_DIR")
+    remote_output = os.getenv("RESEARCH_OUTPUT_DIR")
+    if bool(remote_run) != bool(remote_output):
+        raise RuntimeError("RESEARCH_RUN_DIR and RESEARCH_OUTPUT_DIR must be set together")
+    if remote_run and remote_output:
+        run_dir = Path(remote_run).resolve()
+        return run_dir, Path(remote_output).resolve() / "adapter", True
+    output_root = _resolve_path(str(config["output_root"]), config_path)
+    run_dir = output_root / run_id
+    return run_dir, run_dir / "adapter", False
+
+
 def train(
     config: dict[str, Any],
     config_path: Path | None = None,
@@ -222,15 +239,14 @@ def train(
         return summary
     if not run_id:
         raise ValueError("run_id is required for a real training run")
-    output_root = _resolve_path(str(config["output_root"]), config_path)
-    run_dir = output_root / run_id
+    run_dir, output_dir, remote_managed = resolve_run_layout(config, config_path, run_id)
     records_dir = run_dir / "records"
     if not (records_dir / "command.json").exists():
         raise RuntimeError("prepare the immutable run before training")
-    output_dir = run_dir / "adapter"
     if output_dir.exists() and not resume_from_checkpoint:
         raise FileExistsError(f"adapter output already exists: {output_dir}")
-    _set_status(records_dir, "running")
+    if not remote_managed:
+        _set_status(records_dir, "running")
     try:
         import torch
         from datasets import load_dataset
@@ -250,7 +266,8 @@ def train(
     if not torch.cuda.is_available():
         raise RuntimeError("QLoRA training requires an available CUDA GPU")
     output_dir.mkdir(parents=True, exist_ok=True)
-    _write_environment(records_dir)
+    if not remote_managed:
+        _write_environment(records_dir)
 
     tokenizer = AutoTokenizer.from_pretrained(config["base_model"])
     if tokenizer.pad_token is None:
@@ -339,15 +356,35 @@ def train(
             "effective_train_rows": len(train_dataset),
         }
     )
-    (records_dir / "run_summary.json").write_text(
+    training_metadata_path = output_dir.parent / "training_metadata.json"
+    training_metadata_path.write_text(
         json.dumps(summary, ensure_ascii=False, indent=2, default=str) + "\n", encoding="utf-8"
     )
-    (records_dir / "output_manifest.json").write_text(
-        json.dumps(_adapter_manifest(output_dir), ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
-    for metric in trainer.state.log_history:
-        _append_jsonl(records_dir / "metrics.jsonl", {"timestamp": _now(), **metric})
+    if remote_managed:
+        for name, value, split in (
+            ("train_loss", result.metrics.get("train_loss"), "train"),
+            ("eval_loss", summary["eval_metrics"].get("eval_loss"), "validation"),
+        ):
+            if isinstance(value, (int, float)):
+                print(
+                    "METRIC_JSON:"
+                    + json.dumps(
+                        {"name": name, "value": float(value), "split": split},
+                        ensure_ascii=False,
+                    ),
+                    flush=True,
+                )
+    else:
+        (records_dir / "run_summary.json").write_text(
+            json.dumps(summary, ensure_ascii=False, indent=2, default=str) + "\n",
+            encoding="utf-8",
+        )
+        (records_dir / "output_manifest.json").write_text(
+            json.dumps(_adapter_manifest(output_dir), ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        for metric in trainer.state.log_history:
+            _append_jsonl(records_dir / "metrics.jsonl", {"timestamp": _now(), **metric})
     disk = shutil.disk_usage(run_dir)
     _append_jsonl(
         records_dir / "resource_usage.jsonl",
@@ -359,12 +396,13 @@ def train(
             "disk_total_bytes": disk.total,
         },
     )
-    _set_status(
-        records_dir,
-        "completed-technical",
-        train_loss=result.metrics.get("train_loss"),
-        eval_loss=summary["eval_metrics"].get("eval_loss"),
-    )
+    if not remote_managed:
+        _set_status(
+            records_dir,
+            "completed-technical",
+            train_loss=result.metrics.get("train_loss"),
+            eval_loss=summary["eval_metrics"].get("eval_loss"),
+        )
     return summary
 
 
@@ -373,8 +411,9 @@ def _record_cli_failure(
 ) -> None:
     if not run_id:
         return
-    records = _resolve_path(str(config.get("output_root", "")), config_path) / run_id / "records"
-    if records.exists():
+    run_dir, _, remote_managed = resolve_run_layout(config, config_path, run_id)
+    records = run_dir / "records"
+    if records.exists() and not remote_managed:
         _set_status(records, "failed", error_type=type(exc).__name__, error=str(exc))
 
 
