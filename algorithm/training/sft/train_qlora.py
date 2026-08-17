@@ -11,6 +11,7 @@ import hashlib
 import json
 import os
 import platform
+import shutil
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -335,6 +336,7 @@ def train(
             "output_dir": str(output_dir),
             "train_metrics": result.metrics,
             "eval_metrics": trainer.evaluate(),
+            "effective_train_rows": len(train_dataset),
         }
     )
     (records_dir / "run_summary.json").write_text(
@@ -346,6 +348,17 @@ def train(
     )
     for metric in trainer.state.log_history:
         _append_jsonl(records_dir / "metrics.jsonl", {"timestamp": _now(), **metric})
+    disk = shutil.disk_usage(run_dir)
+    _append_jsonl(
+        records_dir / "resource_usage.jsonl",
+        {
+            "timestamp": _now(),
+            "event": "training_completed",
+            "gpu_peak_memory_bytes": int(torch.cuda.max_memory_allocated()),
+            "disk_free_bytes": disk.free,
+            "disk_total_bytes": disk.total,
+        },
+    )
     _set_status(
         records_dir,
         "completed-technical",

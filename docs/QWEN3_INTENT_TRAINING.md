@@ -71,6 +71,22 @@ python -m algorithm.training.sft.train_qlora \
 烟雾训练通过后，使用新的 `full-800-seed42-v1` 运行 ID，省略 `--row-limit` 创建正式运行。
 运行目录必须保留命令、环境、GPU、状态、事件、指标、输出清单、Adapter 和校验和。
 
+训练进程结束不等于验收通过。必须在新的 Python 进程中重新加载底座和 Adapter，完成一次结构化生成：
+
+```bash
+python -m algorithm.training.verify_adapter_reload \
+  --base-model Qwen/Qwen3-4B \
+  --adapter research_state/experiments/intent_qwen3_4b_20260817/runs/smoke-50-seed42-v1/adapter \
+  --output research_state/experiments/intent_qwen3_4b_20260817/runs/smoke-50-seed42-v1/records/adapter_reload_report.json
+
+python -m algorithm.training.verify_experiment_run \
+  research_state/experiments/intent_qwen3_4b_20260817/runs/smoke-50-seed42-v1 \
+  --require-adapter-reload
+```
+
+运行验证器检查状态终点、数据身份、有限指标、日志完整性、Adapter 文件大小与 SHA-256、
+新进程重载报告。任一检查失败都不能把运行标记为成功。
+
 ## 公平评测
 
 原始底座和 Adapter 必须使用相同入口、提示和确定性解码：
