@@ -108,6 +108,7 @@ def build_bundle(
             f"synthetic_preferences_included={include_synthetic_preferences}",
             "seed_eval fixtures are maintained outside the training bundle",
             "split_strategy=deterministic_whole_user_nearest_80_10_10",
+            "legacy synthetic rows lack template-family isolation and are not training eligible",
         ],
     )
     manifest.write_json(str(output_dir / "bundle.manifest.json"))

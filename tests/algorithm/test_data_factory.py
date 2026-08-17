@@ -17,21 +17,21 @@ def test_synthetic_factory_is_explicit_and_reproducible():
     assert len(build_synthetic_preference_pairs(first)) == 12
 
 
-def test_bundle_builds_all_task_datasets(tmp_path):
+def test_legacy_synthetic_bundle_is_not_sft_or_tool_training_eligible(tmp_path):
     output_dir = tmp_path / "bundle"
     report = build_bundle(None, output_dir, synthetic_count=18, seed=11)
     assert report["validation"]["error_count"] == 0
     counts = report["manifest"]["row_counts"]
     assert counts["training_examples"] == 18
-    assert counts["sft"] == report["manifest"]["split_counts"]["train"]
-    assert 0 < counts["sft"] < counts["training_examples"]
-    assert counts["tool_decisions"] == 18
+    assert counts["sft"] == 0
+    assert counts["tool_decisions"] == 0
     assert counts["safety"] == 3
     assert counts["preference_pairs"] == 0
     assert report["manifest"]["eligibility_counts"]["dpo_human_reviewed"] == 0
     assert report["manifest"]["eligibility_counts"]["seed_eval_training_rows"] == 0
     manifest = json.loads((output_dir / "bundle.manifest.json").read_text(encoding="utf-8"))
     assert manifest["source_counts"] == {"synthetic": 18}
+    assert any("not training eligible" in note for note in manifest["notes"])
 
 
 def test_synthetic_preferences_are_explicit_opt_in(tmp_path):

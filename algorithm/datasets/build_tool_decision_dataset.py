@@ -12,8 +12,14 @@ from algorithm.data.validate_dataset import read_jsonl
 def build_tool_decision_rows(rows: list[dict]) -> list[dict]:
     result: list[dict] = []
     for row in rows:
+        if row.get("training_eligible") is not True:
+            continue
         trace = row.get("tool_trace") or []
-        names = [str(item.get("tool_name") or item.get("name")) for item in trace if isinstance(item, dict)]
+        names = [
+            str(item.get("tool_name") or item.get("name"))
+            for item in trace
+            if isinstance(item, dict)
+        ]
         names = [name for name in names if name and name != "None"]
         if not names and not row.get("intent_label"):
             continue
@@ -26,7 +32,8 @@ def build_tool_decision_rows(rows: list[dict]) -> list[dict]:
                 "risk_level": row.get("risk_label") or "low",
                 "selected_tools": sorted(set(names)),
                 "tool_sequence": names,
-                "plan_valid": bool(names) and not bool((row.get("guardrail_result") or {}).get("error")),
+                "plan_valid": bool(names)
+                and not bool((row.get("guardrail_result") or {}).get("error")),
                 "source": row.get("source", "unknown"),
                 "split": row.get("split", "quarantine"),
             }
