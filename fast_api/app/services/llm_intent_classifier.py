@@ -49,12 +49,31 @@ class LLMIntentClassifier:
         rule_decision: IntentDecision,
         profile: Any | None = None,
     ) -> IntentDecision:
+        decision, _ = await self.refine_with_trace(message, rule_decision, profile=profile)
+        return decision
+
+    async def refine_with_trace(
+        self,
+        message: str,
+        rule_decision: IntentDecision,
+        profile: Any | None = None,
+    ) -> tuple[IntentDecision, dict[str, Any]]:
+        """Refine once and expose trustworthy invocation/fallback provenance."""
+
         if not self.should_refine(rule_decision, message):
-            return rule_decision
+            return rule_decision, {
+                "attempted": False,
+                "succeeded": False,
+                "fallback_reason": "refinement_not_required",
+            }
 
         model = self.model_provider.chat_model(temperature=0.0)
         if model is None:
-            return rule_decision
+            return rule_decision, {
+                "attempted": False,
+                "succeeded": False,
+                "fallback_reason": "model_unavailable_or_quota_exhausted",
+            }
 
         try:
             response = await model.ainvoke(
@@ -66,11 +85,23 @@ class LLMIntentClassifier:
             payload = self._parse_json(str(response.content))
         except Exception as exc:
             logger.warning("LLM intent classifier failed, using rule intent: %s", exc)
-            return rule_decision
+            return rule_decision, {
+                "attempted": True,
+                "succeeded": False,
+                "fallback_reason": f"model_call_failed:{type(exc).__name__}",
+            }
 
         if not payload:
-            return rule_decision
-        return self._merge_with_rule_decision(payload, rule_decision)
+            return rule_decision, {
+                "attempted": True,
+                "succeeded": False,
+                "fallback_reason": "invalid_model_payload",
+            }
+        return self._merge_with_rule_decision(payload, rule_decision), {
+            "attempted": True,
+            "succeeded": True,
+            "fallback_reason": None,
+        }
 
     def _merge_with_rule_decision(
         self,
@@ -90,13 +121,18 @@ class LLMIntentClassifier:
         secondary = [intent for intent in secondary if intent != primary]
 
         # Never let the LLM demote a rule-detected safety turn.
-        if rule_decision.primary_intent == "injury_or_risk" or "injury_or_risk" in rule_decision.secondary_intents:
+        if (
+            rule_decision.primary_intent == "injury_or_risk"
+            or "injury_or_risk" in rule_decision.secondary_intents
+        ):
             if primary != "injury_or_risk":
                 secondary = self.intent_router._dedupe([primary] + secondary)
                 primary = "injury_or_risk"
                 secondary = [intent for intent in secondary if intent != primary]
 
-        risk_level = self._max_risk(rule_decision.risk_level, str(payload.get("risk_level") or "low"))
+        risk_level = self._max_risk(
+            rule_decision.risk_level, str(payload.get("risk_level") or "low")
+        )
         entities = {**rule_decision.entities}
         if isinstance(payload.get("entities"), dict):
             entities.update(payload["entities"])
@@ -105,8 +141,12 @@ class LLMIntentClassifier:
             rule_decision.missing_slots
             + [str(slot) for slot in payload.get("missing_slots", []) if str(slot).strip()]
         )
-        needs_clarification = bool(payload.get("needs_clarification")) or rule_decision.needs_clarification
-        allowed_actions = self.intent_router._allowed_actions(primary, secondary, risk_level, needs_clarification)
+        needs_clarification = (
+            bool(payload.get("needs_clarification")) or rule_decision.needs_clarification
+        )
+        allowed_actions = self.intent_router._allowed_actions(
+            primary, secondary, risk_level, needs_clarification
+        )
         task_plan = self.intent_router._build_task_plan(
             primary,
             secondary,

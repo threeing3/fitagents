@@ -92,6 +92,7 @@ def make_builder():
 
 # ---- Original tests ----
 
+
 def test_intent_router_classifies_core_fitness_intents():
     router = IntentRouter()
 
@@ -119,6 +120,35 @@ def test_context_builder_training_intent_does_not_load_nutrition_history():
     assert packet["knowledge_context"]["debug"]["matched_rule_ids"] == ["rule-test"]
 
 
+def test_context_builder_reuses_supplied_v2_decision_without_reclassification():
+    builder = make_builder()
+
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("intent must not be classified twice")
+
+    builder.intent_router.analyze = fail_if_called
+    packet = builder.build_context_packet(
+        uuid4(),
+        "这条消息不应被重新分析",
+        intent_decision={
+            "schema_version": "intent_decision_v2",
+            "primary_intent": "recovery_check",
+            "secondary_intents": [],
+            "risk": {"level": "low", "evidence": [], "rule_detected": False},
+            "entities": {},
+            "missing_slots": [],
+            "needs_clarification": False,
+            "allowed_actions": {"allow_plan_content": True, "generate_plan": False},
+            "task_plan": [],
+            "confidence": {"overall": 0.91},
+            "reason": "supplied once",
+        },
+    )
+
+    assert packet["intent"] == "recovery_check"
+    assert packet["intent_decision"]["confidence"] == 0.91
+
+
 def test_context_builder_includes_session_summary_when_session_id_is_present():
     builder = make_builder()
     session_id = uuid4()
@@ -144,7 +174,9 @@ def test_context_builder_risk_intent_loads_risk_and_symptoms():
 def test_context_builder_training_plan_uses_broad_memory_recall():
     builder = make_builder()
 
-    packet = builder.build_context_packet(uuid4(), "Build me a training plan", intent="training_plan")
+    packet = builder.build_context_packet(
+        uuid4(), "Build me a training plan", intent="training_plan"
+    )
 
     assert ("memories", None) in builder.retrieval.calls
     assert packet["retrieval_debug"]["memory_category_filter"] is None
@@ -180,11 +212,18 @@ def test_context_builder_uses_memory_planner_for_outcome_experience():
     builder.knowledge = FakeKnowledge()
     builder.memory_planner = MemoryPlanner()
 
-    packet = builder.build_context_packet(uuid4(), "Build me a training plan while fatigued", intent="training_plan")
+    packet = builder.build_context_packet(
+        uuid4(), "Build me a training plan while fatigued", intent="training_plan"
+    )
 
     assert packet["experience_memories"][0]["fact_kind"] == "strategy_experience"
-    assert packet["strategy_memory_guidance"]["successful_strategies"][0]["fact_kind"] == "strategy_experience"
-    assert packet["strategy_memory_guidance"]["failed_strategies"][0]["fact_kind"] == "failed_strategy"
+    assert (
+        packet["strategy_memory_guidance"]["successful_strategies"][0]["fact_kind"]
+        == "strategy_experience"
+    )
+    assert (
+        packet["strategy_memory_guidance"]["failed_strategies"][0]["fact_kind"] == "failed_strategy"
+    )
     assert "avoid repeating" in packet["strategy_memory_guidance"]["failed_strategies"][0]["usage"]
     labels = dict(builder.retrieval.calls)["planned_memories"]
     assert "successful_strategies" in labels
@@ -233,6 +272,7 @@ def test_context_builder_passes_current_state_to_strategy_retrieval():
 
 # ---- Expanded tests: Intent classification accuracy ----
 
+
 def test_intent_router_classifies_all_eight_intents():
     router = IntentRouter()
     cases = [
@@ -246,7 +286,9 @@ def test_intent_router_classifies_all_eight_intents():
         ("今天天气不错", "general_chat"),
     ]
     for message, expected in cases:
-        assert router.classify(message) == expected, f"Failed: {message} -> expected {expected}, got {router.classify(message)}"
+        assert router.classify(message) == expected, (
+            f"Failed: {message} -> expected {expected}, got {router.classify(message)}"
+        )
 
 
 def test_intent_router_risk_takes_priority_over_other_intents():
@@ -308,6 +350,7 @@ def test_intent_router_recognizes_recovery_variations():
 
 # ---- Expanded tests: Exercise name extraction ----
 
+
 def test_context_builder_extracts_bench_press_from_chinese():
     builder = make_builder()
     name = builder._extract_exercise_name("卧推最近做得怎么样？")
@@ -333,6 +376,7 @@ def test_context_builder_returns_none_for_unrecognized_exercise():
 
 
 # ---- Expanded tests: Context packet completeness ----
+
 
 def test_context_builder_general_chat_loads_minimal_context():
     builder = make_builder()
@@ -385,11 +429,20 @@ def test_context_builder_budget_keeps_risk_profile_rules_and_world_before_opinio
 
         def search_relevant_memories(self, user_id, query, top_k=6, category=None):
             world = [
-                {"id": f"world-{index}", "memory_network": "world", "summary": f"world fact {index}"}
+                {
+                    "id": f"world-{index}",
+                    "memory_network": "world",
+                    "summary": f"world fact {index}",
+                }
                 for index in range(8)
             ]
             opinion = [
-                {"id": f"opinion-{index}", "memory_network": "opinion", "summary": f"opinion {index}", "evidence": []}
+                {
+                    "id": f"opinion-{index}",
+                    "memory_network": "opinion",
+                    "summary": f"opinion {index}",
+                    "evidence": [],
+                }
                 for index in range(8)
             ]
             return [*opinion, *world]
@@ -402,7 +455,10 @@ def test_context_builder_budget_keeps_risk_profile_rules_and_world_before_opinio
                 "explanation_knowledge": [{"knowledge_id": f"k-{index}"} for index in range(9)],
                 "plan_templates": [{"template_id": f"tpl-{index}"} for index in range(5)],
                 "coaching_cases": [{"case_id": f"case-{index}"} for index in range(5)],
-                "debug": {"intent": intent, "matched_rule_ids": [f"rule-{index}" for index in range(7)]},
+                "debug": {
+                    "intent": intent,
+                    "matched_rule_ids": [f"rule-{index}" for index in range(7)],
+                },
             }
 
     builder = ContextBuilder.__new__(ContextBuilder)
@@ -410,7 +466,9 @@ def test_context_builder_budget_keeps_risk_profile_rules_and_world_before_opinio
     builder.retrieval = BudgetRetrieval()
     builder.knowledge = BudgetKnowledge()
 
-    packet = builder.build_context_packet(uuid4(), "chest tightness during training", intent="injury_or_risk")
+    packet = builder.build_context_packet(
+        uuid4(), "chest tightness during training", intent="injury_or_risk"
+    )
 
     assert packet["core_profile"]["goal"] == "fat_loss"
     assert packet["active_risk_notes"][0]["risk_type"] == "chest_tightness"
@@ -420,6 +478,11 @@ def test_context_builder_budget_keeps_risk_profile_rules_and_world_before_opinio
     assert [memory["memory_network"] for memory in packet["relevant_memories"][:4]] == ["world"] * 4
     assert packet["retrieval_debug"]["dropped_candidates"]["opinion_memories"]["dropped_count"] == 6
     assert packet["retrieval_debug"]["dropped_candidates"]["world_memories"]["dropped_count"] == 4
-    assert packet["retrieval_debug"]["dropped_candidates"]["knowledge_context"]["explanation_knowledge"]["dropped_count"] == 7
+    assert (
+        packet["retrieval_debug"]["dropped_candidates"]["knowledge_context"][
+            "explanation_knowledge"
+        ]["dropped_count"]
+        == 7
+    )
     assert "active_risk_notes=1" in packet["context_summary"]
     assert "knowledge_context.decision_rules=7" in packet["context_summary"]

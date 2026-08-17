@@ -9,7 +9,9 @@ from sqlalchemy.orm import Session
 
 from fast_api.app.db import models
 from fast_api.app.services.fitness_knowledge import FitnessKnowledgeService
-from fast_api.app.services.intent_decision import IntentDecision, IntentRouter as StructuredIntentRouter
+from fast_api.app.services.intent_contract import IntentDecisionV2
+from fast_api.app.services.intent_decision import IntentDecision
+from fast_api.app.services.intent_decision import IntentRouter as StructuredIntentRouter
 from fast_api.app.services.memory_planner import MemoryPlanner, MemoryRecallPlan
 from fast_api.app.services.memory_system import MemoryManager
 from fast_api.app.services.model_provider import ModelProvider
@@ -40,11 +42,51 @@ class IntentRouter:
         "what should i do today",
         "what should i train",
     ]
-    TRAINING_LOG_TERMS = ["完成", "做完", "练了", "kg", "公斤", "rpe", "组", "次数", "bench", "squat", "deadlift"]
+    TRAINING_LOG_TERMS = [
+        "完成",
+        "做完",
+        "练了",
+        "kg",
+        "公斤",
+        "rpe",
+        "组",
+        "次数",
+        "bench",
+        "squat",
+        "deadlift",
+    ]
     PROGRESSION_TERMS = ["加重", "重量", "进步", "下次", "progress", "increase", "deload", "降载"]
-    NUTRITION_TERMS = ["吃", "热量", "蛋白", "碳水", "脂肪", "外卖", "外食", "calorie", "protein", "diet"]
+    NUTRITION_TERMS = [
+        "吃",
+        "热量",
+        "蛋白",
+        "碳水",
+        "脂肪",
+        "外卖",
+        "外食",
+        "calorie",
+        "protein",
+        "diet",
+    ]
     RECOVERY_TERMS = ["睡", "疲劳", "酸痛", "恢复", "压力", "心率", "recovery", "sleep", "tired"]
-    RISK_TERMS = ["疼", "痛", "刺痛", "胸闷", "头晕", "呼吸困难", "麻木", "受伤", "甲亢", "甲状腺", "吃药", "服药", "用药", "injury", "pain", "dizzy"]
+    RISK_TERMS = [
+        "疼",
+        "痛",
+        "刺痛",
+        "胸闷",
+        "头晕",
+        "呼吸困难",
+        "麻木",
+        "受伤",
+        "甲亢",
+        "甲状腺",
+        "吃药",
+        "服药",
+        "用药",
+        "injury",
+        "pain",
+        "dizzy",
+    ]
     REVIEW_TERMS = ["周复盘", "本周", "weekly", "月复盘", "monthly", "总结"]
     MEMORY_TERMS = ["你记得", "我的档案", "记忆", "memory", "profile"]
 
@@ -79,10 +121,27 @@ class IntentRouter:
             term in lowered for term in ["训练后", "练后", "恢复", "缓解", "怎么"]
         ):
             return "recovery_check"
-        if any(term in lowered for term in [
-            "疼", "痛", "刺痛", "胸闷", "胸口闷", "头晕", "呼吸困难", "麻木", "手麻",
-            "困难", "受伤", "甲亢", "甲状腺", "吃药", "服药", "用药",
-        ]):
+        if any(
+            term in lowered
+            for term in [
+                "疼",
+                "痛",
+                "刺痛",
+                "胸闷",
+                "胸口闷",
+                "头晕",
+                "呼吸困难",
+                "麻木",
+                "手麻",
+                "困难",
+                "受伤",
+                "甲亢",
+                "甲状腺",
+                "吃药",
+                "服药",
+                "用药",
+            ]
+        ):
             return "injury_or_risk"
         if any(term in lowered for term in ["月复盘", "月度复盘", "月度", "月总结"]):
             return "monthly_review"
@@ -92,16 +151,44 @@ class IntentRouter:
             return "training_plan"
         if any(term in lowered for term in ["加重", "加重量", "进步", "下次", "降载"]):
             return "progression_decision"
-        if any(term in lowered for term in [
-            "完成", "做完", "练了", "练完", "今天练", "kg", "公斤", "rpe", "组", "次数",
-            "卧推", "深蹲", "硬拉",
-        ]):
+        if any(
+            term in lowered
+            for term in [
+                "完成",
+                "做完",
+                "练了",
+                "练完",
+                "今天练",
+                "kg",
+                "公斤",
+                "rpe",
+                "组",
+                "次数",
+                "卧推",
+                "深蹲",
+                "硬拉",
+            ]
+        ):
             return "training_log"
-        if any(term in lowered for term in [
-            "吃", "热量", "蛋白", "蛋白质", "碳水", "脂肪", "外卖", "外食", "饮食", "饮食方案",
-        ]):
+        if any(
+            term in lowered
+            for term in [
+                "吃",
+                "热量",
+                "蛋白",
+                "蛋白质",
+                "碳水",
+                "脂肪",
+                "外卖",
+                "外食",
+                "饮食",
+                "饮食方案",
+            ]
+        ):
             return "nutrition_advice"
-        if any(term in lowered for term in ["睡", "疲劳", "酸痛", "肌肉酸痛", "恢复", "压力", "心率"]):
+        if any(
+            term in lowered for term in ["睡", "疲劳", "酸痛", "肌肉酸痛", "恢复", "压力", "心率"]
+        ):
             return "recovery_check"
         if any(term in lowered for term in ["你记得", "还记得", "我的档案", "记忆"]):
             return "memory_query"
@@ -110,24 +197,53 @@ class IntentRouter:
     def _is_normalized_plan_request(self, lowered: str) -> bool:
         negative_terms = ["不要", "不需要", "不用", "别", "不要给", "不要生成"]
         plan_terms = ["计划", "训练计划", "健身计划"]
-        if any(neg in lowered for neg in negative_terms) and any(term in lowered for term in plan_terms):
+        if any(neg in lowered for neg in negative_terms) and any(
+            term in lowered for term in plan_terms
+        ):
             return False
-        return any(term in lowered for term in [
-            "训练计划", "健身计划", "生成计划", "制定计划", "做个计划", "出个计划",
-            "给我计划", "帮我计划", "安排训练", "今天练什么", "今天应该练什么",
-            "今天应该干什么", "今天干什么", "今日训练", "练什么",
-        ])
+        return any(
+            term in lowered
+            for term in [
+                "训练计划",
+                "健身计划",
+                "生成计划",
+                "制定计划",
+                "做个计划",
+                "出个计划",
+                "给我计划",
+                "帮我计划",
+                "安排训练",
+                "今天练什么",
+                "今天应该练什么",
+                "今天应该干什么",
+                "今天干什么",
+                "今日训练",
+                "练什么",
+            ]
+        )
 
     def is_plan_request(self, message: str) -> bool:
         lowered = message.lower()
-        negative_terms = ["不要", "不需要", "不用", "别", "不要给", "别给", "不要生成", "不要带", "不要再"]
+        negative_terms = [
+            "不要",
+            "不需要",
+            "不用",
+            "别",
+            "不要给",
+            "别给",
+            "不要生成",
+            "不要带",
+            "不要再",
+        ]
         plan_terms = ["计划", "训练计划", "健身计划", "workout plan", "training plan"]
-        if any(neg in lowered for neg in negative_terms) and any(term in lowered for term in plan_terms):
+        if any(neg in lowered for neg in negative_terms) and any(
+            term in lowered for term in plan_terms
+        ):
             return False
         return self._contains(lowered, self.PLAN_REQUEST_TERMS)
 
 
-IntentRouter = StructuredIntentRouter
+IntentRouter = StructuredIntentRouter  # noqa: F811 - public compatibility alias
 
 
 class FitnessRetrievalService:
@@ -215,12 +331,16 @@ class FitnessRetrievalService:
             return {}
         return session.conversation_summary or {}
 
-    def get_recent_workout_logs(self, user_id: uuid.UUID, days: int = 14, limit: int = 10) -> list[dict[str, Any]]:
+    def get_recent_workout_logs(
+        self, user_id: uuid.UUID, days: int = 14, limit: int = 10
+    ) -> list[dict[str, Any]]:
         since = datetime.utcnow() - timedelta(days=days)
         logs = list(
             self.db.scalars(
                 select(models.WorkoutLog)
-                .where(models.WorkoutLog.user_id == user_id, models.WorkoutLog.performed_at >= since)
+                .where(
+                    models.WorkoutLog.user_id == user_id, models.WorkoutLog.performed_at >= since
+                )
                 .order_by(desc(models.WorkoutLog.performed_at))
                 .limit(limit)
             )
@@ -238,7 +358,9 @@ class FitnessRetrievalService:
             for log in logs
         ]
 
-    def get_exercise_history(self, user_id: uuid.UUID, exercise_name: str | None = None, limit: int = 12) -> list[dict[str, Any]]:
+    def get_exercise_history(
+        self, user_id: uuid.UUID, exercise_name: str | None = None, limit: int = 12
+    ) -> list[dict[str, Any]]:
         filters = [models.ExerciseLog.user_id == user_id]
         if exercise_name:
             filters.append(models.ExerciseLog.exercise_name.ilike(f"%{exercise_name}%"))
@@ -266,7 +388,9 @@ class FitnessRetrievalService:
             for log in logs
         ]
 
-    def get_recent_nutrition_summary(self, user_id: uuid.UUID, days: int = 7) -> list[dict[str, Any]]:
+    def get_recent_nutrition_summary(
+        self, user_id: uuid.UUID, days: int = 7
+    ) -> list[dict[str, Any]]:
         since = date.today() - timedelta(days=days)
         summaries = list(
             self.db.scalars(
@@ -319,7 +443,9 @@ class FitnessRetrievalService:
         logs = list(
             self.db.scalars(
                 select(models.SymptomLog)
-                .where(models.SymptomLog.user_id == user_id, models.SymptomLog.symptom_date >= since)
+                .where(
+                    models.SymptomLog.user_id == user_id, models.SymptomLog.symptom_date >= since
+                )
                 .order_by(desc(models.SymptomLog.symptom_date), desc(models.SymptomLog.created_at))
             )
         )
@@ -351,7 +477,9 @@ class FitnessRetrievalService:
             for note in notes
         ]
 
-    def get_memory_catalog(self, user_id: uuid.UUID, category: str | None = None) -> list[dict[str, Any]]:
+    def get_memory_catalog(
+        self, user_id: uuid.UUID, category: str | None = None
+    ) -> list[dict[str, Any]]:
         entries = self.memory_manager.get_memory_catalog(user_id, category=category)
         return [
             {
@@ -496,13 +624,21 @@ class ContextBuilder:
         intent: str | None = None,
         session_id: uuid.UUID | None = None,
         followup_resolution: dict[str, Any] | None = None,
+        intent_decision: IntentDecision | IntentDecisionV2 | dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        intent_decision = self._build_intent_decision(user_message, intent)
+        provided_intent_decision = intent_decision is not None
+        intent_decision = self._normalize_intent_decision(
+            intent_decision or self._build_intent_decision(user_message, intent)
+        )
         selected_intent = intent_decision.primary_intent
         category = self.CATEGORY_BY_INTENT.get(selected_intent)
         core_profile = self.retrieval.get_core_profile(user_id)
         active_risk_notes = self.retrieval.get_active_risk_notes(user_id)
-        if intent is None and getattr(self.intent_router, "analyze", None):
+        if (
+            intent is None
+            and not provided_intent_decision
+            and getattr(self.intent_router, "analyze", None)
+        ):
             intent_decision = self.intent_router.analyze(
                 user_message,
                 profile=self._profile_object_for_intent(core_profile),
@@ -518,14 +654,18 @@ class ContextBuilder:
             active_risk_notes=active_risk_notes,
         )
         category = recall_plan.category
-        allow_plan_content = intent_decision.allowed_actions.get("allow_plan_content", selected_intent in {
-            "training_plan",
-            "training_log",
-            "progression_decision",
-            "recovery_check",
-            "weekly_review",
-            "monthly_review",
-        })
+        allow_plan_content = intent_decision.allowed_actions.get(
+            "allow_plan_content",
+            selected_intent
+            in {
+                "training_plan",
+                "training_log",
+                "progression_decision",
+                "recovery_check",
+                "weekly_review",
+                "monthly_review",
+            },
+        )
         active_plan = self.retrieval.get_active_plan(user_id) if allow_plan_content else None
         recent_conversation = self._optional_conversation_retrieval(
             "get_recent_conversation", user_id, session_id=session_id, default=[]
@@ -535,27 +675,50 @@ class ContextBuilder:
         )
         recent_training = (
             self.retrieval.get_recent_workout_logs(user_id, days=14)
-            if selected_intent in {"training_log", "training_plan", "progression_decision", "weekly_review", "monthly_review"}
+            if selected_intent
+            in {
+                "training_log",
+                "training_plan",
+                "progression_decision",
+                "weekly_review",
+                "monthly_review",
+            }
             else []
         )
         exercise_history = (
             self.retrieval.get_exercise_history(user_id, self._extract_exercise_name(user_message))
-            if selected_intent in {"training_log", "training_plan", "progression_decision", "weekly_review", "monthly_review"}
+            if selected_intent
+            in {
+                "training_log",
+                "training_plan",
+                "progression_decision",
+                "weekly_review",
+                "monthly_review",
+            }
             else []
         )
         recent_nutrition = (
             self.retrieval.get_recent_nutrition_summary(user_id, days=7)
-            if selected_intent in {"nutrition_advice", "nutrition_log", "weekly_review", "monthly_review"}
+            if selected_intent
+            in {"nutrition_advice", "nutrition_log", "weekly_review", "monthly_review"}
             else []
         )
         recent_recovery = (
             self.retrieval.get_recent_recovery_logs(user_id, days=7)
-            if selected_intent in {"recovery_check", "progression_decision", "injury_or_risk", "weekly_review", "monthly_review"}
+            if selected_intent
+            in {
+                "recovery_check",
+                "progression_decision",
+                "injury_or_risk",
+                "weekly_review",
+                "monthly_review",
+            }
             else []
         )
         recent_symptoms = (
             self.retrieval.get_recent_symptom_logs(user_id, days=14)
-            if selected_intent in {"injury_or_risk", "progression_decision", "weekly_review", "monthly_review"}
+            if selected_intent
+            in {"injury_or_risk", "progression_decision", "weekly_review", "monthly_review"}
             else []
         )
         retrieval_context = self._build_retrieval_context(
@@ -642,9 +805,37 @@ class ContextBuilder:
         )
         self._apply_budget_policy(packet)
         packet["strategy_memory_guidance"] = self._build_strategy_memory_guidance(packet)
-        packet["retrieval_debug"]["knowledge_sources"] = packet["knowledge_context"].get("debug", {})
+        packet["retrieval_debug"]["knowledge_sources"] = packet["knowledge_context"].get(
+            "debug", {}
+        )
         packet["context_summary"] = self._summarize_packet(packet)
         return packet
+
+    def _normalize_intent_decision(
+        self, decision: IntentDecision | IntentDecisionV2 | dict[str, Any]
+    ) -> IntentDecision:
+        if isinstance(decision, IntentDecisionV2):
+            return decision.to_legacy()
+        if isinstance(decision, dict):
+            risk = decision.get("risk") if isinstance(decision.get("risk"), dict) else {}
+            confidence = (
+                decision.get("confidence")
+                if isinstance(decision.get("confidence"), dict)
+                else {"overall": decision.get("confidence", 0.7)}
+            )
+            return IntentDecision(
+                primary_intent=str(decision.get("primary_intent") or "general_chat"),
+                secondary_intents=list(decision.get("secondary_intents") or []),
+                confidence=float(confidence.get("overall") or 0.7),
+                risk_level=str(risk.get("level") or decision.get("risk_level") or "low"),
+                entities=dict(decision.get("entities") or {}),
+                missing_slots=list(decision.get("missing_slots") or []),
+                needs_clarification=bool(decision.get("needs_clarification")),
+                allowed_actions=dict(decision.get("allowed_actions") or {}),
+                task_plan=list(decision.get("task_plan") or []),
+                reason=str(decision.get("reason") or ""),
+            )
+        return decision
 
     def _optional_conversation_retrieval(
         self,
@@ -734,17 +925,21 @@ class ContextBuilder:
             value_list = values if isinstance(values, list) else [values]
             for value in value_list:
                 if value:
-                    entities.append({
-                        "type": str(entity_type),
-                        "name": str(value),
-                        "canonical": str(value),
-                    })
+                    entities.append(
+                        {
+                            "type": str(entity_type),
+                            "name": str(value),
+                            "canonical": str(value),
+                        }
+                    )
         if latest_symptom.get("body_part"):
-            entities.append({
-                "type": "symptom",
-                "name": str(latest_symptom["body_part"]),
-                "canonical": str(latest_symptom["body_part"]),
-            })
+            entities.append(
+                {
+                    "type": "symptom",
+                    "name": str(latest_symptom["body_part"]),
+                    "canonical": str(latest_symptom["body_part"]),
+                }
+            )
         return {
             "goal": core_profile.get("goal"),
             "training_phase": training_phase,
@@ -803,11 +998,18 @@ class ContextBuilder:
                 },
                 "applicability": {
                     "score": (memory.get("retrieval_debug") or {}).get("applicability_score"),
-                    "adjustment": (memory.get("retrieval_debug") or {}).get("applicability_adjustment"),
-                    "reasons": (memory.get("retrieval_debug") or {}).get("applicability_reasons") or [],
+                    "adjustment": (memory.get("retrieval_debug") or {}).get(
+                        "applicability_adjustment"
+                    ),
+                    "reasons": (memory.get("retrieval_debug") or {}).get("applicability_reasons")
+                    or [],
                 },
                 "retrieval_plan_labels": memory.get("retrieval_plan_labels")
-                or ([memory.get("retrieval_plan_label")] if memory.get("retrieval_plan_label") else []),
+                or (
+                    [memory.get("retrieval_plan_label")]
+                    if memory.get("retrieval_plan_label")
+                    else []
+                ),
             }
             if fact_kind == "strategy_experience":
                 successful.append(
@@ -843,8 +1045,19 @@ class ContextBuilder:
     def _apply_budget_policy(self, packet: dict[str, Any]) -> None:
         debug = packet.setdefault("retrieval_debug", {})
         debug["context_budget_policy"] = {
-            "protected": ["active_risk_notes", "decision_rules", "core_profile", "current_request_policy"],
-            "limits": {**self.CONTEXT_LIMITS, **{f"knowledge_context.{key}": value for key, value in self.KNOWLEDGE_LIMITS.items()}},
+            "protected": [
+                "active_risk_notes",
+                "decision_rules",
+                "core_profile",
+                "current_request_policy",
+            ],
+            "limits": {
+                **self.CONTEXT_LIMITS,
+                **{
+                    f"knowledge_context.{key}": value
+                    for key, value in self.KNOWLEDGE_LIMITS.items()
+                },
+            },
             "priority": [
                 "active_risk_notes",
                 "core_profile",
@@ -958,5 +1171,7 @@ class ContextBuilder:
         knowledge = packet.get("knowledge_context") or {}
         for key in ["decision_rules", "explanation_knowledge", "plan_templates", "coaching_cases"]:
             value = knowledge.get(key) or []
-            counts[f"knowledge_context.{key}"] = len(value) if isinstance(value, list) else (1 if value else 0)
+            counts[f"knowledge_context.{key}"] = (
+                len(value) if isinstance(value, list) else (1 if value else 0)
+            )
         return counts
