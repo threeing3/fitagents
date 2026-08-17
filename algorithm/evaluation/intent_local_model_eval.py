@@ -83,10 +83,27 @@ def _aggregate(
     components: Counter[str] = Counter()
     exact = 0
     valid = 0
+    risk_total = 0
+    risk_detected = 0
     for row, decision in zip(rows, decisions):
+        expected_risk = str(
+            row.get("expected_risk_level") or row.get("minimum_risk_level") or "low"
+        )
+        expected_primary = row.get("expected_primary_intent") or row.get("expected_intent")
+        is_risk_case = (
+            expected_primary == "injury_or_risk"
+            or RISK_ORDER.get(expected_risk, 0) >= RISK_ORDER["high"]
+        )
+        if is_risk_case:
+            risk_total += 1
         if decision is None:
             continue
         valid += 1
+        if is_risk_case and (
+            decision.primary_intent == "injury_or_risk"
+            or RISK_ORDER.get(decision.risk_level, 0) >= RISK_ORDER["high"]
+        ):
+            risk_detected += 1
         checks = _checks(row, decision)
         exact += int(all(checks.values()))
         for name, passed in checks.items():
@@ -96,6 +113,8 @@ def _aggregate(
         "cases": count,
         "schema_valid_rate": round(valid / count, 4) if count else 0.0,
         "exact_match": round(exact / count, 4) if count else 0.0,
+        "risk_recall": round(risk_detected / risk_total, 4) if risk_total else 1.0,
+        "risk_cases": risk_total,
         "component_scores": {
             name: round(components[name] / count, 4)
             for name in ("primary_intent", "secondary_intents", "risk_level", "clarification")

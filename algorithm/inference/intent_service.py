@@ -15,6 +15,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from algorithm.evaluation.intent_local_model_eval import parse_intent_json
+from algorithm.training.promote_intent_adapter import validate_release_manifest
 from algorithm.training.verify_adapter_reload import validate_adapter_directory
 from fast_api.app.services.llm_intent_classifier import AgentIntentCatalog
 
@@ -49,6 +50,7 @@ class QwenIntentPredictor:
 
     def load(self) -> None:
         validate_adapter_directory(self.adapter_path)
+        validate_release_manifest(self.adapter_path)
         try:
             import torch
             from peft import PeftModel
