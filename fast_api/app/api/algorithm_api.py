@@ -33,6 +33,13 @@ CHALLENGE_REPORT_PATH = (
     / "reports"
     / "agent_challenge_v1.summary.json"
 )
+INTENT_RELEASE_REPORT_PATH = (
+    Path(__file__).resolve().parents[3]
+    / "algorithm"
+    / "evaluation"
+    / "reports"
+    / "intent_qwen3_4b_release.summary.json"
+)
 
 
 class AlgorithmCompareRequest(BaseModel):
@@ -45,12 +52,71 @@ def _report() -> dict:
     return json.loads(REPORT_PATH.read_text(encoding="utf-8"))
 
 
+def _intent_release() -> dict | None:
+    if not INTENT_RELEASE_REPORT_PATH.exists():
+        return None
+    report = json.loads(INTENT_RELEASE_REPORT_PATH.read_text(encoding="utf-8"))
+    if (
+        report.get("schema_version") != "fitagent-public-intent-release/v1"
+        or report.get("status") != "verified_offline"
+    ):
+        return None
+    dataset = report.get("dataset") if isinstance(report.get("dataset"), dict) else {}
+    metrics = report.get("metrics") if isinstance(report.get("metrics"), dict) else {}
+    evidence = (
+        report.get("evidence_sha256") if isinstance(report.get("evidence_sha256"), dict) else {}
+    )
+    claims = report.get("claims") if isinstance(report.get("claims"), dict) else {}
+    return {
+        "schema_version": report["schema_version"],
+        "experiment_id": report.get("experiment_id"),
+        "status": report["status"],
+        "base_model": report.get("base_model"),
+        "dataset": {key: dataset.get(key) for key in ("source", "training_eligible", "cases")},
+        "metrics": {
+            key: metrics.get(key)
+            for key in (
+                "base_exact_match",
+                "adapter_exact_match",
+                "adapter_schema_valid_rate",
+                "adapter_risk_recall",
+                "risk_cases",
+                "latency_ms",
+            )
+        },
+        "adapter_sha256": report.get("adapter_sha256"),
+        "evidence_sha256": {
+            key: evidence.get(key) for key in ("release_manifest", "base_report", "adapter_report")
+        },
+        "claims": {
+            key: claims.get(key)
+            for key in (
+                "offline_evaluation_verified",
+                "online_business_uplift",
+                "real_user_outcome",
+            )
+        },
+        "published_at": report.get("published_at"),
+    }
+
+
 @algorithm_router.get("/summary")
 def algorithm_summary() -> dict:
     """Return fixed, source-labelled evidence and never raw user examples."""
 
     report = _report()
     metrics = report["metrics"]
+    intent_release = _intent_release()
+    adapter_configured = bool(get_settings().adapter_inference_url)
+    adapter_status = (
+        "verified_service_configured"
+        if intent_release and adapter_configured
+        else "verified_offline"
+        if intent_release
+        else "configured_unverified"
+        if adapter_configured
+        else "not_trained"
+    )
     return {
         "release_stage": "maturity_03_algorithms",
         "disclaimer": (
@@ -157,14 +223,11 @@ def algorithm_summary() -> dict:
         "dpo": {"enabled": False, "minimum_reviewed_pairs": 150, "current_reviewed_pairs": 0},
         "intent_inference": {
             "architecture": "rules_then_qwen3_adapter_then_deepseek_fallback",
-            "adapter_status": (
-                "configured_unverified"
-                if get_settings().adapter_inference_url
-                else "not_configured"
-            ),
+            "adapter_status": adapter_status,
             "adapter_model": "Qwen3-4B-QLoRA",
             "safety_authority": "deterministic_rules",
             "online_result_claimed": False,
+            "verified_release": intent_release,
         },
     }
 

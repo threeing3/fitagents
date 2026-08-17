@@ -139,10 +139,13 @@ def test_algorithm_summary_marks_fixed_and_simulated_evidence():
     )
     assert payload["retrieval"]["vector_status"] == "vector unavailable"
     assert payload["intent_inference"]["adapter_status"] in {
-        "not_configured",
+        "not_trained",
         "configured_unverified",
+        "verified_offline",
+        "verified_service_configured",
     }
     assert payload["intent_inference"]["online_result_claimed"] is False
+    assert payload["intent_inference"]["verified_release"] is None
 
     experiment = client.get("/v1/algorithm/experiments/maturity_03_algorithms_20260809")
     assert experiment.status_code == 200
