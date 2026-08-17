@@ -57,17 +57,24 @@ class LLMIntentClassifier:
         message: str,
         rule_decision: IntentDecision,
         profile: Any | None = None,
+        *,
+        force_refine: bool = False,
     ) -> tuple[IntentDecision, dict[str, Any]]:
         """Refine once and expose trustworthy invocation/fallback provenance."""
 
-        if not self.should_refine(rule_decision, message):
+        if not force_refine and not self.should_refine(rule_decision, message):
             return rule_decision, {
                 "attempted": False,
                 "succeeded": False,
                 "fallback_reason": "refinement_not_required",
             }
 
-        model = self.model_provider.chat_model(temperature=0.0)
+        intent_model = getattr(self.model_provider, "intent_model", None)
+        model = (
+            intent_model()
+            if callable(intent_model)
+            else self.model_provider.chat_model(temperature=0.0)
+        )
         if model is None:
             return rule_decision, {
                 "attempted": False,
@@ -97,10 +104,12 @@ class LLMIntentClassifier:
                 "succeeded": False,
                 "fallback_reason": "invalid_model_payload",
             }
+        usage = getattr(response, "usage_metadata", None)
         return self._merge_with_rule_decision(payload, rule_decision), {
             "attempted": True,
             "succeeded": True,
             "fallback_reason": None,
+            "usage": dict(usage) if isinstance(usage, dict) else {},
         }
 
     def _merge_with_rule_decision(

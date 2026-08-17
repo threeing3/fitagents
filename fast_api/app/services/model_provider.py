@@ -68,6 +68,27 @@ class ModelProvider:
             kwargs["base_url"] = self.settings.chat_base_url
         return ChatOpenAI(**kwargs)
 
+    def intent_model(self) -> ChatOpenAI | None:
+        """Return a bounded, non-thinking model client for structured intent decisions."""
+
+        if not self.settings.has_live_model_key or not self._reserve_live_call():
+            return None
+        kwargs = {
+            "model": self.settings.chat_model,
+            "temperature": 0.0,
+            "api_key": self.settings.chat_api_key,
+            "timeout": 45,
+            "max_retries": 0,
+            "max_tokens": 500,
+            "http_client": httpx.Client(trust_env=False, timeout=45),
+            "http_async_client": httpx.AsyncClient(trust_env=False, timeout=45),
+        }
+        if self.settings.chat_base_url:
+            kwargs["base_url"] = self.settings.chat_base_url
+        if self.settings.llm_provider == "deepseek":
+            kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
+        return ChatOpenAI(**kwargs)
+
     def embeddings_model(self) -> OpenAIEmbeddings | None:
         if not self.settings.has_live_embedding_key:
             return None
@@ -233,7 +254,9 @@ class ModelProvider:
                 )
                 await asyncio.sleep(delay)
         logger.error("stream_coach_reply failed after %d attempts: %s", max_retries + 1, last_exc)
-        raise last_exc
+        if last_exc is not None:
+            raise last_exc
+        raise RuntimeError("stream_coach_reply failed without a captured exception")
 
     def embed_text(self, text: str) -> list[float] | None:
         """Return a real provider embedding or ``None`` when vectors are unavailable.

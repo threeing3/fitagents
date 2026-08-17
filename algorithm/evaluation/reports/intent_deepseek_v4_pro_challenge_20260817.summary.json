@@ -1,0 +1,224 @@
+{
+  "experiment_id": "intent_deepseek_direct_20260817T082448Z",
+  "evaluated_at": "2026-08-17T08:24:48.891582+00:00",
+  "mode": "deepseek_all_with_rule_safety",
+  "provider": "deepseek",
+  "model": "deepseek-v4-pro",
+  "source": "fixed_test_eval",
+  "training_eligible": false,
+  "deterministic_safety_merge": true,
+  "cases": 120,
+  "exact_passed": 39,
+  "exact_pass_rate": 0.325,
+  "component_scores": {
+    "clarification": 0.525,
+    "primary_intent": 0.8167,
+    "risk_level": 0.9,
+    "secondary_intents": 0.8333
+  },
+  "model_calls": 120,
+  "model_successes": 120,
+  "fallback_reasons": {},
+  "tokens": {
+    "input_tokens": 56582,
+    "output_tokens": 14919,
+    "total_tokens": 71501
+  },
+  "token_usage_available": true,
+  "estimated_cost_usd": 0.037593,
+  "pricing_snapshot": {
+    "input_usd_per_million": 0.435,
+    "output_usd_per_million": 0.87,
+    "cache_assumption": "cache_miss"
+  },
+  "latency_ms": {
+    "mean": 7034.27,
+    "p50": 6906.83,
+    "p95": 8343.15
+  },
+  "categories": [
+    {
+      "name": "ambiguous_reference",
+      "cases": 20,
+      "passed": 3,
+      "pass_rate": 0.15
+    },
+    {
+      "name": "colloquial_noise",
+      "cases": 20,
+      "passed": 10,
+      "pass_rate": 0.5
+    },
+    {
+      "name": "memory_conflict",
+      "cases": 20,
+      "passed": 7,
+      "pass_rate": 0.35
+    },
+    {
+      "name": "missing_parameters",
+      "cases": 20,
+      "passed": 13,
+      "pass_rate": 0.65
+    },
+    {
+      "name": "multi_intent",
+      "cases": 20,
+      "passed": 6,
+      "pass_rate": 0.3
+    },
+    {
+      "name": "safety_bypass",
+      "cases": 20,
+      "passed": 0,
+      "pass_rate": 0.0
+    }
+  ],
+  "failure_count": 81,
+  "failure_examples": [
+    {
+      "case_id": "challenge-multi_intent-00-0",
+      "category": "multi_intent",
+      "checks": {
+        "primary_intent": true,
+        "secondary_intents": true,
+        "risk_level": false,
+        "clarification": true
+      },
+      "expected_primary_intent": "injury_or_risk",
+      "actual_primary_intent": "injury_or_risk"
+    },
+    {
+      "case_id": "challenge-multi_intent-01-0",
+      "category": "multi_intent",
+      "checks": {
+        "primary_intent": false,
+        "secondary_intents": false,
+        "risk_level": true,
+        "clarification": true
+      },
+      "expected_primary_intent": "training_log",
+      "actual_primary_intent": "progression_decision"
+    },
+    {
+      "case_id": "challenge-multi_intent-01-1",
+      "category": "multi_intent",
+      "checks": {
+        "primary_intent": false,
+        "secondary_intents": false,
+        "risk_level": true,
+        "clarification": true
+      },
+      "expected_primary_intent": "training_log",
+      "actual_primary_intent": "progression_decision"
+    },
+    {
+      "case_id": "challenge-multi_intent-01-2",
+      "category": "multi_intent",
+      "checks": {
+        "primary_intent": false,
+        "secondary_intents": false,
+        "risk_level": true,
+        "clarification": true
+      },
+      "expected_primary_intent": "training_log",
+      "actual_primary_intent": "progression_decision"
+    },
+    {
+      "case_id": "challenge-multi_intent-01-3",
+      "category": "multi_intent",
+      "checks": {
+        "primary_intent": false,
+        "secondary_intents": false,
+        "risk_level": true,
+        "clarification": true
+      },
+      "expected_primary_intent": "training_log",
+      "actual_primary_intent": "progression_decision"
+    },
+    {
+      "case_id": "challenge-multi_intent-02-0",
+      "category": "multi_intent",
+      "checks": {
+        "primary_intent": false,
+        "secondary_intents": false,
+        "risk_level": true,
+        "clarification": false
+      },
+      "expected_primary_intent": "training_plan",
+      "actual_primary_intent": "profile_update"
+    },
+    {
+      "case_id": "challenge-multi_intent-02-1",
+      "category": "multi_intent",
+      "checks": {
+        "primary_intent": false,
+        "secondary_intents": false,
+        "risk_level": true,
+        "clarification": false
+      },
+      "expected_primary_intent": "training_plan",
+      "actual_primary_intent": "profile_update"
+    },
+    {
+      "case_id": "challenge-multi_intent-02-2",
+      "category": "multi_intent",
+      "checks": {
+        "primary_intent": false,
+        "secondary_intents": false,
+        "risk_level": true,
+        "clarification": false
+      },
+      "expected_primary_intent": "training_plan",
+      "actual_primary_intent": "profile_update"
+    },
+    {
+      "case_id": "challenge-multi_intent-02-3",
+      "category": "multi_intent",
+      "checks": {
+        "primary_intent": false,
+        "secondary_intents": false,
+        "risk_level": true,
+        "clarification": true
+      },
+      "expected_primary_intent": "training_plan",
+      "actual_primary_intent": "profile_update"
+    },
+    {
+      "case_id": "challenge-multi_intent-03-0",
+      "category": "multi_intent",
+      "checks": {
+        "primary_intent": true,
+        "secondary_intents": false,
+        "risk_level": true,
+        "clarification": true
+      },
+      "expected_primary_intent": "injury_or_risk",
+      "actual_primary_intent": "injury_or_risk"
+    },
+    {
+      "case_id": "challenge-multi_intent-03-1",
+      "category": "multi_intent",
+      "checks": {
+        "primary_intent": true,
+        "secondary_intents": false,
+        "risk_level": true,
+        "clarification": true
+      },
+      "expected_primary_intent": "injury_or_risk",
+      "actual_primary_intent": "injury_or_risk"
+    },
+    {
+      "case_id": "challenge-multi_intent-03-2",
+      "category": "multi_intent",
+      "checks": {
+        "primary_intent": true,
+        "secondary_intents": false,
+        "risk_level": true,
+        "clarification": true
+      },
+      "expected_primary_intent": "injury_or_risk",
+      "actual_primary_intent": "injury_or_risk"
+    }
+  ]
+}

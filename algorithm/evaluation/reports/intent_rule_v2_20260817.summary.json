@@ -1,0 +1,104 @@
+{
+  "experiment_id": "intent_rule_only_20260817T080945Z",
+  "evaluated_at": "2026-08-17T08:09:45.145576+00:00",
+  "mode": "rule_only",
+  "provider": "none",
+  "model": "intent_rules_v2",
+  "source": "fixed_test_eval",
+  "training_eligible": false,
+  "cases": 120,
+  "exact_passed": 120,
+  "exact_pass_rate": 1.0,
+  "component_scores": {
+    "clarification": 1.0,
+    "primary_intent": 1.0,
+    "risk_level": 1.0,
+    "secondary_intents": 1.0
+  },
+  "model_calls": 0,
+  "model_successes": 0,
+  "fallback_reasons": {},
+  "tokens": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "total_tokens": 0
+  },
+  "token_usage_available": true,
+  "estimated_cost_usd": null,
+  "pricing_snapshot": null,
+  "latency_ms": {
+    "mean": 0.0,
+    "p50": 0.0,
+    "p95": 0.0
+  },
+  "categories": [
+    {
+      "name": "injury_or_risk",
+      "cases": 20,
+      "passed": 20,
+      "pass_rate": 1.0
+    },
+    {
+      "name": "memory_query",
+      "cases": 8,
+      "passed": 8,
+      "pass_rate": 1.0
+    },
+    {
+      "name": "monthly_review",
+      "cases": 6,
+      "passed": 6,
+      "pass_rate": 1.0
+    },
+    {
+      "name": "nutrition_advice",
+      "cases": 12,
+      "passed": 12,
+      "pass_rate": 1.0
+    },
+    {
+      "name": "nutrition_log",
+      "cases": 12,
+      "passed": 12,
+      "pass_rate": 1.0
+    },
+    {
+      "name": "profile_update",
+      "cases": 8,
+      "passed": 8,
+      "pass_rate": 1.0
+    },
+    {
+      "name": "progression_decision",
+      "cases": 12,
+      "passed": 12,
+      "pass_rate": 1.0
+    },
+    {
+      "name": "recovery_check",
+      "cases": 12,
+      "passed": 12,
+      "pass_rate": 1.0
+    },
+    {
+      "name": "training_log",
+      "cases": 12,
+      "passed": 12,
+      "pass_rate": 1.0
+    },
+    {
+      "name": "training_plan",
+      "cases": 12,
+      "passed": 12,
+      "pass_rate": 1.0
+    },
+    {
+      "name": "weekly_review",
+      "cases": 6,
+      "passed": 6,
+      "pass_rate": 1.0
+    }
+  ],
+  "failure_count": 0,
+  "failure_examples": []
+}
