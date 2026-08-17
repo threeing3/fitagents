@@ -468,8 +468,16 @@ def _write_json(path: Path, value: Any) -> None:
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
-def _checksum(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+def semantic_checksum(path: Path) -> str:
+    """Hash JSON meaning instead of platform-specific bytes."""
+    value = json.loads(path.read_text(encoding="utf-8"))
+    canonical = json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()
 
 
 def build_all() -> dict[str, Any]:
@@ -492,7 +500,7 @@ def build_all() -> dict[str, Any]:
         "training_eligible": False,
         "generated_at": "2026-08-09T00:00:00+08:00",
         "datasets": {
-            name: {"rows": len(rows), "sha256": _checksum(EVAL_DIR / name)}
+            name: {"rows": len(rows), "sha256": semantic_checksum(EVAL_DIR / name)}
             for name, rows in datasets.items()
         },
     }
@@ -511,7 +519,7 @@ def verify() -> list[str]:
         rows = json.loads(path.read_text(encoding="utf-8"))
         if len(rows) != expected["rows"]:
             errors.append(f"row count changed for {name}")
-        if _checksum(path) != expected["sha256"]:
+        if semantic_checksum(path) != expected["sha256"]:
             errors.append(f"checksum changed for {name}")
         if any(row.get("source") != "seed_eval" for row in rows):
             errors.append(f"source changed for {name}")

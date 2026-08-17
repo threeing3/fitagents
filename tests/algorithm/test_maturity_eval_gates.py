@@ -4,7 +4,7 @@ from pathlib import Path
 from algorithm.app_algorithms.intent_baseline import evaluate_cases
 from algorithm.app_algorithms.memory_retrieval_eval import evaluate_retrieval_records
 from algorithm.app_algorithms.tool_plan_eval import evaluate_tool_cases
-from algorithm.evaluation.build_fixed_evals import verify
+from algorithm.evaluation.build_fixed_evals import semantic_checksum, verify
 from algorithm.evaluation.response_quality_eval import evaluate_response_quality_cases
 from algorithm.evaluation.safety_eval import evaluate_safety_cases
 
@@ -20,6 +20,15 @@ def test_fixed_eval_manifest_and_training_isolation():
     manifest = json.loads((EVAL_DIR / "maturity_03.manifest.json").read_text(encoding="utf-8"))
     assert manifest["training_eligible"] is False
     assert {item["rows"] for item in manifest["datasets"].values()} == {80, 100, 120, 150, 200}
+
+
+def test_fixed_eval_checksum_is_stable_across_line_endings(tmp_path: Path):
+    lf_path = tmp_path / "lf.json"
+    crlf_path = tmp_path / "crlf.json"
+    payload = '[{"case_id":"跨平台","partition":"test"}]'
+    lf_path.write_bytes((payload + "\n").encode("utf-8"))
+    crlf_path.write_bytes((payload + "\r\n").encode("utf-8"))
+    assert semantic_checksum(lf_path) == semantic_checksum(crlf_path)
 
 
 def test_intent_release_gate():

@@ -28,8 +28,10 @@ This phase establishes training-isolated fixed evaluations, removes pseudo-vecto
 | Safety evaluation | 150 cases; risk recall 1.00; critical dangerous allowed 0 |
 | Response quality evaluation | 100 cases; safety hard gate 1.00 |
 | Training factory | 1200 synthetic; 960/120/120; 0 user leaks; 0 reviewed preferences |
-| Backend regression | 565 passed; coverage 65.90% |
-| Local Docker build | inconclusive: local runner timed out at 10 minutes; CI required |
+| Backend regression | 566 passed after cross-platform checksum test; coverage 65.91% |
+| Local Docker build | inconclusive: local runner timed out at 10 minutes |
+| GitHub Docker build | passed in PR #6 first CI run |
+| First PR CI run | Python 3.11/3.12 each had 564 passed, 1 checksum failure caused by CRLF/LF bytes |
 
 All evaluation fixtures are rule-curated fixed coverage sets. The perfect intent and safety scores are release-regression evidence, not a claim about production-distribution generalization. The 70% final coverage target remains open.
 
