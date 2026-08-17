@@ -91,7 +91,9 @@ def _summary(node_name: str, output: dict[str, Any]) -> str:
     if node_name in {"PlanRepair", "ResponseRepair"}:
         return f"修复动作 {len(_list(output.get('repair_actions')))} 项"
     if node_name == "GuardrailCheck":
-        return f"动作 {output.get('action') or 'pass'} · 标记 {int(output.get('flag_count') or 0)} 项"
+        return (
+            f"动作 {output.get('action') or 'pass'} · 标记 {int(output.get('flag_count') or 0)} 项"
+        )
     if node_name == "CoachLLM":
         return f"模式 {output.get('mode') or 'coaching'} · 回复 {int(output.get('response_chars') or 0)} 字符"
     if node_name == "PlannerFallback":
@@ -192,7 +194,10 @@ def analyze_agent_run(
                     )
                 )
         knowledge_debug = output.get("knowledge_debug")
-        if isinstance(knowledge_debug, dict) and knowledge_debug.get("vector_status") == "vector unavailable":
+        if (
+            isinstance(knowledge_debug, dict)
+            and knowledge_debug.get("vector_status") == "vector unavailable"
+        ):
             findings.append(
                 _finding(
                     "retrieval_degraded",

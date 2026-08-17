@@ -120,17 +120,30 @@ async function mockApi(page: Page) {
       });
       return;
     }
-    if (path === "/v1/algorithm/summary") {
+    if (path === "/v1/algorithm/agent-runs") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: "[]",
+      });
+      return;
+    }
+    if (path === "/v1/algorithm/challenges/summary") {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          release_stage: "maturity_02_product",
-          disclaimer: "baseline only",
-          datasets: [{ name: "business_fixed", size: 38, source: "curated", status: "fixed" }],
-          metrics: [{ name: "business_fixed_pass", value: 27, total: 38, source: "fixed_eval" }],
-          business_outcomes: { label: "simulated_outcome", online_claim: false },
-          dpo: { enabled: false, minimum_reviewed_pairs: 150, current_reviewed_pairs: 0 },
+          experiment_id: "agent_challenge_v1",
+          source: "challenge_eval",
+          partition: "test",
+          training_eligible: false,
+          cases: 120,
+          passed: 20,
+          pass_rate: 0.1667,
+          component_scores: { clarification: 0.4667, primary_intent: 0.6917 },
+          categories: [],
+          failure_count: 100,
+          failure_examples: [{ case_id: "challenge-1", category: "ambiguous_reference", checks: {}, expected: {}, actual: {}, user_message: "就按上次那个继续" }],
         }),
       });
       return;
@@ -165,6 +178,7 @@ test("public demo covers registration, cookie session UI, chat, plan, check-in a
   await expect(page.getByRole("button", { name: "已记录" })).toBeVisible();
 
   await page.getByRole("button", { name: "算法实验" }).click();
-  await expect(page.getByText("27 / 38")).toBeVisible();
-  await expect(page.getByText("simulated_outcome", { exact: false })).toBeVisible();
+  await expect(page.getByText("20/120")).toBeVisible();
+  await expect(page.getByText("就按上次那个继续")).toBeVisible();
+  await expect(page.getByText("完成一次聊天后", { exact: false })).toBeVisible();
 });

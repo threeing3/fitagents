@@ -187,7 +187,9 @@ def algorithm_agent_runs(
     if not runs:
         return []
     calls = list(
-        db.scalars(select(models.ToolCall).where(models.ToolCall.agent_run_id.in_([r.id for r in runs])))
+        db.scalars(
+            select(models.ToolCall).where(models.ToolCall.agent_run_id.in_([r.id for r in runs]))
+        )
     )
     calls_by_run: dict[str, list[models.ToolCall]] = {}
     for call in calls:
@@ -215,7 +217,5 @@ def algorithm_agent_run(
         raise HTTPException(status_code=404, detail="Agent run was not found.")
     if run.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Agent run belongs to another user.")
-    calls = list(
-        db.scalars(select(models.ToolCall).where(models.ToolCall.agent_run_id == run.id))
-    )
+    calls = list(db.scalars(select(models.ToolCall).where(models.ToolCall.agent_run_id == run.id)))
     return analyze_agent_run(run, calls)
