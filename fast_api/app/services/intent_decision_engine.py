@@ -50,7 +50,9 @@ class IntentDecisionEngine:
         self.model_provider = model_provider or ModelProvider()
         self.intent_router = intent_router or IntentRouter()
         self.classifier = LLMIntentClassifier(self.model_provider, self.intent_router)
-        self.inference_client = inference_client or IntentInferenceClient(self.model_provider.settings)
+        self.inference_client = inference_client or IntentInferenceClient(
+            self.model_provider.settings
+        )
         self.runtime_router = RuntimeRouter(self.intent_router)
 
     async def decide(self, message: str, profile: Any | None = None) -> IntentEngineResult:
@@ -61,11 +63,15 @@ class IntentDecisionEngine:
 
         model_started = time.perf_counter()
         should_refine = self.classifier.should_refine(rule_decision, message)
-        local_trace = await self.inference_client.classify(
-            message,
-            rule_decision.to_dict(),
-            self._profile_summary(profile),
-        ) if should_refine else None
+        local_trace = (
+            await self.inference_client.classify(
+                message,
+                rule_decision.to_dict(),
+                self._profile_summary(profile),
+            )
+            if should_refine
+            else None
+        )
         if local_trace and local_trace.succeeded and local_trace.payload:
             final_decision = self.classifier._merge_with_rule_decision(
                 local_trace.payload, rule_decision
@@ -102,19 +108,25 @@ class IntentDecisionEngine:
             "model_provider": (
                 "intent_adapter"
                 if local_trace and local_trace.succeeded
-                else provider if model_trace.get("attempted") else None
+                else provider
+                if model_trace.get("attempted")
+                else None
             ),
             "model_version": (
                 local_trace.model_version
                 if local_trace and local_trace.succeeded
-                else self.model_provider.settings.chat_model if model_succeeded else None
+                else self.model_provider.settings.chat_model
+                if model_succeeded
+                else None
             ),
             "model_fallback_reason": model_trace.get("fallback_reason"),
             "model_usage": model_trace.get("usage") or {},
             "final_source": (
                 "adapter_with_rule_override"
                 if local_trace and local_trace.succeeded
-                else "model_with_rule_override" if model_succeeded else "rule_fallback"
+                else "model_with_rule_override"
+                if model_succeeded
+                else "rule_fallback"
             ),
         }
         v2 = IntentDecisionV2.from_legacy(

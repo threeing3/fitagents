@@ -158,7 +158,9 @@ def algorithm_summary() -> dict:
         "intent_inference": {
             "architecture": "rules_then_qwen3_adapter_then_deepseek_fallback",
             "adapter_status": (
-                "configured_unverified" if get_settings().adapter_inference_url else "not_configured"
+                "configured_unverified"
+                if get_settings().adapter_inference_url
+                else "not_configured"
             ),
             "adapter_model": "Qwen3-4B-QLoRA",
             "safety_authority": "deterministic_rules",
