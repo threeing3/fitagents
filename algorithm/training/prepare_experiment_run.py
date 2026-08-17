@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess
-import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -23,6 +22,7 @@ def prepare_run(
     run_id: str,
     *,
     variant: str,
+    snapshot_id: str,
     row_limit: int | None = None,
 ) -> Path:
     """Create a new run record; an existing run ID is never overwritten."""
@@ -35,26 +35,30 @@ def prepare_run(
     records = run_dir / "records"
     records.mkdir(parents=True)
     argv = [
-        sys.executable,
+        "python3",
         "-m",
         "algorithm.training.sft.train_qlora",
         "--config",
-        str(config_path.resolve()),
+        "algorithm/training/configs/intent_qwen3_4b_qlora.json",
         "--run-id",
         run_id,
     ]
     command = {
         "argv": argv,
-        "cwd": str(Path.cwd().resolve()),
+        "cwd": ".",
         "created_at": _now(),
         "variant": variant,
         "row_limit": row_limit,
     }
     manifest = {
-        "schema_version": "fitagent-run-manifest/v1",
+        "schema_version": "research-experiment/run-manifest-v1",
         "experiment_id": summary["experiment_id"],
         "run_id": run_id,
+        "plan_revision": 1,
+        "snapshot_id": snapshot_id,
         "variant": variant,
+        "dataset": summary["dataset_version"],
+        "split": "train+validation",
         "dataset_version": summary["dataset_version"],
         "train_sha256": summary["train_sha256"],
         "eval_sha256": summary["eval_sha256"],
@@ -130,6 +134,7 @@ def main() -> int:
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--variant", choices=["smoke", "full"], required=True)
+    parser.add_argument("--snapshot-id", required=True)
     parser.add_argument("--row-limit", type=int)
     args = parser.parse_args()
     run_dir = prepare_run(
@@ -137,6 +142,7 @@ def main() -> int:
         args.config,
         args.run_id,
         variant=args.variant,
+        snapshot_id=args.snapshot_id,
         row_limit=args.row_limit,
     )
     print(run_dir)

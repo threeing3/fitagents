@@ -61,3 +61,66 @@ def test_verify_run_detects_adapter_corruption_and_reload_requirement(tmp_path):
     assert report["verified"] is False
     assert any("checksum mismatch" in error for error in report["errors"])
     assert any("reload report" in error for error in report["errors"])
+
+
+def test_verify_remote_runner_protocol_and_output_layout(tmp_path):
+    run = tmp_path / "remote-run"
+    records = run / "records"
+    outputs = run / "outputs"
+    adapter = outputs / "adapter"
+    records.mkdir(parents=True)
+    adapter.mkdir(parents=True)
+    adapter_file = adapter / "adapter_model.safetensors"
+    adapter_file.write_bytes(b"remote-adapter")
+    digest = hashlib.sha256(b"remote-adapter").hexdigest()
+    identity = {
+        "run_id": "remote-1",
+        "dataset_version": "intent-v1",
+        "train_sha256": "train",
+        "eval_sha256": "eval",
+        "seed": 42,
+    }
+    _write_json(records / "run_manifest.json", identity)
+    _write_json(
+        records / "run_summary.json",
+        {"run_id": "remote-1", "technical_status": "completed", "exit_code": 0},
+    )
+    _write_json(records / "status.json", {"state": "completed", "exit_code": 0})
+    _write_json(outputs / "training_metadata.json", identity)
+    _write_json(
+        records / "output_manifest.json",
+        {
+            "files": [
+                {
+                    "path": "adapter/adapter_model.safetensors",
+                    "size_bytes": len(b"remote-adapter"),
+                    "sha256": digest,
+                },
+                {
+                    "path": "training_metadata.json",
+                    "size_bytes": (outputs / "training_metadata.json").stat().st_size,
+                    "sha256": hashlib.sha256(
+                        (outputs / "training_metadata.json").read_bytes()
+                    ).hexdigest(),
+                },
+            ]
+        },
+    )
+    for name, value in {
+        "command.json": {"argv": ["python3", "train"]},
+        "environment.json": {"python": "remote"},
+        "sync_manifest.json": {"transfers": []},
+    }.items():
+        _write_json(records / name, value)
+    (records / "events.jsonl").write_text(
+        json.dumps({"event": "run-ended", "state": "completed"}) + "\n", encoding="utf-8"
+    )
+    (records / "metrics.jsonl").write_text(
+        json.dumps({"name": "eval_loss", "value": 0.4}) + "\n", encoding="utf-8"
+    )
+    (records / "resource_usage.jsonl").write_text("{}\n", encoding="utf-8")
+    (records / "nvidia_smi.txt").write_text("gpu", encoding="utf-8")
+    (records / "pip_freeze.txt").write_text("torch==remote", encoding="utf-8")
+    (records / "run.log").write_text("completed", encoding="utf-8")
+
+    assert verify_run(run)["verified"] is True

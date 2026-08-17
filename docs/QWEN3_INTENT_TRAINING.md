@@ -61,6 +61,7 @@ python -m algorithm.training.prepare_experiment_run \
   --config algorithm/training/configs/intent_qwen3_4b_qlora.json \
   --run-id smoke-50-seed42-v1 \
   --variant smoke \
+  --snapshot-id <content-addressed-snapshot-id> \
   --row-limit 50
 
 python -m algorithm.training.sft.train_qlora \
@@ -86,6 +87,10 @@ python -m algorithm.training.verify_experiment_run \
 
 运行验证器检查状态终点、数据身份、有限指标、日志完整性、Adapter 文件大小与 SHA-256、
 新进程重载报告。任一检查失败都不能把运行标记为成功。
+
+AutoDL 远程运行必须使用快照内的相对命令。远程运行器注入 `RESEARCH_RUN_DIR` 和
+`RESEARCH_OUTPUT_DIR`；训练脚本将 Adapter 写入后者的 `adapter/`，不覆盖远程运行器维护的
+状态、环境、日志或输出清单。下载验证时需要同时保留 `records/` 与 `outputs/` 目录。
 
 ## 公平评测
 

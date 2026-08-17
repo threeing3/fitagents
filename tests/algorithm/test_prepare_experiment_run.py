@@ -41,7 +41,14 @@ def test_prepare_run_creates_required_records_and_refuses_overwrite(tmp_path):
     }
     config_path.write_text(json.dumps(config), encoding="utf-8")
 
-    run_dir = prepare_run(config, config_path, "smoke-001", variant="smoke", row_limit=50)
+    run_dir = prepare_run(
+        config,
+        config_path,
+        "smoke-001",
+        variant="smoke",
+        snapshot_id="snapshot-123",
+        row_limit=50,
+    )
     records = run_dir / "records"
     assert {
         "command.json",
@@ -55,5 +62,16 @@ def test_prepare_run_creates_required_records_and_refuses_overwrite(tmp_path):
         "sync_manifest.json",
     }.issubset({path.name for path in records.iterdir()})
     assert json.loads((records / "run_manifest.json").read_text())["row_limit"] == 50
+    command = json.loads((records / "command.json").read_text())
+    assert command["argv"][0] == "python3"
+    assert command["cwd"] == "."
+    assert json.loads((records / "run_manifest.json").read_text())["snapshot_id"] == "snapshot-123"
     with pytest.raises(FileExistsError, match="immutable run_id"):
-        prepare_run(config, config_path, "smoke-001", variant="smoke", row_limit=50)
+        prepare_run(
+            config,
+            config_path,
+            "smoke-001",
+            variant="smoke",
+            snapshot_id="snapshot-123",
+            row_limit=50,
+        )
