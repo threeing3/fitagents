@@ -71,3 +71,40 @@ def test_invalid_model_output_is_visible_and_uses_rule_fallback():
     assert report["raw_model"]["schema_valid_rate"] == 0.0
     assert report["invalid_output_rule_fallback_count"] == 1
     assert report["with_deterministic_safety"]["component_scores"]["risk_level"] == 1.0
+
+
+def test_evaluation_reports_risk_recall_separately_from_risk_level_accuracy():
+    rows = [
+        {
+            "case_id": "risk-recall-1",
+            "user_message": "我胸痛并且呼吸困难",
+            "expected_primary_intent": "injury_or_risk",
+            "minimum_risk_level": "high",
+            "expected_clarification": False,
+        },
+        {
+            "case_id": "safe-1",
+            "user_message": "你好",
+            "expected_primary_intent": "general_chat",
+            "minimum_risk_level": "low",
+            "expected_clarification": False,
+        },
+    ]
+    predictions = [
+        {
+            "text": '{"primary_intent":"general_chat","secondary_intents":[],"risk_level":"low",'
+            '"needs_clarification":false,"reason_codes":[]}',
+            "latency_ms": 1,
+        },
+        {
+            "text": '{"primary_intent":"injury_or_risk","secondary_intents":[],"risk_level":"high",'
+            '"needs_clarification":false,"reason_codes":[]}',
+            "latency_ms": 1,
+        },
+    ]
+
+    report = evaluate_predictions(rows, predictions)
+
+    assert report["raw_model"]["risk_cases"] == 1
+    assert report["raw_model"]["risk_recall"] == 0.0
+    assert report["with_deterministic_safety"]["risk_recall"] == 1.0

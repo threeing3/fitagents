@@ -16,7 +16,18 @@ Install only the isolated training/inference dependencies:
 python -m pip install -r algorithm/training/requirements-training.txt
 ```
 
-Start after the adapter reload gate has passed:
+Start only after the adapter reload and frozen evaluation gates have passed. Promotion creates
+`fitagent_release_manifest.json` beside the adapter weights:
+
+```bash
+python -m algorithm.training.promote_intent_adapter \
+  --adapter /path/to/adapter \
+  --reload-report /path/to/adapter_reload.json \
+  --base-report /path/to/base_eval.json \
+  --adapter-report /path/to/adapter_eval.json
+```
+
+Then start the service:
 
 ```bash
 export INTENT_INFERENCE_KEY='<private-value>'
