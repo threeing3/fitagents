@@ -77,6 +77,7 @@ class IntentDecisionEngine:
             "model_provider": provider if model_trace.get("attempted") else None,
             "model_version": self.model_provider.settings.chat_model if model_succeeded else None,
             "model_fallback_reason": model_trace.get("fallback_reason"),
+            "model_usage": model_trace.get("usage") or {},
             "final_source": "model_with_rule_override" if model_succeeded else "rule_fallback",
         }
         v2 = IntentDecisionV2.from_legacy(

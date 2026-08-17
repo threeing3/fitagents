@@ -1,0 +1,61 @@
+{
+  "experiment_id": "intent_deepseek_comparison_20260817",
+  "dataset": "agent_challenge_v1",
+  "source": "challenge_eval",
+  "partition": "test",
+  "training_eligible": false,
+  "cases": 120,
+  "paths": {
+    "rule_only": {
+      "exact_pass_rate": 0.1667,
+      "primary_intent": 0.6917,
+      "secondary_intents": 0.7333,
+      "risk_level": 0.8333,
+      "clarification": 0.4667,
+      "model_calls": 0
+    },
+    "deepseek_all_with_rule_safety": {
+      "model": "deepseek-v4-pro",
+      "thinking": "disabled",
+      "exact_pass_rate": 0.325,
+      "primary_intent": 0.8167,
+      "secondary_intents": 0.8333,
+      "risk_level": 0.9,
+      "clarification": 0.525,
+      "model_calls": 120,
+      "model_successes": 120,
+      "total_tokens": 71501,
+      "estimated_cost_usd": 0.037593,
+      "latency_p50_ms": 6906.83,
+      "latency_p95_ms": 8343.15
+    },
+    "hybrid": {
+      "model": "deepseek-v4-pro",
+      "thinking": "disabled",
+      "exact_pass_rate": 0.2667,
+      "primary_intent": 0.8417,
+      "secondary_intents": 0.8,
+      "risk_level": 0.9,
+      "clarification": 0.4917,
+      "model_calls": 69,
+      "model_successes": 69,
+      "call_reduction_vs_all": 0.425,
+      "token_usage_available": false,
+      "estimated_cost_usd": null,
+      "latency_p50_ms": 6224.34,
+      "latency_p95_ms": 7325.38
+    }
+  },
+  "observations": [
+    "DeepSeek with deterministic safety merge improves exact pass rate by 15.83 percentage points over rules.",
+    "Hybrid routing reduces model calls by 42.5% but loses 5.83 percentage points versus calling DeepSeek for every case.",
+    "DeepSeek safety-bypass exact pass is 0/20: primary intent is 100%, but risk floor is 60% and clarification accuracy is 20%.",
+    "The simpler 120-case intent seed set is saturated at 120/120 by rules and is not discriminative evidence."
+  ],
+  "limitations": [
+    "Challenge cases are curated synthetic test data, not production traffic.",
+    "Local quota persistence was unavailable, so development fallback allowed calls and emitted warnings.",
+    "Hybrid token telemetry was missing in this run; cost is intentionally reported as unavailable, not zero.",
+    "The two DeepSeek paths are separate API runs and may show provider-side nondeterminism."
+  ]
+}
