@@ -5,13 +5,18 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from fast_api.app.core.auth import get_current_user
+from fast_api.app.core.config import get_settings
 from fast_api.app.db import models
 from fast_api.app.db.database import get_db
 from fast_api.app.services.agent_trace_analysis import analyze_agent_run
+from fast_api.app.services.intent_decision import IntentRouter
+from fast_api.app.services.intent_decision_engine import IntentDecisionEngine
+from fast_api.app.services.model_provider import ModelProvider
 
 algorithm_router = APIRouter(prefix="/v1/algorithm", tags=["algorithm-lab"])
 REPORT_PATH = (
@@ -28,6 +33,10 @@ CHALLENGE_REPORT_PATH = (
     / "reports"
     / "agent_challenge_v1.summary.json"
 )
+
+
+class AlgorithmCompareRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=2000)
 
 
 def _report() -> dict:
@@ -146,6 +155,51 @@ def algorithm_summary() -> dict:
         },
         "business_outcomes": {"label": "simulated_outcome", "online_claim": False},
         "dpo": {"enabled": False, "minimum_reviewed_pairs": 150, "current_reviewed_pairs": 0},
+        "intent_inference": {
+            "architecture": "rules_then_qwen3_adapter_then_deepseek_fallback",
+            "adapter_status": (
+                "configured_unverified" if get_settings().adapter_inference_url else "not_configured"
+            ),
+            "adapter_model": "Qwen3-4B-QLoRA",
+            "safety_authority": "deterministic_rules",
+            "online_result_claimed": False,
+        },
+    }
+
+
+@algorithm_router.post("/compare")
+async def algorithm_compare(
+    body: AlgorithmCompareRequest,
+    current_user: models.User = Depends(get_current_user),
+) -> dict:
+    """Compare the rule baseline with the configured runtime path for one sanitized turn."""
+
+    router = IntentRouter()
+    rule = router.analyze(body.message)
+    provider = ModelProvider(user_id=current_user.id, endpoint="algorithm_compare")
+    result = await IntentDecisionEngine(provider, router).decide(body.message)
+    provenance = result.decision.provenance
+    return {
+        "rule_baseline": {
+            "primary_intent": rule.primary_intent,
+            "risk_level": rule.risk_level,
+            "confidence": rule.confidence,
+        },
+        "runtime_decision": {
+            "primary_intent": result.decision.primary_intent,
+            "secondary_intents": result.decision.secondary_intents,
+            "risk_level": result.decision.risk_level,
+            "confidence": result.decision.confidence.get("overall", 0),
+        },
+        "routing": {
+            "final_source": provenance.get("final_source"),
+            "local_model_status": provenance.get("local_model_status"),
+            "local_model_used": bool(provenance.get("local_model_used")),
+            "deepseek_used": bool(provenance.get("deepseek_used")),
+            "safety_rule_applied": bool(provenance.get("rule_used")),
+        },
+        "latency_ms": result.decision.latency_ms,
+        "disclaimer": "A live single-case comparison is not an offline evaluation result.",
     }
 
 

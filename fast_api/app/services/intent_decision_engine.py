@@ -8,6 +8,7 @@ from typing import Any
 
 from fast_api.app.services.intent_contract import IntentDecisionV2
 from fast_api.app.services.intent_decision import IntentDecision, IntentRouter
+from fast_api.app.services.intent_inference_client import IntentInferenceClient
 from fast_api.app.services.llm_intent_classifier import LLMIntentClassifier
 from fast_api.app.services.model_provider import ModelProvider
 from fast_api.app.services.runtime_router import RuntimeMode, RuntimeRouter
@@ -44,10 +45,12 @@ class IntentDecisionEngine:
         self,
         model_provider: ModelProvider | None = None,
         intent_router: IntentRouter | None = None,
+        inference_client: IntentInferenceClient | None = None,
     ):
         self.model_provider = model_provider or ModelProvider()
         self.intent_router = intent_router or IntentRouter()
         self.classifier = LLMIntentClassifier(self.model_provider, self.intent_router)
+        self.inference_client = inference_client or IntentInferenceClient(self.model_provider.settings)
         self.runtime_router = RuntimeRouter(self.intent_router)
 
     async def decide(self, message: str, profile: Any | None = None) -> IntentEngineResult:
@@ -57,9 +60,26 @@ class IntentDecisionEngine:
         rule_ms = round((time.perf_counter() - rule_started) * 1000)
 
         model_started = time.perf_counter()
-        final_decision, model_trace = await self.classifier.refine_with_trace(
-            message, rule_decision, profile=profile
-        )
+        should_refine = self.classifier.should_refine(rule_decision, message)
+        local_trace = await self.inference_client.classify(
+            message,
+            rule_decision.to_dict(),
+            self._profile_summary(profile),
+        ) if should_refine else None
+        if local_trace and local_trace.succeeded and local_trace.payload:
+            final_decision = self.classifier._merge_with_rule_decision(
+                local_trace.payload, rule_decision
+            )
+            model_trace = {
+                "attempted": True,
+                "succeeded": True,
+                "fallback_reason": None,
+                "usage": local_trace.usage,
+            }
+        else:
+            final_decision, model_trace = await self.classifier.refine_with_trace(
+                message, rule_decision, profile=profile
+            )
         model_ms = round((time.perf_counter() - model_started) * 1000)
         final_decision = self._enforce_rule_safety(rule_decision, final_decision)
 
@@ -70,15 +90,32 @@ class IntentDecisionEngine:
             "rule_used": True,
             "rule_version": "intent_rules_v2",
             "rule_risk_detected": rule_decision.risk_level in {"medium", "high", "critical"},
-            "local_model_used": False,
-            "deepseek_used": model_succeeded and provider == "deepseek",
+            "local_model_attempted": bool(local_trace and local_trace.attempted),
+            "local_model_used": bool(local_trace and local_trace.succeeded),
+            "local_model_status": local_trace.status if local_trace else "refinement_not_required",
+            "local_model_version": local_trace.model_version if local_trace else None,
+            "deepseek_used": model_succeeded
+            and provider == "deepseek"
+            and not bool(local_trace and local_trace.succeeded),
             "model_attempted": bool(model_trace.get("attempted")),
             "model_succeeded": model_succeeded,
-            "model_provider": provider if model_trace.get("attempted") else None,
-            "model_version": self.model_provider.settings.chat_model if model_succeeded else None,
+            "model_provider": (
+                "intent_adapter"
+                if local_trace and local_trace.succeeded
+                else provider if model_trace.get("attempted") else None
+            ),
+            "model_version": (
+                local_trace.model_version
+                if local_trace and local_trace.succeeded
+                else self.model_provider.settings.chat_model if model_succeeded else None
+            ),
             "model_fallback_reason": model_trace.get("fallback_reason"),
             "model_usage": model_trace.get("usage") or {},
-            "final_source": "model_with_rule_override" if model_succeeded else "rule_fallback",
+            "final_source": (
+                "adapter_with_rule_override"
+                if local_trace and local_trace.succeeded
+                else "model_with_rule_override" if model_succeeded else "rule_fallback"
+            ),
         }
         v2 = IntentDecisionV2.from_legacy(
             final_decision,
@@ -86,12 +123,18 @@ class IntentDecisionEngine:
             latency_ms={
                 "rule": rule_ms,
                 "model": model_ms if model_trace.get("attempted") else 0,
+                "local_model": local_trace.latency_ms if local_trace else 0,
                 "total": round((time.perf_counter() - started) * 1000),
             },
             candidate_tools=self._candidate_tools(final_decision),
             risk_evidence=self._risk_evidence(message),
         )
         return IntentEngineResult(v2, route.mode, route.reason, route.matched_rules)
+
+    @staticmethod
+    def _profile_summary(profile: Any | None) -> dict[str, Any]:
+        fields = ("age", "height_cm", "weight_kg", "goal", "experience_level", "injuries")
+        return {name: getattr(profile, name, None) for name in fields}
 
     def _enforce_rule_safety(
         self, rule: IntentDecision, candidate: IntentDecision
