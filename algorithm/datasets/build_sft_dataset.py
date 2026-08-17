@@ -10,11 +10,17 @@ from typing import Any
 from algorithm.data.validate_dataset import read_jsonl
 
 
-def build_sft_rows(rows: list[dict[str, Any]], include_splits: set[str] | None = None) -> list[dict[str, Any]]:
+def build_sft_rows(
+    rows: list[dict[str, Any]], include_splits: set[str] | None = None
+) -> list[dict[str, Any]]:
     include_splits = include_splits or {"train"}
     result: list[dict[str, Any]] = []
     for row in rows:
-        if row.get("split") not in include_splits or not row.get("assistant_response"):
+        if (
+            row.get("split") not in include_splits
+            or row.get("training_eligible") is not True
+            or not row.get("assistant_response")
+        ):
             continue
         context = row.get("retrieved_context") or {}
         context_text = json.dumps(context, ensure_ascii=False, sort_keys=True, default=str)
@@ -34,6 +40,8 @@ def build_sft_rows(rows: list[dict[str, Any]], include_splits: set[str] | None =
                     {"role": "assistant", "content": row.get("assistant_response", "")},
                 ],
                 "source": row.get("source", "unknown"),
+                "label_source": row.get("label_source", "unknown"),
+                "template_family": row.get("template_family"),
                 "schema_version": row.get("schema_version", "unknown"),
             }
         )

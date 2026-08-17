@@ -193,3 +193,15 @@ def test_tool_decision_contract_rejects_sequence_not_selected():
         user_message="plan", selected_tools=["context.build"], tool_sequence=["plan.generate"]
     )
     assert any("missing from selected_tools" in error for error in example.validate())
+
+
+def test_teacher_rows_require_model_and_prompt_provenance():
+    example = TrainingExample(
+        example_id="teacher-missing-provenance",
+        task_type="intent_decision_v2",
+        user_message="请判断我的需求",
+        source="teacher_generated",
+    )
+    errors = " ".join(example.validate())
+    assert "teacher_model" in errors
+    assert "teacher_prompt_version" in errors

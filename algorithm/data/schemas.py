@@ -8,7 +8,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
-SCHEMA_VERSION = "2026-08-09"
+SCHEMA_VERSION = "2026-08-17"
 VALID_SOURCES = {
     "agent_trace",
     "rule_generated",
@@ -59,6 +59,13 @@ class TrainingExample:
     intent_label: str | None = None
     risk_label: str | None = None
     quality_labels: dict[str, float | int | str | bool] = field(default_factory=dict)
+    label_source: str = "unknown"
+    template_family: str | None = None
+    teacher_model: str | None = None
+    teacher_prompt_version: str | None = None
+    human_review_status: str = "not_reviewed"
+    training_eligible: bool = False
+    exclusion_reason: str | None = None
     guardrail_result: dict[str, Any] = field(default_factory=dict)
     outcome: OutcomeLabel | None = None
     feedback_id: str | None = None
@@ -82,6 +89,22 @@ class TrainingExample:
             errors.append(f"unknown source: {self.source}")
         if self.source == "seed_eval" and self.split != "test":
             errors.append("seed_eval rows are test-only and cannot enter training splits")
+        if self.source == "seed_eval" and self.training_eligible:
+            errors.append("seed_eval rows cannot be training_eligible")
+        if self.training_eligible and self.split not in {"train", "validation"}:
+            errors.append("training_eligible rows must use train or validation split")
+        if self.training_eligible and self.label_source == "unknown":
+            errors.append("training_eligible rows require a known label_source")
+        if self.training_eligible and not self.template_family:
+            errors.append("training_eligible rows require template_family")
+        if self.source == "teacher_generated" and not self.teacher_model:
+            errors.append("teacher_generated rows require teacher_model")
+        if self.source == "teacher_generated" and not self.teacher_prompt_version:
+            errors.append("teacher_generated rows require teacher_prompt_version")
+        if self.human_review_status not in {"not_reviewed", "pending", "approved", "rejected"}:
+            errors.append(f"unknown human_review_status: {self.human_review_status}")
+        if self.training_eligible and self.human_review_status == "rejected":
+            errors.append("human-rejected rows cannot be training_eligible")
         if (
             self.source == "expert_labeled"
             and self.quality_labels.get("review_status") != "approved"

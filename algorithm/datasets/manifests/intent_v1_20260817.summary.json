@@ -1,0 +1,45 @@
+{
+  "dataset_name": "fitagent_intent_decision_v2",
+  "dataset_version": "intent-v1-20260817",
+  "row_count": 1000,
+  "split_counts": {
+    "train": 800,
+    "test": 100,
+    "validation": 100
+  },
+  "weakness_counts": {
+    "risk_level": 250,
+    "clarification": 250,
+    "multi_intent_priority": 250,
+    "memory_conflict": 250
+  },
+  "source_counts": {
+    "rule_generated": 1000
+  },
+  "label_source_counts": {
+    "deterministic_rule_template": 1000
+  },
+  "training_eligible": 900,
+  "human_approved": 0,
+  "template_family_count": 20,
+  "template_family_split_leaks": {},
+  "user_split_leaks": {},
+  "exact_eval_collisions": 0,
+  "protected_eval_files": [
+    {
+      "path": "tests/evals/agent_challenge_cases.json",
+      "sha256": "31fce9634f34778a9c5438afb8a11d6812e9e6e63973a3dafaf263d303a62835"
+    },
+    {
+      "path": "tests/evals/intent_eval_cases.json",
+      "sha256": "db7cd1a51c7c14c1912948ad661b236c4c089b14d62fcce2f8de720743f838fb"
+    }
+  ],
+  "claims": {
+    "real_user_data": false,
+    "expert_labeled": false,
+    "teacher_generated": false,
+    "suitable_for_pipeline_validation": true,
+    "sufficient_for_model_quality_claim": false
+  }
+}

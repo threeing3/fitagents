@@ -34,6 +34,7 @@ def validate_training_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
     splits: Counter[str] = Counter()
     users: set[str] = set()
     user_splits: dict[str, set[str]] = {}
+    family_splits: dict[str, set[str]] = {}
     for index, payload in enumerate(rows):
         try:
             example = TrainingExample.from_dict(payload)
@@ -43,6 +44,8 @@ def validate_training_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
             splits[example.split] += 1
             users.add(example.user_hash)
             user_splits.setdefault(example.user_hash, set()).add(example.split)
+            if example.template_family:
+                family_splits.setdefault(example.template_family, set()).add(example.split)
         except (TypeError, ValueError) as exc:
             row_errors = [str(exc)]
         if row_errors:
@@ -51,6 +54,13 @@ def validate_training_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
         {"row": example_id, "errors": ["duplicate example_id"]}
         for example_id, count in ids.items()
         if count > 1
+    )
+    family_split_leaks = {
+        family: sorted(values) for family, values in family_splits.items() if len(values) > 1
+    }
+    errors.extend(
+        {"row": family, "errors": [f"template_family crosses splits: {', '.join(values)}"]}
+        for family, values in family_split_leaks.items()
     )
     split_leaks = {
         user_hash: sorted(values)
@@ -70,6 +80,7 @@ def validate_training_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "split_counts": dict(splits),
         "user_count": len(users),
         "user_split_leaks": split_leaks,
+        "template_family_split_leaks": family_split_leaks,
     }
 
 
