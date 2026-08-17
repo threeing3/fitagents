@@ -24,6 +24,12 @@ def build_sft_rows(
             continue
         context = row.get("retrieved_context") or {}
         context_text = json.dumps(context, ensure_ascii=False, sort_keys=True, default=str)
+        is_intent_task = row.get("task_type") == "intent_decision_v2"
+        system_content = (
+            "你是 FitAgent 的意图决策器。只输出符合 IntentDecisionV2 的 JSON，不输出思考过程。"
+            if is_intent_task
+            else "你是安全、具体、个性化的健身教练。遵守结构化规则和安全边界。"
+        )
         result.append(
             {
                 "example_id": row.get("example_id"),
@@ -31,7 +37,7 @@ def build_sft_rows(
                 "messages": [
                     {
                         "role": "system",
-                        "content": "你是安全、具体、个性化的健身教练。遵守结构化规则和安全边界。",
+                        "content": system_content,
                     },
                     {
                         "role": "user",
@@ -42,6 +48,7 @@ def build_sft_rows(
                 "source": row.get("source", "unknown"),
                 "label_source": row.get("label_source", "unknown"),
                 "template_family": row.get("template_family"),
+                "split": row.get("split"),
                 "schema_version": row.get("schema_version", "unknown"),
             }
         )
@@ -52,8 +59,16 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Build SFT JSONL")
     parser.add_argument("input", type=Path)
     parser.add_argument("output", type=Path)
+    parser.add_argument(
+        "--include-split",
+        action="append",
+        choices=["train", "validation", "test"],
+        help="split to include; repeat for multiple splits (default: train)",
+    )
     args = parser.parse_args()
-    rows = build_sft_rows(read_jsonl(args.input))
+    rows = build_sft_rows(
+        read_jsonl(args.input), include_splits=set(args.include_split or ["train"])
+    )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with args.output.open("w", encoding="utf-8") as handle:
         for row in rows:

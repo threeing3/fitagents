@@ -79,3 +79,12 @@ def test_sft_builder_excludes_ineligible_and_held_out_rows():
     assert all(
         row["template_family"] not in {"risk_uncertain", "memory_unclear_time"} for row in sft_rows
     )
+
+
+def test_intent_sft_rows_use_structured_classifier_system_prompt():
+    rows = [row.to_dict() for row in build_intent_examples(per_family=1)]
+    sft_rows = build_sft_rows(rows, include_splits={"train"})
+
+    assert sft_rows
+    assert "IntentDecisionV2" in sft_rows[0]["messages"][0]["content"]
+    assert "不输出思考过程" in sft_rows[0]["messages"][0]["content"]
