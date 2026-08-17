@@ -76,3 +76,12 @@ python -m algorithm.business.business_baseline --count 240 --seed 42 --experimen
 python -m algorithm.evaluation.build_fixed_evals --verify
 python -m algorithm.evaluation.run_maturity_gate --experiment-id <new-id> --output <new-report.json>
 ```
+# Agent challenge protocol
+
+`tests/evals/agent_challenge_cases.json` 是只用于测试的高难度挑战集，包含 6 类、120 条固定样例。评测报告同时保留：
+
+- exact pass rate（严格组合通过率）：主意图、次意图、风险级别、是否澄清和必需工具必须全部正确；
+- component scores（分项指标）：用于定位具体薄弱环节，不能替代组合门禁；
+- failure examples（失败样例）：只来自固定合成挑战集，不展示真实用户内容。
+
+数据文件必须保持 `source=challenge_eval`、`partition=test`、`training_eligible=false`。任何训练导出器都不得吸收该集合。当前报告是调优前基线，不因分数低而修改答案迎合现有规则。

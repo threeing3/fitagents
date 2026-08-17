@@ -1,4 +1,4 @@
-import type { AgentRunDetail, AlgorithmSummary, AuthUser, ChatMessage, CheckinResult, Dashboard, PlanResponse, SessionState, UsageSummary } from "./types";
+import type { AgentChallengeSummary, AgentRunAnalysis, AgentRunDetail, AlgorithmSummary, AuthUser, ChatMessage, CheckinResult, Dashboard, PlanResponse, SessionState, UsageSummary } from "./types";
 
 const DEFAULT_API_BASE_URL = import.meta.env.DEV
   ? "http://127.0.0.1:1015"
@@ -55,6 +55,18 @@ export async function fetchUsageSummary(): Promise<UsageSummary> {
 
 export async function fetchAlgorithmSummary(): Promise<AlgorithmSummary> {
   return api("/v1/algorithm/summary");
+}
+
+export async function fetchAgentLabRuns(): Promise<AgentRunAnalysis[]> {
+  return api("/v1/algorithm/agent-runs?limit=20");
+}
+
+export async function fetchAgentLabRun(runId: string): Promise<AgentRunAnalysis> {
+  return api(`/v1/algorithm/agent-runs/${runId}`);
+}
+
+export async function fetchAgentChallenges(): Promise<AgentChallengeSummary> {
+  return api("/v1/algorithm/challenges/summary");
 }
 
 export async function listSessions(): Promise<Array<SessionState & { title: string; created_at: string }>> {

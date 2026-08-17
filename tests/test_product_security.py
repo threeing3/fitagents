@@ -1,5 +1,6 @@
 """Product-safety regression tests for the public demo release."""
 
+import uuid
 from unittest.mock import patch
 
 import pytest
@@ -142,6 +143,83 @@ def test_algorithm_summary_marks_fixed_and_simulated_evidence():
     assert experiment.status_code == 200
     assert experiment.json()["provenance"]["training_eligible"] is False
     assert "predictions" not in experiment.text
+
+
+def test_agent_lab_challenge_report_is_test_only():
+    client, _ = _create_client_and_db()
+
+    response = client.get("/v1/algorithm/challenges/summary")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["cases"] == 120
+    assert payload["partition"] == "test"
+    assert payload["training_eligible"] is False
+    assert payload["failure_examples"]
+
+
+def test_agent_lab_runs_are_authenticated_user_isolated_and_sanitized():
+    client, session_factory = _create_client_and_db()
+    assert client.get("/v1/algorithm/agent-runs").status_code == 401
+    registration = client.post(
+        "/v1/auth/register",
+        json={"email": "trace@example.com", "password": "password-12345"},
+    )
+    assert registration.status_code == 201
+    user_id = registration.json()["user_id"]
+
+    with session_factory() as db:
+        own_run = models.AgentRun(
+            user_id=uuid.UUID(user_id),
+            run_type="chat",
+            status="completed",
+            nodes=[
+                {
+                    "node": "IntentRouter",
+                    "status": "completed",
+                    "output": {"primary_intent": "training_plan", "raw_context": "secret"},
+                },
+                {
+                    "node": "GuardrailCheck",
+                    "status": "completed",
+                    "output": {"action": "pass"},
+                },
+            ],
+            summary="safe summary",
+            log_path="C:/private/raw-trace.jsonl",
+        )
+        other = models.User(
+            email="other-trace@example.com",
+            password_hash=hash_password("password-12345"),
+            display_name="Other",
+        )
+        db.add_all([own_run, other])
+        db.flush()
+        other_run = models.AgentRun(user_id=other.id, run_type="chat", nodes=[])
+        db.add(other_run)
+        db.flush()
+        db.add(
+            models.ToolCall(
+                agent_run_id=own_run.id,
+                tool_name="plan.generate",
+                input_json={"private": "secret"},
+                output_json={"private": "secret"},
+                status="success",
+            )
+        )
+        db.commit()
+        own_id, other_id = str(own_run.id), str(other_run.id)
+
+    listing = client.get("/v1/algorithm/agent-runs")
+    assert listing.status_code == 200
+    assert [row["run_id"] for row in listing.json()] == [own_id]
+    detail = client.get(f"/v1/algorithm/agent-runs/{own_id}")
+    assert detail.status_code == 200
+    assert detail.json()["decision"]["tool_names"] == ["plan.generate"]
+    assert detail.json()["privacy"] == "sanitized_projection_no_raw_user_context"
+    assert "secret" not in detail.text
+    assert "raw-trace" not in detail.text
+    assert client.get(f"/v1/algorithm/agent-runs/{other_id}").status_code == 403
 
 
 def test_invalid_image_payload_is_rejected_before_model_call():

@@ -1,9 +1,17 @@
 """Public, sanitized algorithm maturity evidence for the Algorithm Lab."""
 
 import json
+import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from fast_api.app.core.auth import get_current_user
+from fast_api.app.db import models
+from fast_api.app.db.database import get_db
+from fast_api.app.services.agent_trace_analysis import analyze_agent_run
 
 algorithm_router = APIRouter(prefix="/v1/algorithm", tags=["algorithm-lab"])
 REPORT_PATH = (
@@ -12,6 +20,13 @@ REPORT_PATH = (
     / "evaluation"
     / "reports"
     / "maturity_03_baseline.summary.json"
+)
+CHALLENGE_REPORT_PATH = (
+    Path(__file__).resolve().parents[3]
+    / "algorithm"
+    / "evaluation"
+    / "reports"
+    / "agent_challenge_v1.summary.json"
 )
 
 
@@ -142,3 +157,65 @@ def algorithm_experiment(experiment_id: str) -> dict:
     if experiment_id != report.get("experiment_id"):
         raise HTTPException(status_code=404, detail="Published experiment was not found.")
     return report
+
+
+@algorithm_router.get("/challenges/summary")
+def algorithm_challenge_summary() -> dict:
+    """Return the fixed test-only challenge baseline and synthetic failure examples."""
+
+    if not CHALLENGE_REPORT_PATH.exists():
+        raise HTTPException(status_code=503, detail="Agent challenge report is not available.")
+    return json.loads(CHALLENGE_REPORT_PATH.read_text(encoding="utf-8"))
+
+
+@algorithm_router.get("/agent-runs")
+def algorithm_agent_runs(
+    limit: int = Query(default=20, ge=1, le=50),
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    """List sanitized decision summaries for only the authenticated user."""
+
+    runs = list(
+        db.scalars(
+            select(models.AgentRun)
+            .where(models.AgentRun.user_id == current_user.id)
+            .order_by(models.AgentRun.started_at.desc())
+            .limit(limit)
+        )
+    )
+    if not runs:
+        return []
+    calls = list(
+        db.scalars(select(models.ToolCall).where(models.ToolCall.agent_run_id.in_([r.id for r in runs])))
+    )
+    calls_by_run: dict[str, list[models.ToolCall]] = {}
+    for call in calls:
+        calls_by_run.setdefault(str(call.agent_run_id), []).append(call)
+    return [
+        analyze_agent_run(run, calls_by_run.get(str(run.id), []), include_timeline=False)
+        for run in runs
+    ]
+
+
+@algorithm_router.get("/agent-runs/{run_id}")
+def algorithm_agent_run(
+    run_id: str,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Return a sanitized decision replay without raw inputs, outputs, or log paths."""
+
+    try:
+        run_uuid = uuid.UUID(run_id)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=404, detail="Agent run was not found.") from None
+    run = db.get(models.AgentRun, run_uuid)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Agent run was not found.")
+    if run.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Agent run belongs to another user.")
+    calls = list(
+        db.scalars(select(models.ToolCall).where(models.ToolCall.agent_run_id == run.id))
+    )
+    return analyze_agent_run(run, calls)

@@ -1,82 +1,45 @@
 import React, { useEffect, useState } from "react";
-import { AlertTriangle, BarChart3, Database, FlaskConical, ShieldCheck } from "lucide-react";
+import { AlertTriangle, CheckCircle2, FlaskConical, Route, ShieldCheck, Wrench } from "lucide-react";
 
-import { fetchAlgorithmSummary } from "./api";
+import { fetchAgentChallenges, fetchAgentLabRun, fetchAgentLabRuns } from "./api";
 import { useLanguage } from "./LanguageContext";
-import type { AlgorithmSummary } from "./types";
+import type { AgentChallengeSummary, AgentRunAnalysis } from "./types";
+
+const pct = (value: number) => `${Math.round(value * 100)}%`;
 
 export function AlgorithmLabView() {
   const { isZh } = useLanguage();
-  const [summary, setSummary] = useState<AlgorithmSummary | null>(null);
+  const [runs, setRuns] = useState<AgentRunAnalysis[]>([]);
+  const [selected, setSelected] = useState<AgentRunAnalysis | null>(null);
+  const [challenge, setChallenge] = useState<AgentChallengeSummary | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    fetchAlgorithmSummary().then(setSummary).catch((reason) => setError(String(reason)));
+    Promise.all([fetchAgentLabRuns(), fetchAgentChallenges()])
+      .then(async ([runRows, challengeReport]) => {
+        setRuns(runRows);
+        setChallenge(challengeReport);
+        if (runRows[0]) setSelected(await fetchAgentLabRun(runRows[0].run_id));
+      })
+      .catch((reason) => setError(String(reason)));
   }, []);
 
-  if (error) {
-    return (
-      <div className="algorithm-view empty-state">
-        <AlertTriangle size={28} />
-        <h2>{isZh ? "算法报告暂不可用" : "Algorithm report unavailable"}</h2>
-        <button type="button" onClick={() => window.location.reload()}>
-          {isZh ? "重新加载" : "Reload"}
-        </button>
-      </div>
-    );
-  }
+  const selectRun = async (runId: string) => {
+    try { setSelected(await fetchAgentLabRun(runId)); } catch (reason) { setError(String(reason)); }
+  };
 
-  if (!summary) {
-    return <div className="algorithm-view empty-state">{isZh ? "正在读取脱敏实验摘要…" : "Loading sanitized experiment summary…"}</div>;
-  }
+  if (error) return <div className="algorithm-view empty-state"><AlertTriangle size={28} /><h2>{isZh ? "Agent Lab 暂不可用" : "Agent Lab unavailable"}</h2><p>{error}</p></div>;
 
-  return (
-    <div className="algorithm-view">
-      <header className="algorithm-header">
-        <div>
-          <span className="algorithm-kicker"><FlaskConical size={15} /> Algorithm Lab</span>
-          <h2>{isZh ? "算法可信度与实验进度" : "Algorithm evidence and experiment progress"}</h2>
-          <p>{isZh ? "页面只展示脱敏、固定且标注来源的证据。" : "Only sanitized, fixed, source-labelled evidence is shown."}</p>
-        </div>
-        <span className="stage-badge">{summary.release_stage}</span>
-      </header>
+  return <div className="algorithm-view agent-lab">
+    <header className="algorithm-header"><div><span className="algorithm-kicker"><FlaskConical size={15} /> Agent Lab</span><h2>{isZh ? "决策回放与失败诊断" : "Decision replay and failure diagnosis"}</h2><p>{isZh ? "像复盘训练录像一样，检查 Agent 如何理解、规划、调用工具并完成安全校验。" : "Review how the Agent understands, plans, uses tools, verifies, and applies safety gates."}</p></div><span className="stage-badge">sanitized trace</span></header>
+    <div className="algorithm-warning"><ShieldCheck size={18} /><span>{isZh ? "仅展示当前登录用户的脱敏投影，不返回原始输入、工具参数、模型上下文或日志路径。" : "Only a sanitized projection for the signed-in user is shown."}</span></div>
 
-      <div className="algorithm-warning">
-        <ShieldCheck size={18} />
-        <span>{isZh ? "当前不声明真实线上业务提升；业务结果统一标记为 simulated_outcome（模拟结果）。" : summary.disclaimer}</span>
-      </div>
+    <section className="agent-lab-layout">
+      <aside className="agent-run-list algorithm-panel"><h3><Route size={18} /> {isZh ? "最近执行" : "Recent runs"}</h3>{runs.length === 0 && <p className="muted">{isZh ? "完成一次聊天后，这里会出现可回放轨迹。" : "Complete a chat to create a replayable trace."}</p>}{runs.map((run) => <button type="button" className={selected?.run_id === run.run_id ? "agent-run active" : "agent-run"} key={run.run_id} onClick={() => selectRun(run.run_id)}><strong>{run.run_type}</strong><span>{run.status} · {run.node_count} nodes</span><small>{new Date(run.started_at).toLocaleString()}</small></button>)}</aside>
+      <main className="algorithm-panel decision-replay"><h3>{isZh ? "决策轨道" : "Decision track"}</h3>{!selected && <p className="muted">{isZh ? "选择一次执行以查看决策链。" : "Select a run to inspect its decision chain."}</p>}{selected && <><div className="decision-strip"><span>intent <b>{selected.decision.intent}</b></span><span>planner <b>{selected.decision.planner_mode}</b></span><span>guardrail <b>{selected.decision.guardrail_action}</b></span><span>tools <b>{selected.tool_count}</b></span></div><ol className="trace-track">{selected.timeline.map((step) => <li key={`${step.order}-${step.node}`}><span className="trace-index">{step.order}</span><div><small>{step.phase_label} · {step.latency_ms} ms</small><strong>{step.node}</strong><p>{step.summary}</p></div></li>)}</ol></>}</main>
+      <aside className="agent-findings algorithm-panel"><h3><Wrench size={18} /> {isZh ? "诊断发现" : "Findings"}</h3>{selected?.findings.map((finding) => <article className={`finding ${finding.severity}`} key={`${finding.code}-${finding.node}`}><strong>{finding.severity === "info" ? <CheckCircle2 size={15} /> : <AlertTriangle size={15} />}{finding.title}</strong><p>{finding.detail}</p><small>{finding.node} · {finding.code}</small></article>)}{!selected && <p className="muted">{isZh ? "暂无运行诊断。" : "No run diagnosis yet."}</p>}</aside>
+    </section>
 
-      <section className="algorithm-grid">
-        {summary.metrics.map((metric) => (
-          <article className="algorithm-card" key={metric.name}>
-            <BarChart3 size={18} />
-            <strong>{metric.value}{metric.total ? ` / ${metric.total}` : ""}{metric.unit === "percent" ? "%" : ""}</strong>
-            <span>{metric.name}</span>
-            <small>{isZh ? "来源" : "source"}: {metric.source}</small>
-          </article>
-        ))}
-      </section>
-
-      <section className="algorithm-panel">
-        <h3><Database size={18} /> {isZh ? "数据集来源与状态" : "Dataset provenance and status"}</h3>
-        <div className="dataset-table">
-          <div className="dataset-row dataset-head">
-            <span>{isZh ? "数据集" : "Dataset"}</span><span>{isZh ? "规模" : "Size"}</span><span>{isZh ? "来源" : "Source"}</span><span>{isZh ? "状态" : "Status"}</span>
-          </div>
-          {summary.datasets.map((dataset) => (
-            <div className="dataset-row" key={dataset.name}>
-              <code>{dataset.name}</code><span>{dataset.size}</span><span>{dataset.source}</span><span>{dataset.status}</span>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="algorithm-panel gate-panel">
-        <h3>{isZh ? "后训练发布门禁" : "Post-training release gate"}</h3>
-        <p>
-          DPO（直接偏好优化）: {summary.dpo.enabled ? "enabled" : "disabled"} · {summary.dpo.current_reviewed_pairs} / {summary.dpo.minimum_reviewed_pairs} {isZh ? "对真实审核偏好数据" : "human-reviewed preference pairs"}
-        </p>
-      </section>
-    </div>
-  );
+    {challenge && <section className="algorithm-panel challenge-panel"><div className="challenge-title"><div><span className="algorithm-kicker">challenge_eval · test only</span><h3>{isZh ? "高难度挑战基线" : "High-difficulty challenge baseline"}</h3></div><strong>{challenge.passed}/{challenge.cases}</strong></div><p className="muted">{isZh ? "诊断集不进入训练。组合门禁要求每个判断同时正确，因此保留当前低分作为调优起点。" : "This diagnostic set is excluded from training. The exact gate requires every decision to be correct."}</p><div className="component-scores">{Object.entries(challenge.component_scores).map(([name, value]) => <div key={name}><span>{name}</span><i><b style={{ width: pct(value) }} /></i><strong>{pct(value)}</strong></div>)}</div><div className="failure-sample"><span>{isZh ? "失败样例" : "Failure example"}</span><p>{challenge.failure_examples[0]?.user_message || "—"}</p><small>{challenge.failure_examples[0]?.category} · {challenge.failure_count} failures</small></div></section>}
+  </div>;
 }
