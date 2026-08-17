@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from algorithm.inference.intent_service import IntentRequest, create_app
+from algorithm.inference.intent_service import IntentRequest, QwenIntentPredictor, create_app
 
 
 class FakePredictor:
@@ -61,3 +61,28 @@ def test_service_refuses_start_without_inference_key(monkeypatch):
             raise AssertionError("service unexpectedly started")
     except RuntimeError as exc:
         assert "INTENT_INFERENCE_KEY" in str(exc)
+
+
+def test_context_projection_drops_unapproved_fields_and_rejects_oversized_values():
+    request = IntentRequest(
+        message="测试",
+        rule_decision={"primary_intent": "general_chat", "raw_message": "private"},
+        profile_summary={"goal": "增肌", "email": "private@example.com"},
+    )
+
+    context = QwenIntentPredictor._bounded_context(request)
+
+    assert context["profile"]["goal"] == "增肌"
+    assert "email" not in context["profile"]
+    assert "raw_message" not in context["rule_decision"]
+
+    oversized = IntentRequest(
+        message="测试",
+        rule_decision={"primary_intent": "general_chat"},
+        profile_summary={"injuries": "x" * 7000},
+    )
+    try:
+        QwenIntentPredictor._bounded_context(oversized)
+        raise AssertionError("oversized context unexpectedly passed")
+    except ValueError as exc:
+        assert "exceeds" in str(exc)
