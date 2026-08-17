@@ -5,22 +5,24 @@ from __future__ import annotations
 import json
 import os
 import secrets
+import threading
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from algorithm.evaluation.intent_local_model_eval import parse_intent_json
 from algorithm.training.verify_adapter_reload import validate_adapter_directory
+from fast_api.app.services.llm_intent_classifier import AgentIntentCatalog
 
 SYSTEM_PROMPT = "你是 FitAgent 的意图决策器。只输出符合 IntentDecisionV2 的 JSON，不输出思考过程。"
 
 
 class IntentRequest(BaseModel):
-    schema_version: str = "intent_decision_v2"
+    schema_version: Literal["intent_decision_v2"] = "intent_decision_v2"
     message: str = Field(min_length=1, max_length=2000)
     rule_decision: dict[str, Any] = Field(default_factory=dict)
     profile_summary: dict[str, Any] = Field(default_factory=dict)
@@ -43,6 +45,7 @@ class QwenIntentPredictor:
         self.model_version = f"{base_model}+{adapter_path.name}"
         self._model: Any = None
         self._tokenizer: Any = None
+        self._generation_lock = threading.Lock()
 
     def load(self) -> None:
         validate_adapter_directory(self.adapter_path)
@@ -75,10 +78,7 @@ class QwenIntentPredictor:
             raise RuntimeError("intent model is not loaded")
         import torch
 
-        context = {
-            "profile": request.profile_summary,
-            "rule_decision": request.rule_decision,
-        }
+        context = self._bounded_context(request)
         user_prompt = f"用户问题：{request.message}\n上下文：" + json.dumps(
             context, ensure_ascii=False, separators=(",", ":"), default=str
         )
@@ -93,7 +93,7 @@ class QwenIntentPredictor:
             return_tensors="pt",
             enable_thinking=False,
         ).to(self._model.device)
-        with torch.inference_mode():
+        with self._generation_lock, torch.inference_mode():
             output = self._model.generate(
                 **inputs,
                 max_new_tokens=160,
@@ -103,6 +103,10 @@ class QwenIntentPredictor:
         generated = output[0][inputs["input_ids"].shape[-1] :]
         text = self._tokenizer.decode(generated, skip_special_tokens=True)
         parsed = parse_intent_json(text)
+        if parsed.primary_intent not in AgentIntentCatalog.VALID_INTENTS:
+            raise ValueError("model returned an unknown primary_intent")
+        if any(item not in AgentIntentCatalog.VALID_INTENTS for item in parsed.secondary_intents):
+            raise ValueError("model returned an unknown secondary_intent")
         return {
             "primary_intent": parsed.primary_intent,
             "secondary_intents": parsed.secondary_intents,
@@ -114,6 +118,25 @@ class QwenIntentPredictor:
             "prompt_tokens": int(inputs["input_ids"].shape[-1]),
             "completion_tokens": int(generated.shape[-1]),
         }
+
+    @staticmethod
+    def _bounded_context(request: IntentRequest) -> dict[str, Any]:
+        profile_fields = ("age", "height_cm", "weight_kg", "goal", "experience_level", "injuries")
+        rule_fields = (
+            "primary_intent",
+            "secondary_intents",
+            "risk_level",
+            "needs_clarification",
+            "missing_slots",
+        )
+        context = {
+            "profile": {key: request.profile_summary.get(key) for key in profile_fields},
+            "rule_decision": {key: request.rule_decision.get(key) for key in rule_fields},
+        }
+        encoded = json.dumps(context, ensure_ascii=False, default=str)
+        if len(encoded) > 6000:
+            raise ValueError("structured context exceeds the inference limit")
+        return context
 
 
 def create_app(
