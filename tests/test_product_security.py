@@ -138,6 +138,11 @@ def test_algorithm_summary_marks_fixed_and_simulated_evidence():
         item["name"] == "business_fixed_pass" and item["value"] == 38 for item in payload["metrics"]
     )
     assert payload["retrieval"]["vector_status"] == "vector unavailable"
+    assert payload["intent_inference"]["adapter_status"] in {
+        "not_configured",
+        "configured_unverified",
+    }
+    assert payload["intent_inference"]["online_result_claimed"] is False
 
     experiment = client.get("/v1/algorithm/experiments/maturity_03_algorithms_20260809")
     assert experiment.status_code == 200
@@ -156,6 +161,28 @@ def test_agent_lab_challenge_report_is_test_only():
     assert payload["partition"] == "test"
     assert payload["training_eligible"] is False
     assert payload["failure_examples"]
+
+
+def test_algorithm_compare_requires_login_and_reports_real_fallback_state():
+    client, _ = _create_client_and_db()
+    assert client.post("/v1/algorithm/compare", json={"message": "怎么练？"}).status_code == 401
+    registration = client.post(
+        "/v1/auth/register",
+        json={"email": "compare@example.com", "password": "password-12345"},
+    )
+    assert registration.status_code == 201
+
+    response = client.post(
+        "/v1/algorithm/compare",
+        json={"message": "我膝盖疼，但明天还能继续深蹲吗？"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["runtime_decision"]["risk_level"] in {"medium", "high", "critical"}
+    assert payload["routing"]["safety_rule_applied"] is True
+    assert payload["routing"]["local_model_status"] == "not_configured"
+    assert payload["routing"]["local_model_used"] is False
 
 
 def test_agent_lab_runs_are_authenticated_user_isolated_and_sanitized():

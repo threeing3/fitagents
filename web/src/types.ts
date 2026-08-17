@@ -92,6 +92,21 @@ export type AlgorithmSummary = {
   metrics: Array<{ name: string; value: number; total?: number; unit?: string; source: string }>;
   business_outcomes: { label: string; online_claim: boolean };
   dpo: { enabled: boolean; minimum_reviewed_pairs: number; current_reviewed_pairs: number };
+  intent_inference: {
+    architecture: string;
+    adapter_status: string;
+    adapter_model: string;
+    safety_authority: string;
+    online_result_claimed: boolean;
+  };
+};
+
+export type AlgorithmCompare = {
+  rule_baseline: { primary_intent: string; risk_level: string; confidence: number };
+  runtime_decision: { primary_intent: string; secondary_intents: string[]; risk_level: string; confidence: number };
+  routing: { final_source: string; local_model_status: string; local_model_used: boolean; deepseek_used: boolean; safety_rule_applied: boolean };
+  latency_ms: Record<string, number>;
+  disclaimer: string;
 };
 
 export type AgentFinding = {

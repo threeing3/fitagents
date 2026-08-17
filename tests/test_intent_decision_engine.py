@@ -2,6 +2,7 @@ import asyncio
 from types import SimpleNamespace
 
 from fast_api.app.services.intent_decision_engine import IntentDecisionEngine
+from fast_api.app.services.intent_inference_client import IntentInferenceResult
 
 
 class FakeMessage:
@@ -26,6 +27,22 @@ class FakeModelProvider:
 
     def chat_model(self, temperature: float = 0.0):
         return self.model
+
+
+class FakeInferenceClient:
+    async def classify(self, message, rule_decision, profile_summary):
+        return IntentInferenceResult(
+            attempted=True,
+            succeeded=True,
+            status="available",
+            model_version="qwen3-4b-intent-test",
+            payload={
+                "primary_intent": "progression_decision",
+                "secondary_intents": [],
+                "confidence": 0.91,
+                "risk_level": "low",
+            },
+        )
 
 
 def test_engine_calls_model_once_and_preserves_rule_safety():
@@ -81,3 +98,17 @@ def test_engine_reports_invalid_model_payload_without_claiming_model_success():
     assert result.decision.provenance["model_succeeded"] is False
     assert result.decision.provenance["deepseek_used"] is False
     assert result.decision.provenance["model_fallback_reason"] == "invalid_model_payload"
+
+
+def test_engine_prefers_adapter_and_keeps_rule_safety_authority():
+    provider = FakeModelProvider("not-used")
+    engine = IntentDecisionEngine(provider, inference_client=FakeInferenceClient())
+
+    result = asyncio.run(engine.decide("我胸闷，但训练重量是不是还能继续加？"))
+
+    assert provider.model.calls == 0
+    assert result.decision.primary_intent == "injury_or_risk"
+    assert result.decision.provenance["local_model_used"] is True
+    assert result.decision.provenance["local_model_version"] == "qwen3-4b-intent-test"
+    assert result.decision.provenance["deepseek_used"] is False
+    assert result.decision.provenance["final_source"] == "adapter_with_rule_override"
