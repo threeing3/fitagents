@@ -73,7 +73,17 @@ def prepare_run(
         encoding="utf-8",
     )
     (records / "run.log").write_text(
-        f"{_now()} prepared run {run_id} ({variant})\n", encoding="utf-8"
+        "\n".join(
+            [
+                f"{_now()} prepared run {run_id} ({variant})",
+                f"command={json.dumps(argv, ensure_ascii=False)}",
+                f"train_dataset={summary['train_dataset_path']}",
+                f"eval_dataset={summary['eval_dataset_path']}",
+                f"dataset_version={summary['dataset_version']} seed={summary['seed']}",
+                "",
+            ]
+        ),
+        encoding="utf-8",
     )
     (records / "events.jsonl").write_text(
         json.dumps({"timestamp": _now(), "event": "run_prepared"}) + "\n", encoding="utf-8"
@@ -94,6 +104,20 @@ def prepare_run(
                 "event": "preflight",
                 "nvidia_smi_available": "NVIDIA-SMI" in nvidia_text,
             }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (records / "sync_manifest.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "fitagent-sync-manifest/v1",
+                "run_id": run_id,
+                "transfers": [],
+                "note": "Append one entry for every snapshot or record transfer.",
+            },
+            ensure_ascii=False,
+            indent=2,
         )
         + "\n",
         encoding="utf-8",

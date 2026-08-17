@@ -52,6 +52,7 @@ def test_prepare_run_creates_required_records_and_refuses_overwrite(tmp_path):
         "run.log",
         "run_manifest.json",
         "status.json",
+        "sync_manifest.json",
     }.issubset({path.name for path in records.iterdir()})
     assert json.loads((records / "run_manifest.json").read_text())["row_limit"] == 50
     with pytest.raises(FileExistsError, match="immutable run_id"):
