@@ -8,7 +8,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
-SCHEMA_VERSION = "2026-08-01"
+SCHEMA_VERSION = "2026-08-09"
 VALID_SOURCES = {
     "agent_trace",
     "rule_generated",
@@ -80,6 +80,13 @@ class TrainingExample:
             errors.append("user_message is required")
         if self.source not in VALID_SOURCES:
             errors.append(f"unknown source: {self.source}")
+        if self.source == "seed_eval" and self.split != "test":
+            errors.append("seed_eval rows are test-only and cannot enter training splits")
+        if (
+            self.source == "expert_labeled"
+            and self.quality_labels.get("review_status") != "approved"
+        ):
+            errors.append("expert_labeled rows require quality_labels.review_status=approved")
         if self.split not in VALID_SPLITS:
             errors.append(f"unknown split: {self.split}")
         if self.feedback_id is not None and (
@@ -195,6 +202,9 @@ class DatasetManifest:
     row_counts: dict[str, int] = field(default_factory=dict)
     split_counts: dict[str, int] = field(default_factory=dict)
     source_counts: dict[str, int] = field(default_factory=dict)
+    source_split_counts: dict[str, dict[str, int]] = field(default_factory=dict)
+    scenario_split_counts: dict[str, dict[str, int]] = field(default_factory=dict)
+    eligibility_counts: dict[str, int] = field(default_factory=dict)
     user_count: int = 0
     scenario_count: int = 0
     validation_errors: int = 0

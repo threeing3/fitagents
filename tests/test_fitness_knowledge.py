@@ -1,7 +1,7 @@
 from fast_api.app.services.fitness_knowledge import FitnessKnowledgeService
 
-
 # ---- Original tests ----
+
 
 def test_explanation_and_cases_are_retrieved_as_rag_sources_without_db():
     service = FitnessKnowledgeService(db=None)
@@ -17,7 +17,9 @@ def test_explanation_and_cases_are_retrieved_as_rag_sources_without_db():
         {},
     )
 
-    assert any(item["knowledge_id"] == "exp_hyperthyroid_training_boundary_001" for item in explanations)
+    assert any(
+        item["knowledge_id"] == "exp_hyperthyroid_training_boundary_001" for item in explanations
+    )
     assert any(item["case_id"] == "case_takeout_nutrition_001" for item in cases)
 
 
@@ -35,7 +37,9 @@ def test_decision_rules_match_structured_context_without_rag():
 
     assert "rule_training_hold_high_fatigue_001" in rule_ids
     assert "rule_training_add_weight_clean_bench_001" in rule_ids
-    assert rule_ids.index("rule_training_hold_high_fatigue_001") < rule_ids.index("rule_training_add_weight_clean_bench_001")
+    assert rule_ids.index("rule_training_hold_high_fatigue_001") < rule_ids.index(
+        "rule_training_add_weight_clean_bench_001"
+    )
 
 
 def test_plan_template_selection_prefers_takeout_nutrition_template():
@@ -57,6 +61,7 @@ def test_plan_template_selection_prefers_takeout_nutrition_template():
 
 
 # ---- Expanded tests: Knowledge retrieval for new topics ----
+
 
 def test_retrieve_knowledge_for_female_cycle_training():
     service = FitnessKnowledgeService(db=None)
@@ -136,6 +141,7 @@ def test_retrieve_knowledge_for_progressive_overload():
 
 
 # ---- Expanded tests: Template selection across goals/levels/equipment ----
+
 
 def test_template_selection_muscle_gain_intermediate_gym_4d():
     service = FitnessKnowledgeService(db=None)
@@ -255,6 +261,7 @@ def test_template_selection_clean_bulk_nutrition():
 
 # ---- Expanded tests: Coaching case retrieval ----
 
+
 def test_retrieve_coaching_case_beginner_doms():
     service = FitnessKnowledgeService(db=None)
     cases = service.retrieve_coaching_cases(
@@ -312,6 +319,7 @@ def test_retrieve_coaching_case_vegetarian_muscle_gain():
 
 # ---- Expanded tests: Build knowledge context completeness ----
 
+
 def test_build_knowledge_context_returns_all_four_sections():
     service = FitnessKnowledgeService(db=None)
     context = {
@@ -342,7 +350,9 @@ def test_build_knowledge_context_debug_includes_all_match_ids():
     assert len(result["debug"]["matched_template_ids"]) >= 1
     assert len(result["debug"]["matched_knowledge_ids"]) >= 1
     assert len(result["debug"]["matched_case_ids"]) >= 1
-    assert result["debug"]["retrieval_ranker"] == "hybrid_vector_bm25"
+    assert result["debug"]["retrieval_ranker"] == "bm25"
+    assert result["debug"]["vector_available"] is False
+    assert result["debug"]["vector_status"] == "vector unavailable"
     assert result["debug"]["bm25_enabled"] is True
     assert result["debug"]["matched_knowledge_scores"]
     assert result["debug"]["matched_case_scores"]
@@ -358,5 +368,7 @@ def test_match_decision_rules_sorted_by_priority_desc():
     }
     rules = service.match_decision_rules("training_plan", context)
     priorities = [r["priority"] for r in rules]
-    assert priorities == sorted(priorities, reverse=True), f"Rules not sorted by priority: {priorities}"
+    assert priorities == sorted(priorities, reverse=True), (
+        f"Rules not sorted by priority: {priorities}"
+    )
     assert priorities[0] >= 90  # Medical boundary should be highest priority

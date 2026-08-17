@@ -12,7 +12,6 @@ from typing import Any
 from .schemas import OutcomeLabel, PreferencePair, TrainingExample, stable_hash
 from .split_dataset import split_records
 
-
 TEMPLATES: tuple[dict[str, Any], ...] = (
     {
         "task_type": "general_chat",
@@ -86,7 +85,10 @@ def build_synthetic_examples(count: int = 24, seed: int = 42) -> list[TrainingEx
             accepted = not accepted
         implemented = accepted and ((index * 13 + seed) % 10) < 8
         adherence = round(0.35 + (((index * 19 + seed) % 60) / 100), 2)
-        user_key = f"synthetic-user-{index % max(1, min(count, 48))}"
+        # Group a complete template cycle under one user so every user can
+        # contribute multiple scenarios without crossing dataset partitions.
+        user_count = max(1, min(max(1, count // len(TEMPLATES)), 50))
+        user_key = f"synthetic-user-{(index // len(TEMPLATES)) % user_count}"
         records.append(
             TrainingExample(
                 example_id=f"synthetic-{index:05d}",
@@ -100,7 +102,10 @@ def build_synthetic_examples(count: int = 24, seed: int = 42) -> list[TrainingEx
                 assistant_response=f"{spec['response']} 本案例仅用于离线方法验证。",
                 intent_label=str(spec["intent"]),
                 risk_label="high" if spec["intent"] == "injury_or_risk" else "low",
-                quality_labels={"overall_score": float(spec["quality"]), "label_source": "synthetic_template"},
+                quality_labels={
+                    "overall_score": float(spec["quality"]),
+                    "label_source": "synthetic_template",
+                },
                 guardrail_result={"synthetic_check": "passed"},
                 outcome=OutcomeLabel(
                     accepted_by_user=accepted,
@@ -124,7 +129,9 @@ def build_synthetic_examples(count: int = 24, seed: int = 42) -> list[TrainingEx
     return [TrainingExample.from_dict(row) for row in split]
 
 
-def build_synthetic_preference_pairs(rows: list[TrainingExample | dict[str, Any]]) -> list[dict[str, Any]]:
+def build_synthetic_preference_pairs(
+    rows: list[TrainingExample | dict[str, Any]],
+) -> list[dict[str, Any]]:
     """Build transparent synthetic preferences from template quality labels."""
 
     pairs: list[dict[str, Any]] = []
@@ -141,7 +148,10 @@ def build_synthetic_preference_pairs(rows: list[TrainingExample | dict[str, Any]
             preference_reason=["specificity", "actionability", "safety_boundary"],
             feedback_source="synthetic_pair",
             guardrail_comparison={"chosen": "safe", "rejected": "underspecified"},
-            business_outcome_comparison={"chosen": "simulated_higher_acceptance", "rejected": "simulated_lower_acceptance"},
+            business_outcome_comparison={
+                "chosen": "simulated_higher_acceptance",
+                "rejected": "simulated_lower_acceptance",
+            },
             source="synthetic",
             split=str(row.get("split") or "quarantine"),
         )

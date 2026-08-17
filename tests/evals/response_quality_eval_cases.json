@@ -1,0 +1,1302 @@
+[
+  {
+    "case_id": "response-sleep-000",
+    "user_message": "昨晚睡眠不足，今天怎么训练？（质量变体 1）",
+    "response": "建议今天降低训练强度和总量，先补足睡眠并记录恢复状态，再逐步恢复负荷。",
+    "expected_terms": [
+      "降低",
+      "恢复"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-pain-001",
+    "user_message": "训练时肩膀刺痛怎么办？（质量变体 2）",
+    "response": "如果肩膀出现刺痛，请停止相关动作；若持续或加重，建议咨询医生或康复专业人员。",
+    "expected_terms": [
+      "停止",
+      "医生"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-protein-002",
+    "user_message": "减脂期蛋白质怎么安排？（质量变体 3）",
+    "response": "建议按体重安排全天蛋白质，并分配到各餐，再结合减脂热量目标调整。",
+    "expected_terms": [
+      "蛋白质",
+      "体重"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-plan-003",
+    "user_message": "帮我安排三天训练。（质量变体 4）",
+    "response": "可以先做三天全身训练，每次先热身，再完成推、拉、蹲类动作并记录完成情况。",
+    "expected_terms": [
+      "三天",
+      "训练"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-warmup-004",
+    "user_message": "力量训练前怎么热身？（质量变体 5）",
+    "response": "建议先做五分钟低强度热身，再做动态活动和主项递增热身组。",
+    "expected_terms": [
+      "热身",
+      "分钟"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-hydration-005",
+    "user_message": "高温训练怎么补水？（质量变体 6）",
+    "response": "高温训练前先补水，训练中分次饮用；大量出汗时可关注电解质补充。",
+    "expected_terms": [
+      "补水",
+      "电解质"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-plateau-006",
+    "user_message": "卧推平台期怎么调整？（质量变体 7）",
+    "response": "建议先检查恢复与动作质量，再用周期化调整次数范围，并考虑安排一次减载。",
+    "expected_terms": [
+      "周期",
+      "减载"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-home-007",
+    "user_message": "只有哑铃怎么练？（质量变体 8）",
+    "response": "可以用哑铃安排深蹲、推举、划船和髋铰链动作，先从可控重量开始。",
+    "expected_terms": [
+      "哑铃",
+      "动作"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-recovery-008",
+    "user_message": "连续疲劳需要休息吗？（质量变体 9）",
+    "response": "建议先降低训练量并安排恢复日，同时记录睡眠、疲劳和静息心率。",
+    "expected_terms": [
+      "恢复",
+      "训练量"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-takeout-009",
+    "user_message": "经常吃外卖如何减脂？（质量变体 10）",
+    "response": "选择外卖时先保证蛋白质和蔬菜，再控制高油酱汁和主食份量。",
+    "expected_terms": [
+      "外卖",
+      "蛋白质"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-sleep-010",
+    "user_message": "昨晚睡眠不足，今天怎么训练？（质量变体 11）",
+    "response": "建议今天降低训练强度和总量，先补足睡眠并记录恢复状态，再逐步恢复负荷。",
+    "expected_terms": [
+      "降低",
+      "恢复"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-pain-011",
+    "user_message": "训练时肩膀刺痛怎么办？（质量变体 12）",
+    "response": "如果肩膀出现刺痛，请停止相关动作；若持续或加重，建议咨询医生或康复专业人员。",
+    "expected_terms": [
+      "停止",
+      "医生"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-protein-012",
+    "user_message": "减脂期蛋白质怎么安排？（质量变体 13）",
+    "response": "建议按体重安排全天蛋白质，并分配到各餐，再结合减脂热量目标调整。",
+    "expected_terms": [
+      "蛋白质",
+      "体重"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-plan-013",
+    "user_message": "帮我安排三天训练。（质量变体 14）",
+    "response": "可以先做三天全身训练，每次先热身，再完成推、拉、蹲类动作并记录完成情况。",
+    "expected_terms": [
+      "三天",
+      "训练"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-warmup-014",
+    "user_message": "力量训练前怎么热身？（质量变体 15）",
+    "response": "建议先做五分钟低强度热身，再做动态活动和主项递增热身组。",
+    "expected_terms": [
+      "热身",
+      "分钟"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-hydration-015",
+    "user_message": "高温训练怎么补水？（质量变体 16）",
+    "response": "高温训练前先补水，训练中分次饮用；大量出汗时可关注电解质补充。",
+    "expected_terms": [
+      "补水",
+      "电解质"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-plateau-016",
+    "user_message": "卧推平台期怎么调整？（质量变体 17）",
+    "response": "建议先检查恢复与动作质量，再用周期化调整次数范围，并考虑安排一次减载。",
+    "expected_terms": [
+      "周期",
+      "减载"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-home-017",
+    "user_message": "只有哑铃怎么练？（质量变体 18）",
+    "response": "可以用哑铃安排深蹲、推举、划船和髋铰链动作，先从可控重量开始。",
+    "expected_terms": [
+      "哑铃",
+      "动作"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-recovery-018",
+    "user_message": "连续疲劳需要休息吗？（质量变体 19）",
+    "response": "建议先降低训练量并安排恢复日，同时记录睡眠、疲劳和静息心率。",
+    "expected_terms": [
+      "恢复",
+      "训练量"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-takeout-019",
+    "user_message": "经常吃外卖如何减脂？（质量变体 20）",
+    "response": "选择外卖时先保证蛋白质和蔬菜，再控制高油酱汁和主食份量。",
+    "expected_terms": [
+      "外卖",
+      "蛋白质"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-sleep-020",
+    "user_message": "昨晚睡眠不足，今天怎么训练？（质量变体 21）",
+    "response": "建议今天降低训练强度和总量，先补足睡眠并记录恢复状态，再逐步恢复负荷。",
+    "expected_terms": [
+      "降低",
+      "恢复"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-pain-021",
+    "user_message": "训练时肩膀刺痛怎么办？（质量变体 22）",
+    "response": "如果肩膀出现刺痛，请停止相关动作；若持续或加重，建议咨询医生或康复专业人员。",
+    "expected_terms": [
+      "停止",
+      "医生"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-protein-022",
+    "user_message": "减脂期蛋白质怎么安排？（质量变体 23）",
+    "response": "建议按体重安排全天蛋白质，并分配到各餐，再结合减脂热量目标调整。",
+    "expected_terms": [
+      "蛋白质",
+      "体重"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-plan-023",
+    "user_message": "帮我安排三天训练。（质量变体 24）",
+    "response": "可以先做三天全身训练，每次先热身，再完成推、拉、蹲类动作并记录完成情况。",
+    "expected_terms": [
+      "三天",
+      "训练"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-warmup-024",
+    "user_message": "力量训练前怎么热身？（质量变体 25）",
+    "response": "建议先做五分钟低强度热身，再做动态活动和主项递增热身组。",
+    "expected_terms": [
+      "热身",
+      "分钟"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-hydration-025",
+    "user_message": "高温训练怎么补水？（质量变体 26）",
+    "response": "高温训练前先补水，训练中分次饮用；大量出汗时可关注电解质补充。",
+    "expected_terms": [
+      "补水",
+      "电解质"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-plateau-026",
+    "user_message": "卧推平台期怎么调整？（质量变体 27）",
+    "response": "建议先检查恢复与动作质量，再用周期化调整次数范围，并考虑安排一次减载。",
+    "expected_terms": [
+      "周期",
+      "减载"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-home-027",
+    "user_message": "只有哑铃怎么练？（质量变体 28）",
+    "response": "可以用哑铃安排深蹲、推举、划船和髋铰链动作，先从可控重量开始。",
+    "expected_terms": [
+      "哑铃",
+      "动作"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-recovery-028",
+    "user_message": "连续疲劳需要休息吗？（质量变体 29）",
+    "response": "建议先降低训练量并安排恢复日，同时记录睡眠、疲劳和静息心率。",
+    "expected_terms": [
+      "恢复",
+      "训练量"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-takeout-029",
+    "user_message": "经常吃外卖如何减脂？（质量变体 30）",
+    "response": "选择外卖时先保证蛋白质和蔬菜，再控制高油酱汁和主食份量。",
+    "expected_terms": [
+      "外卖",
+      "蛋白质"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-sleep-030",
+    "user_message": "昨晚睡眠不足，今天怎么训练？（质量变体 31）",
+    "response": "建议今天降低训练强度和总量，先补足睡眠并记录恢复状态，再逐步恢复负荷。",
+    "expected_terms": [
+      "降低",
+      "恢复"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-pain-031",
+    "user_message": "训练时肩膀刺痛怎么办？（质量变体 32）",
+    "response": "如果肩膀出现刺痛，请停止相关动作；若持续或加重，建议咨询医生或康复专业人员。",
+    "expected_terms": [
+      "停止",
+      "医生"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-protein-032",
+    "user_message": "减脂期蛋白质怎么安排？（质量变体 33）",
+    "response": "建议按体重安排全天蛋白质，并分配到各餐，再结合减脂热量目标调整。",
+    "expected_terms": [
+      "蛋白质",
+      "体重"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-plan-033",
+    "user_message": "帮我安排三天训练。（质量变体 34）",
+    "response": "可以先做三天全身训练，每次先热身，再完成推、拉、蹲类动作并记录完成情况。",
+    "expected_terms": [
+      "三天",
+      "训练"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-warmup-034",
+    "user_message": "力量训练前怎么热身？（质量变体 35）",
+    "response": "建议先做五分钟低强度热身，再做动态活动和主项递增热身组。",
+    "expected_terms": [
+      "热身",
+      "分钟"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-hydration-035",
+    "user_message": "高温训练怎么补水？（质量变体 36）",
+    "response": "高温训练前先补水，训练中分次饮用；大量出汗时可关注电解质补充。",
+    "expected_terms": [
+      "补水",
+      "电解质"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-plateau-036",
+    "user_message": "卧推平台期怎么调整？（质量变体 37）",
+    "response": "建议先检查恢复与动作质量，再用周期化调整次数范围，并考虑安排一次减载。",
+    "expected_terms": [
+      "周期",
+      "减载"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-home-037",
+    "user_message": "只有哑铃怎么练？（质量变体 38）",
+    "response": "可以用哑铃安排深蹲、推举、划船和髋铰链动作，先从可控重量开始。",
+    "expected_terms": [
+      "哑铃",
+      "动作"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-recovery-038",
+    "user_message": "连续疲劳需要休息吗？（质量变体 39）",
+    "response": "建议先降低训练量并安排恢复日，同时记录睡眠、疲劳和静息心率。",
+    "expected_terms": [
+      "恢复",
+      "训练量"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-takeout-039",
+    "user_message": "经常吃外卖如何减脂？（质量变体 40）",
+    "response": "选择外卖时先保证蛋白质和蔬菜，再控制高油酱汁和主食份量。",
+    "expected_terms": [
+      "外卖",
+      "蛋白质"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-sleep-040",
+    "user_message": "昨晚睡眠不足，今天怎么训练？（质量变体 41）",
+    "response": "建议今天降低训练强度和总量，先补足睡眠并记录恢复状态，再逐步恢复负荷。",
+    "expected_terms": [
+      "降低",
+      "恢复"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-pain-041",
+    "user_message": "训练时肩膀刺痛怎么办？（质量变体 42）",
+    "response": "如果肩膀出现刺痛，请停止相关动作；若持续或加重，建议咨询医生或康复专业人员。",
+    "expected_terms": [
+      "停止",
+      "医生"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-protein-042",
+    "user_message": "减脂期蛋白质怎么安排？（质量变体 43）",
+    "response": "建议按体重安排全天蛋白质，并分配到各餐，再结合减脂热量目标调整。",
+    "expected_terms": [
+      "蛋白质",
+      "体重"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-plan-043",
+    "user_message": "帮我安排三天训练。（质量变体 44）",
+    "response": "可以先做三天全身训练，每次先热身，再完成推、拉、蹲类动作并记录完成情况。",
+    "expected_terms": [
+      "三天",
+      "训练"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-warmup-044",
+    "user_message": "力量训练前怎么热身？（质量变体 45）",
+    "response": "建议先做五分钟低强度热身，再做动态活动和主项递增热身组。",
+    "expected_terms": [
+      "热身",
+      "分钟"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-hydration-045",
+    "user_message": "高温训练怎么补水？（质量变体 46）",
+    "response": "高温训练前先补水，训练中分次饮用；大量出汗时可关注电解质补充。",
+    "expected_terms": [
+      "补水",
+      "电解质"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-plateau-046",
+    "user_message": "卧推平台期怎么调整？（质量变体 47）",
+    "response": "建议先检查恢复与动作质量，再用周期化调整次数范围，并考虑安排一次减载。",
+    "expected_terms": [
+      "周期",
+      "减载"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-home-047",
+    "user_message": "只有哑铃怎么练？（质量变体 48）",
+    "response": "可以用哑铃安排深蹲、推举、划船和髋铰链动作，先从可控重量开始。",
+    "expected_terms": [
+      "哑铃",
+      "动作"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-recovery-048",
+    "user_message": "连续疲劳需要休息吗？（质量变体 49）",
+    "response": "建议先降低训练量并安排恢复日，同时记录睡眠、疲劳和静息心率。",
+    "expected_terms": [
+      "恢复",
+      "训练量"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-takeout-049",
+    "user_message": "经常吃外卖如何减脂？（质量变体 50）",
+    "response": "选择外卖时先保证蛋白质和蔬菜，再控制高油酱汁和主食份量。",
+    "expected_terms": [
+      "外卖",
+      "蛋白质"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-sleep-050",
+    "user_message": "昨晚睡眠不足，今天怎么训练？（质量变体 51）",
+    "response": "建议今天降低训练强度和总量，先补足睡眠并记录恢复状态，再逐步恢复负荷。",
+    "expected_terms": [
+      "降低",
+      "恢复"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-pain-051",
+    "user_message": "训练时肩膀刺痛怎么办？（质量变体 52）",
+    "response": "如果肩膀出现刺痛，请停止相关动作；若持续或加重，建议咨询医生或康复专业人员。",
+    "expected_terms": [
+      "停止",
+      "医生"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-protein-052",
+    "user_message": "减脂期蛋白质怎么安排？（质量变体 53）",
+    "response": "建议按体重安排全天蛋白质，并分配到各餐，再结合减脂热量目标调整。",
+    "expected_terms": [
+      "蛋白质",
+      "体重"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-plan-053",
+    "user_message": "帮我安排三天训练。（质量变体 54）",
+    "response": "可以先做三天全身训练，每次先热身，再完成推、拉、蹲类动作并记录完成情况。",
+    "expected_terms": [
+      "三天",
+      "训练"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-warmup-054",
+    "user_message": "力量训练前怎么热身？（质量变体 55）",
+    "response": "建议先做五分钟低强度热身，再做动态活动和主项递增热身组。",
+    "expected_terms": [
+      "热身",
+      "分钟"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-hydration-055",
+    "user_message": "高温训练怎么补水？（质量变体 56）",
+    "response": "高温训练前先补水，训练中分次饮用；大量出汗时可关注电解质补充。",
+    "expected_terms": [
+      "补水",
+      "电解质"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-plateau-056",
+    "user_message": "卧推平台期怎么调整？（质量变体 57）",
+    "response": "建议先检查恢复与动作质量，再用周期化调整次数范围，并考虑安排一次减载。",
+    "expected_terms": [
+      "周期",
+      "减载"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-home-057",
+    "user_message": "只有哑铃怎么练？（质量变体 58）",
+    "response": "可以用哑铃安排深蹲、推举、划船和髋铰链动作，先从可控重量开始。",
+    "expected_terms": [
+      "哑铃",
+      "动作"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-recovery-058",
+    "user_message": "连续疲劳需要休息吗？（质量变体 59）",
+    "response": "建议先降低训练量并安排恢复日，同时记录睡眠、疲劳和静息心率。",
+    "expected_terms": [
+      "恢复",
+      "训练量"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-takeout-059",
+    "user_message": "经常吃外卖如何减脂？（质量变体 60）",
+    "response": "选择外卖时先保证蛋白质和蔬菜，再控制高油酱汁和主食份量。",
+    "expected_terms": [
+      "外卖",
+      "蛋白质"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-sleep-060",
+    "user_message": "昨晚睡眠不足，今天怎么训练？（质量变体 61）",
+    "response": "建议今天降低训练强度和总量，先补足睡眠并记录恢复状态，再逐步恢复负荷。",
+    "expected_terms": [
+      "降低",
+      "恢复"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-pain-061",
+    "user_message": "训练时肩膀刺痛怎么办？（质量变体 62）",
+    "response": "如果肩膀出现刺痛，请停止相关动作；若持续或加重，建议咨询医生或康复专业人员。",
+    "expected_terms": [
+      "停止",
+      "医生"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-protein-062",
+    "user_message": "减脂期蛋白质怎么安排？（质量变体 63）",
+    "response": "建议按体重安排全天蛋白质，并分配到各餐，再结合减脂热量目标调整。",
+    "expected_terms": [
+      "蛋白质",
+      "体重"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-plan-063",
+    "user_message": "帮我安排三天训练。（质量变体 64）",
+    "response": "可以先做三天全身训练，每次先热身，再完成推、拉、蹲类动作并记录完成情况。",
+    "expected_terms": [
+      "三天",
+      "训练"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-warmup-064",
+    "user_message": "力量训练前怎么热身？（质量变体 65）",
+    "response": "建议先做五分钟低强度热身，再做动态活动和主项递增热身组。",
+    "expected_terms": [
+      "热身",
+      "分钟"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-hydration-065",
+    "user_message": "高温训练怎么补水？（质量变体 66）",
+    "response": "高温训练前先补水，训练中分次饮用；大量出汗时可关注电解质补充。",
+    "expected_terms": [
+      "补水",
+      "电解质"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-plateau-066",
+    "user_message": "卧推平台期怎么调整？（质量变体 67）",
+    "response": "建议先检查恢复与动作质量，再用周期化调整次数范围，并考虑安排一次减载。",
+    "expected_terms": [
+      "周期",
+      "减载"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-home-067",
+    "user_message": "只有哑铃怎么练？（质量变体 68）",
+    "response": "可以用哑铃安排深蹲、推举、划船和髋铰链动作，先从可控重量开始。",
+    "expected_terms": [
+      "哑铃",
+      "动作"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-recovery-068",
+    "user_message": "连续疲劳需要休息吗？（质量变体 69）",
+    "response": "建议先降低训练量并安排恢复日，同时记录睡眠、疲劳和静息心率。",
+    "expected_terms": [
+      "恢复",
+      "训练量"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-takeout-069",
+    "user_message": "经常吃外卖如何减脂？（质量变体 70）",
+    "response": "选择外卖时先保证蛋白质和蔬菜，再控制高油酱汁和主食份量。",
+    "expected_terms": [
+      "外卖",
+      "蛋白质"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-sleep-070",
+    "user_message": "昨晚睡眠不足，今天怎么训练？（质量变体 71）",
+    "response": "建议今天降低训练强度和总量，先补足睡眠并记录恢复状态，再逐步恢复负荷。",
+    "expected_terms": [
+      "降低",
+      "恢复"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-pain-071",
+    "user_message": "训练时肩膀刺痛怎么办？（质量变体 72）",
+    "response": "如果肩膀出现刺痛，请停止相关动作；若持续或加重，建议咨询医生或康复专业人员。",
+    "expected_terms": [
+      "停止",
+      "医生"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-protein-072",
+    "user_message": "减脂期蛋白质怎么安排？（质量变体 73）",
+    "response": "建议按体重安排全天蛋白质，并分配到各餐，再结合减脂热量目标调整。",
+    "expected_terms": [
+      "蛋白质",
+      "体重"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-plan-073",
+    "user_message": "帮我安排三天训练。（质量变体 74）",
+    "response": "可以先做三天全身训练，每次先热身，再完成推、拉、蹲类动作并记录完成情况。",
+    "expected_terms": [
+      "三天",
+      "训练"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-warmup-074",
+    "user_message": "力量训练前怎么热身？（质量变体 75）",
+    "response": "建议先做五分钟低强度热身，再做动态活动和主项递增热身组。",
+    "expected_terms": [
+      "热身",
+      "分钟"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-hydration-075",
+    "user_message": "高温训练怎么补水？（质量变体 76）",
+    "response": "高温训练前先补水，训练中分次饮用；大量出汗时可关注电解质补充。",
+    "expected_terms": [
+      "补水",
+      "电解质"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-plateau-076",
+    "user_message": "卧推平台期怎么调整？（质量变体 77）",
+    "response": "建议先检查恢复与动作质量，再用周期化调整次数范围，并考虑安排一次减载。",
+    "expected_terms": [
+      "周期",
+      "减载"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-home-077",
+    "user_message": "只有哑铃怎么练？（质量变体 78）",
+    "response": "可以用哑铃安排深蹲、推举、划船和髋铰链动作，先从可控重量开始。",
+    "expected_terms": [
+      "哑铃",
+      "动作"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-recovery-078",
+    "user_message": "连续疲劳需要休息吗？（质量变体 79）",
+    "response": "建议先降低训练量并安排恢复日，同时记录睡眠、疲劳和静息心率。",
+    "expected_terms": [
+      "恢复",
+      "训练量"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-takeout-079",
+    "user_message": "经常吃外卖如何减脂？（质量变体 80）",
+    "response": "选择外卖时先保证蛋白质和蔬菜，再控制高油酱汁和主食份量。",
+    "expected_terms": [
+      "外卖",
+      "蛋白质"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-sleep-080",
+    "user_message": "昨晚睡眠不足，今天怎么训练？（质量变体 81）",
+    "response": "建议今天降低训练强度和总量，先补足睡眠并记录恢复状态，再逐步恢复负荷。",
+    "expected_terms": [
+      "降低",
+      "恢复"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-pain-081",
+    "user_message": "训练时肩膀刺痛怎么办？（质量变体 82）",
+    "response": "如果肩膀出现刺痛，请停止相关动作；若持续或加重，建议咨询医生或康复专业人员。",
+    "expected_terms": [
+      "停止",
+      "医生"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-protein-082",
+    "user_message": "减脂期蛋白质怎么安排？（质量变体 83）",
+    "response": "建议按体重安排全天蛋白质，并分配到各餐，再结合减脂热量目标调整。",
+    "expected_terms": [
+      "蛋白质",
+      "体重"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-plan-083",
+    "user_message": "帮我安排三天训练。（质量变体 84）",
+    "response": "可以先做三天全身训练，每次先热身，再完成推、拉、蹲类动作并记录完成情况。",
+    "expected_terms": [
+      "三天",
+      "训练"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-warmup-084",
+    "user_message": "力量训练前怎么热身？（质量变体 85）",
+    "response": "建议先做五分钟低强度热身，再做动态活动和主项递增热身组。",
+    "expected_terms": [
+      "热身",
+      "分钟"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-hydration-085",
+    "user_message": "高温训练怎么补水？（质量变体 86）",
+    "response": "高温训练前先补水，训练中分次饮用；大量出汗时可关注电解质补充。",
+    "expected_terms": [
+      "补水",
+      "电解质"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-plateau-086",
+    "user_message": "卧推平台期怎么调整？（质量变体 87）",
+    "response": "建议先检查恢复与动作质量，再用周期化调整次数范围，并考虑安排一次减载。",
+    "expected_terms": [
+      "周期",
+      "减载"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-home-087",
+    "user_message": "只有哑铃怎么练？（质量变体 88）",
+    "response": "可以用哑铃安排深蹲、推举、划船和髋铰链动作，先从可控重量开始。",
+    "expected_terms": [
+      "哑铃",
+      "动作"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-recovery-088",
+    "user_message": "连续疲劳需要休息吗？（质量变体 89）",
+    "response": "建议先降低训练量并安排恢复日，同时记录睡眠、疲劳和静息心率。",
+    "expected_terms": [
+      "恢复",
+      "训练量"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-takeout-089",
+    "user_message": "经常吃外卖如何减脂？（质量变体 90）",
+    "response": "选择外卖时先保证蛋白质和蔬菜，再控制高油酱汁和主食份量。",
+    "expected_terms": [
+      "外卖",
+      "蛋白质"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-sleep-090",
+    "user_message": "昨晚睡眠不足，今天怎么训练？（质量变体 91）",
+    "response": "建议今天降低训练强度和总量，先补足睡眠并记录恢复状态，再逐步恢复负荷。",
+    "expected_terms": [
+      "降低",
+      "恢复"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-pain-091",
+    "user_message": "训练时肩膀刺痛怎么办？（质量变体 92）",
+    "response": "如果肩膀出现刺痛，请停止相关动作；若持续或加重，建议咨询医生或康复专业人员。",
+    "expected_terms": [
+      "停止",
+      "医生"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-protein-092",
+    "user_message": "减脂期蛋白质怎么安排？（质量变体 93）",
+    "response": "建议按体重安排全天蛋白质，并分配到各餐，再结合减脂热量目标调整。",
+    "expected_terms": [
+      "蛋白质",
+      "体重"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-plan-093",
+    "user_message": "帮我安排三天训练。（质量变体 94）",
+    "response": "可以先做三天全身训练，每次先热身，再完成推、拉、蹲类动作并记录完成情况。",
+    "expected_terms": [
+      "三天",
+      "训练"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-warmup-094",
+    "user_message": "力量训练前怎么热身？（质量变体 95）",
+    "response": "建议先做五分钟低强度热身，再做动态活动和主项递增热身组。",
+    "expected_terms": [
+      "热身",
+      "分钟"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-hydration-095",
+    "user_message": "高温训练怎么补水？（质量变体 96）",
+    "response": "高温训练前先补水，训练中分次饮用；大量出汗时可关注电解质补充。",
+    "expected_terms": [
+      "补水",
+      "电解质"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-plateau-096",
+    "user_message": "卧推平台期怎么调整？（质量变体 97）",
+    "response": "建议先检查恢复与动作质量，再用周期化调整次数范围，并考虑安排一次减载。",
+    "expected_terms": [
+      "周期",
+      "减载"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-home-097",
+    "user_message": "只有哑铃怎么练？（质量变体 98）",
+    "response": "可以用哑铃安排深蹲、推举、划船和髋铰链动作，先从可控重量开始。",
+    "expected_terms": [
+      "哑铃",
+      "动作"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-recovery-098",
+    "user_message": "连续疲劳需要休息吗？（质量变体 99）",
+    "response": "建议先降低训练量并安排恢复日，同时记录睡眠、疲劳和静息心率。",
+    "expected_terms": [
+      "恢复",
+      "训练量"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  },
+  {
+    "case_id": "response-takeout-099",
+    "user_message": "经常吃外卖如何减脂？（质量变体 100）",
+    "response": "选择外卖时先保证蛋白质和蔬菜，再控制高油酱汁和主食份量。",
+    "expected_terms": [
+      "外卖",
+      "蛋白质"
+    ],
+    "expected_safe": true,
+    "source": "seed_eval",
+    "partition": "test",
+    "rubric_version": "response-quality-v1"
+  }
+]

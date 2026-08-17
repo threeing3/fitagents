@@ -116,7 +116,7 @@ def test_existing_short_password_account_can_still_log_in():
     assert response.json()["email"] == "legacy@example.com"
 
 
-def test_algorithm_summary_marks_unfinished_and_simulated_evidence():
+def test_algorithm_summary_marks_fixed_and_simulated_evidence():
     client, _ = _create_client_and_db()
 
     response = client.get("/v1/algorithm/summary")
@@ -128,7 +128,20 @@ def test_algorithm_summary_marks_unfinished_and_simulated_evidence():
         "online_claim": False,
     }
     assert payload["dpo"]["enabled"] is False
-    assert any(item["status"] == "expanding" for item in payload["datasets"])
+    assert payload["release_stage"] == "maturity_03_algorithms"
+    assert all(item["source"] != "expert_labeled" for item in payload["datasets"])
+    assert any(
+        item["name"] == "intent_fixed" and item["size"] == 120 for item in payload["datasets"]
+    )
+    assert any(
+        item["name"] == "business_fixed_pass" and item["value"] == 38 for item in payload["metrics"]
+    )
+    assert payload["retrieval"]["vector_status"] == "vector unavailable"
+
+    experiment = client.get("/v1/algorithm/experiments/maturity_03_algorithms_20260809")
+    assert experiment.status_code == 200
+    assert experiment.json()["provenance"]["training_eligible"] is False
+    assert "predictions" not in experiment.text
 
 
 def test_invalid_image_payload_is_rejected_before_model_call():

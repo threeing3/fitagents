@@ -19,28 +19,46 @@ def validate_config(config: dict[str, Any], config_path: Path | None = None) -> 
     if not dataset_path.exists():
         raise FileNotFoundError(f"dataset does not exist: {dataset_path}")
     rows = []
+    minimum_reviewed_pairs = int(config.get("minimum_reviewed_pairs", 150))
     with dataset_path.open("r", encoding="utf-8") as handle:
         for line_number, line in enumerate(handle, 1):
             if not line.strip():
                 continue
             row = json.loads(line)
-            if not isinstance(row, dict) or not all(str(row.get(key) or "").strip() for key in ("prompt", "chosen", "rejected")):
+            if not isinstance(row, dict) or not all(
+                str(row.get(key) or "").strip() for key in ("prompt", "chosen", "rejected")
+            ):
                 raise ValueError(f"invalid preference row at {dataset_path}:{line_number}")
             if str(row["chosen"]).strip() == str(row["rejected"]).strip():
                 raise ValueError(f"chosen/rejected are identical at {dataset_path}:{line_number}")
+            if row.get("review_status") != "approved" or row.get("source") not in {
+                "agent_trace",
+                "expert_labeled",
+            }:
+                raise ValueError(
+                    "DPO requires genuinely human-reviewed pairs with "
+                    f"review_status=approved at {dataset_path}:{line_number}"
+                )
             rows.append(row)
     if not rows:
         raise ValueError(f"DPO dataset is empty: {dataset_path}")
+    if len(rows) < minimum_reviewed_pairs:
+        raise ValueError(
+            f"DPO requires at least {minimum_reviewed_pairs} human-reviewed pairs; got {len(rows)}"
+        )
     return {
         "dataset_path": str(dataset_path),
         "rows": len(rows),
+        "minimum_reviewed_pairs": minimum_reviewed_pairs,
         "base_model": str(config["base_model"]),
         "output_dir": str(config["output_dir"]),
         "seed": int(config.get("seed", 42)),
     }
 
 
-def train(config: dict[str, Any], config_path: Path | None = None, dry_run: bool = False) -> dict[str, Any]:
+def train(
+    config: dict[str, Any], config_path: Path | None = None, dry_run: bool = False
+) -> dict[str, Any]:
     summary = validate_config(config, config_path)
     if dry_run:
         return summary
@@ -92,9 +110,15 @@ def train(config: dict[str, Any], config_path: Path | None = None, dry_run: bool
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run DPO on validated preference pairs")
     parser.add_argument("--config", type=Path, required=True)
-    parser.add_argument("--dry-run", action="store_true", help="validate data/config without importing GPU training libraries")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="validate data/config without importing GPU training libraries",
+    )
     args = parser.parse_args()
-    summary = train(json.loads(args.config.read_text(encoding="utf-8")), args.config, dry_run=args.dry_run)
+    summary = train(
+        json.loads(args.config.read_text(encoding="utf-8")), args.config, dry_run=args.dry_run
+    )
     print(json.dumps(summary, ensure_ascii=False, indent=2))
     return 0
 

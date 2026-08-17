@@ -7,7 +7,6 @@ the cached response is returned instead of calling the LLM.
 
 import hashlib
 import logging
-import time
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -50,7 +49,7 @@ class SemanticCacheService:
         """Combine prompts for embedding — system prompt first (defines task)."""
         return f"{system_prompt}\n\n---\n\n{user_prompt}"
 
-    def _compute_embedding(self, text: str) -> list[float]:
+    def _compute_embedding(self, text: str) -> list[float] | None:
         return self.model_provider.embed_text(text)
 
     def get(self, system_prompt: str, user_prompt: str) -> str | None:
@@ -63,6 +62,9 @@ class SemanticCacheService:
             return None
 
         embedding = self._compute_embedding(combined)
+        if embedding is None:
+            cache_misses_total.inc()
+            return None
         sys_hash = self._hash(system_prompt)
 
         # Expire old entries
@@ -84,7 +86,8 @@ class SemanticCacheService:
                     func.cosine_distance(
                         SemanticCache.embedding,
                         text(f"'{embedding_str}'::vector"),
-                    ) <= max_distance,
+                    )
+                    <= max_distance,
                 )
                 .order_by(
                     func.cosine_distance(
@@ -126,6 +129,8 @@ class SemanticCacheService:
             return
 
         embedding = self._compute_embedding(combined)
+        if embedding is None:
+            return
 
         entry = SemanticCache(
             prompt_hash=self._hash(user_prompt),
@@ -143,7 +148,9 @@ class SemanticCacheService:
         total = self.db.query(SemanticCache).count()
         valid = (
             self.db.query(SemanticCache)
-            .filter(SemanticCache.created_at >= datetime.utcnow() - timedelta(seconds=self.ttl_seconds))
+            .filter(
+                SemanticCache.created_at >= datetime.utcnow() - timedelta(seconds=self.ttl_seconds)
+            )
             .count()
         )
         total_hits = self.db.query(func.sum(SemanticCache.hit_count)).scalar() or 0

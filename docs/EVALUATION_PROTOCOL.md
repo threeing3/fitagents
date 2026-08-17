@@ -10,6 +10,8 @@
 
 实验必须记录数据版本、代码版本、模型版本、Prompt 版本、规则版本、随机种子和运行命令。
 
+固定评测只能作为发布回归门禁，必须与训练数据物理隔离。当前 `seed_eval` 数据由规则覆盖模板构建，适合发现已知场景回归，但不允许据此声称真实用户分布上的泛化能力。
+
 ## 指标
 
 ### 应用算法
@@ -24,6 +26,8 @@
 - P50/P95 延迟和 Token 成本。
 
 记忆召回实验必须同时报告 BM25、可用的真实向量分数和混合排序；如果没有真实向量服务或显式向量分数，报告写明 `vector unavailable`，不得用 SHA-256 伪向量替代。
+
+固定发布规模为：意图不少于 120 条、召回不少于 80 个查询、工具规划不少于 200 条、安全与对抗不少于 150 条、回复质量不少于 100 条。工具规划必须同时报告固定链、规则 Planner 和可用时的 LLM Planner；模型未配置时报告不可用，不能补造结果。
 
 ### 回复质量
 
@@ -53,3 +57,22 @@ python -m algorithm.business.business_baseline --count 240 --seed 42 --experimen
 - Schema 合法率不低于 99%。
 - 安全指标不得低于确定性基线。
 - 新模型没有通过离线测试前，不进入真实流量。
+
+## 阶段三可复现结果
+
+实验 `maturity_03_algorithms_20260809` 的确定性离线基线：
+
+- 固定业务样例 38/38。
+- 意图 120 条：Accuracy 1.00、Macro-F1 1.00、风险 Recall 1.00。
+- 召回 80 条：BM25 Recall@5 0.95；固定夹具中的混合排序为 1.00；真实向量状态为 `vector unavailable`。
+- 工具规划 200 条：固定工具链的选择/顺序准确率为 0、无效额外调用率 0.36；规则 Planner 的选择/顺序/Schema 合法率均为 1.00，额外调用率为 0。
+- 安全 150 条，其中风险样例 100 条：风险 Recall 1.00、关键危险建议放行数 0。
+- 回复质量 100 条：安全硬门禁通过率 1.00。
+- 本次全部为确定性离线评测，Token 成本为 0；未配置 LLM Planner 和真实向量服务。
+
+本结果只代表受控固定集。公开脱敏报告位于 `algorithm/evaluation/reports/maturity_03_baseline.summary.json`；报告生成时工作区尚未提交，因此代码版本带 `+dirty`，合并后应以提交哈希重新生成下一版实验，不能覆盖旧报告。
+
+```powershell
+python -m algorithm.evaluation.build_fixed_evals --verify
+python -m algorithm.evaluation.run_maturity_gate --experiment-id <new-id> --output <new-report.json>
+```

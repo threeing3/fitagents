@@ -1,0 +1,3338 @@
+[
+  {
+    "case_id": "tool-000",
+    "user_message": "我的肩膀训练时疼痛，应该怎么办？（表达变体 1） [tool scenario 1]",
+    "expected_intent": "injury_or_risk",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate",
+      "safety.check"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "safety.check",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-001",
+    "user_message": "深蹲时膝盖有刺痛，需要停止吗？（表达变体 2） [tool scenario 2]",
+    "expected_intent": "injury_or_risk",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate",
+      "safety.check"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "safety.check",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-002",
+    "user_message": "硬拉后腰部受伤了，今天还能练吗？（表达变体 3） [tool scenario 3]",
+    "expected_intent": "injury_or_risk",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate",
+      "safety.check"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "safety.check",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-003",
+    "user_message": "卧推时手腕疼痛，应该如何处理？（表达变体 4） [tool scenario 4]",
+    "expected_intent": "injury_or_risk",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate",
+      "safety.check"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "safety.check",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-004",
+    "user_message": "跑步时脚踝扭伤了，我需要调整训练吗？（表达变体 5） [tool scenario 5]",
+    "expected_intent": "injury_or_risk",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate",
+      "safety.check"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "safety.check",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-005",
+    "user_message": "我的肩膀训练时疼痛，应该怎么办？（表达变体 6） [tool scenario 6]",
+    "expected_intent": "injury_or_risk",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate",
+      "safety.check"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "safety.check",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-006",
+    "user_message": "深蹲时膝盖有刺痛，需要停止吗？（表达变体 7） [tool scenario 7]",
+    "expected_intent": "injury_or_risk",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate",
+      "safety.check"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "safety.check",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-007",
+    "user_message": "硬拉后腰部受伤了，今天还能练吗？（表达变体 8） [tool scenario 8]",
+    "expected_intent": "injury_or_risk",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate",
+      "safety.check"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "safety.check",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-008",
+    "user_message": "卧推时手腕疼痛，应该如何处理？（表达变体 9） [tool scenario 9]",
+    "expected_intent": "injury_or_risk",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate",
+      "safety.check"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "safety.check",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-009",
+    "user_message": "跑步时脚踝扭伤了，我需要调整训练吗？（表达变体 10） [tool scenario 10]",
+    "expected_intent": "injury_or_risk",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate",
+      "safety.check"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "safety.check",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-010",
+    "user_message": "我的肩膀训练时疼痛，应该怎么办？（表达变体 11） [tool scenario 11]",
+    "expected_intent": "injury_or_risk",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate",
+      "safety.check"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "safety.check",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-011",
+    "user_message": "深蹲时膝盖有刺痛，需要停止吗？（表达变体 12） [tool scenario 12]",
+    "expected_intent": "injury_or_risk",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate",
+      "safety.check"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "safety.check",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-012",
+    "user_message": "硬拉后腰部受伤了，今天还能练吗？（表达变体 13） [tool scenario 13]",
+    "expected_intent": "injury_or_risk",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate",
+      "safety.check"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "safety.check",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-013",
+    "user_message": "卧推时手腕疼痛，应该如何处理？（表达变体 14） [tool scenario 14]",
+    "expected_intent": "injury_or_risk",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate",
+      "safety.check"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "safety.check",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-014",
+    "user_message": "跑步时脚踝扭伤了，我需要调整训练吗？（表达变体 15） [tool scenario 15]",
+    "expected_intent": "injury_or_risk",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate",
+      "safety.check"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "safety.check",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-015",
+    "user_message": "我的肩膀训练时疼痛，应该怎么办？（表达变体 16） [tool scenario 16]",
+    "expected_intent": "injury_or_risk",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate",
+      "safety.check"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "safety.check",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-016",
+    "user_message": "深蹲时膝盖有刺痛，需要停止吗？（表达变体 17） [tool scenario 17]",
+    "expected_intent": "injury_or_risk",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate",
+      "safety.check"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "safety.check",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-017",
+    "user_message": "硬拉后腰部受伤了，今天还能练吗？（表达变体 18） [tool scenario 18]",
+    "expected_intent": "injury_or_risk",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate",
+      "safety.check"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "safety.check",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-018",
+    "user_message": "卧推时手腕疼痛，应该如何处理？（表达变体 19） [tool scenario 19]",
+    "expected_intent": "injury_or_risk",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate",
+      "safety.check"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "safety.check",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-019",
+    "user_message": "跑步时脚踝扭伤了，我需要调整训练吗？（表达变体 20） [tool scenario 20]",
+    "expected_intent": "injury_or_risk",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate",
+      "safety.check"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "safety.check",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-020",
+    "user_message": "请给我制定一周训练计划。（表达变体 1） [tool scenario 21]",
+    "expected_intent": "training_plan",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "knowledge.retrieve",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-021",
+    "user_message": "帮我安排一个三天健身计划。（表达变体 2） [tool scenario 22]",
+    "expected_intent": "training_plan",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "knowledge.retrieve",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-022",
+    "user_message": "Please create a workout plan for this week.（表达变体 3） [tool scenario 23]",
+    "expected_intent": "training_plan",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "knowledge.retrieve",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-023",
+    "user_message": "请给我制定一周训练计划。（表达变体 4） [tool scenario 24]",
+    "expected_intent": "training_plan",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "knowledge.retrieve",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-024",
+    "user_message": "帮我安排一个三天健身计划。（表达变体 5） [tool scenario 25]",
+    "expected_intent": "training_plan",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "knowledge.retrieve",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-025",
+    "user_message": "Please create a workout plan for this week.（表达变体 6） [tool scenario 26]",
+    "expected_intent": "training_plan",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "knowledge.retrieve",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-026",
+    "user_message": "请给我制定一周训练计划。（表达变体 7） [tool scenario 27]",
+    "expected_intent": "training_plan",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "knowledge.retrieve",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-027",
+    "user_message": "帮我安排一个三天健身计划。（表达变体 8） [tool scenario 28]",
+    "expected_intent": "training_plan",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "knowledge.retrieve",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-028",
+    "user_message": "Please create a workout plan for this week.（表达变体 9） [tool scenario 29]",
+    "expected_intent": "training_plan",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "knowledge.retrieve",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-029",
+    "user_message": "请给我制定一周训练计划。（表达变体 10） [tool scenario 30]",
+    "expected_intent": "training_plan",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "knowledge.retrieve",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-030",
+    "user_message": "帮我安排一个三天健身计划。（表达变体 11） [tool scenario 31]",
+    "expected_intent": "training_plan",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "knowledge.retrieve",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-031",
+    "user_message": "Please create a workout plan for this week.（表达变体 12） [tool scenario 32]",
+    "expected_intent": "training_plan",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "knowledge.retrieve",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-032",
+    "user_message": "我的卧推进入平台期，下一步怎么突破？（表达变体 1） [tool scenario 33]",
+    "expected_intent": "progression_decision",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "recovery.evaluate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "recovery.evaluate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-033",
+    "user_message": "深蹲重量停滞了三周，应该加重还是减载？（表达变体 2） [tool scenario 34]",
+    "expected_intent": "progression_decision",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "recovery.evaluate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "recovery.evaluate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-034",
+    "user_message": "How should I progress after my bench stalled?（表达变体 3） [tool scenario 35]",
+    "expected_intent": "progression_decision",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "recovery.evaluate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "recovery.evaluate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-035",
+    "user_message": "我的卧推进入平台期，下一步怎么突破？（表达变体 4） [tool scenario 36]",
+    "expected_intent": "progression_decision",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "recovery.evaluate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "recovery.evaluate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-036",
+    "user_message": "深蹲重量停滞了三周，应该加重还是减载？（表达变体 5） [tool scenario 37]",
+    "expected_intent": "progression_decision",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "recovery.evaluate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "recovery.evaluate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-037",
+    "user_message": "How should I progress after my bench stalled?（表达变体 6） [tool scenario 38]",
+    "expected_intent": "progression_decision",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "recovery.evaluate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "recovery.evaluate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-038",
+    "user_message": "我的卧推进入平台期，下一步怎么突破？（表达变体 7） [tool scenario 39]",
+    "expected_intent": "progression_decision",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "recovery.evaluate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "recovery.evaluate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-039",
+    "user_message": "深蹲重量停滞了三周，应该加重还是减载？（表达变体 8） [tool scenario 40]",
+    "expected_intent": "progression_decision",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "recovery.evaluate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "recovery.evaluate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-040",
+    "user_message": "How should I progress after my bench stalled?（表达变体 9） [tool scenario 41]",
+    "expected_intent": "progression_decision",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "recovery.evaluate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "recovery.evaluate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-041",
+    "user_message": "我的卧推进入平台期，下一步怎么突破？（表达变体 10） [tool scenario 42]",
+    "expected_intent": "progression_decision",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "recovery.evaluate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "recovery.evaluate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-042",
+    "user_message": "深蹲重量停滞了三周，应该加重还是减载？（表达变体 11） [tool scenario 43]",
+    "expected_intent": "progression_decision",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "recovery.evaluate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "recovery.evaluate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-043",
+    "user_message": "How should I progress after my bench stalled?（表达变体 12） [tool scenario 44]",
+    "expected_intent": "progression_decision",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "recovery.evaluate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "recovery.evaluate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-044",
+    "user_message": "请记录我的早餐：鸡蛋和米饭。（表达变体 1） [tool scenario 45]",
+    "expected_intent": "nutrition_log",
+    "expected_tools": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-045",
+    "user_message": "午餐吃了鸡胸肉和蔬菜，帮我记录饮食。（表达变体 2） [tool scenario 46]",
+    "expected_intent": "nutrition_log",
+    "expected_tools": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-046",
+    "user_message": "Record my dinner: salmon and potatoes.（表达变体 3） [tool scenario 47]",
+    "expected_intent": "nutrition_log",
+    "expected_tools": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-047",
+    "user_message": "请记录我的早餐：鸡蛋和米饭。（表达变体 4） [tool scenario 48]",
+    "expected_intent": "nutrition_log",
+    "expected_tools": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-048",
+    "user_message": "午餐吃了鸡胸肉和蔬菜，帮我记录饮食。（表达变体 5） [tool scenario 49]",
+    "expected_intent": "nutrition_log",
+    "expected_tools": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-049",
+    "user_message": "Record my dinner: salmon and potatoes.（表达变体 6） [tool scenario 50]",
+    "expected_intent": "nutrition_log",
+    "expected_tools": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-050",
+    "user_message": "请记录我的早餐：鸡蛋和米饭。（表达变体 7） [tool scenario 51]",
+    "expected_intent": "nutrition_log",
+    "expected_tools": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-051",
+    "user_message": "午餐吃了鸡胸肉和蔬菜，帮我记录饮食。（表达变体 8） [tool scenario 52]",
+    "expected_intent": "nutrition_log",
+    "expected_tools": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-052",
+    "user_message": "Record my dinner: salmon and potatoes.（表达变体 9） [tool scenario 53]",
+    "expected_intent": "nutrition_log",
+    "expected_tools": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-053",
+    "user_message": "请记录我的早餐：鸡蛋和米饭。（表达变体 10） [tool scenario 54]",
+    "expected_intent": "nutrition_log",
+    "expected_tools": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-054",
+    "user_message": "午餐吃了鸡胸肉和蔬菜，帮我记录饮食。（表达变体 11） [tool scenario 55]",
+    "expected_intent": "nutrition_log",
+    "expected_tools": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-055",
+    "user_message": "Record my dinner: salmon and potatoes.（表达变体 12） [tool scenario 56]",
+    "expected_intent": "nutrition_log",
+    "expected_tools": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-056",
+    "user_message": "今天完成了卧推四组，每组八次。（表达变体 1） [tool scenario 57]",
+    "expected_intent": "training_log",
+    "expected_tools": [
+      "context.build",
+      "training.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "training.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-057",
+    "user_message": "我刚练完深蹲，做了三组。（表达变体 2） [tool scenario 58]",
+    "expected_intent": "training_log",
+    "expected_tools": [
+      "context.build",
+      "training.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "training.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-058",
+    "user_message": "I did bench press for four sets today.（表达变体 3） [tool scenario 59]",
+    "expected_intent": "training_log",
+    "expected_tools": [
+      "context.build",
+      "training.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "training.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-059",
+    "user_message": "今天完成了卧推四组，每组八次。（表达变体 4） [tool scenario 60]",
+    "expected_intent": "training_log",
+    "expected_tools": [
+      "context.build",
+      "training.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "training.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-060",
+    "user_message": "我刚练完深蹲，做了三组。（表达变体 5） [tool scenario 61]",
+    "expected_intent": "training_log",
+    "expected_tools": [
+      "context.build",
+      "training.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "training.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-061",
+    "user_message": "I did bench press for four sets today.（表达变体 6） [tool scenario 62]",
+    "expected_intent": "training_log",
+    "expected_tools": [
+      "context.build",
+      "training.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "training.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-062",
+    "user_message": "今天完成了卧推四组，每组八次。（表达变体 7） [tool scenario 63]",
+    "expected_intent": "training_log",
+    "expected_tools": [
+      "context.build",
+      "training.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "training.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-063",
+    "user_message": "我刚练完深蹲，做了三组。（表达变体 8） [tool scenario 64]",
+    "expected_intent": "training_log",
+    "expected_tools": [
+      "context.build",
+      "training.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "training.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-064",
+    "user_message": "I did bench press for four sets today.（表达变体 9） [tool scenario 65]",
+    "expected_intent": "training_log",
+    "expected_tools": [
+      "context.build",
+      "training.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "training.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-065",
+    "user_message": "今天完成了卧推四组，每组八次。（表达变体 10） [tool scenario 66]",
+    "expected_intent": "training_log",
+    "expected_tools": [
+      "context.build",
+      "training.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "training.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-066",
+    "user_message": "我刚练完深蹲，做了三组。（表达变体 11） [tool scenario 67]",
+    "expected_intent": "training_log",
+    "expected_tools": [
+      "context.build",
+      "training.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "training.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-067",
+    "user_message": "I did bench press for four sets today.（表达变体 12） [tool scenario 68]",
+    "expected_intent": "training_log",
+    "expected_tools": [
+      "context.build",
+      "training.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "training.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-068",
+    "user_message": "减脂期间蛋白质应该怎么安排？（表达变体 1） [tool scenario 69]",
+    "expected_intent": "nutrition_advice",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "nutrition.estimate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.estimate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-069",
+    "user_message": "训练后应该吃什么比较合适？（表达变体 2） [tool scenario 70]",
+    "expected_intent": "nutrition_advice",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "nutrition.estimate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.estimate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-070",
+    "user_message": "How much protein should I eat for muscle gain?（表达变体 3） [tool scenario 71]",
+    "expected_intent": "nutrition_advice",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "nutrition.estimate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.estimate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-071",
+    "user_message": "减脂期间蛋白质应该怎么安排？（表达变体 4） [tool scenario 72]",
+    "expected_intent": "nutrition_advice",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "nutrition.estimate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.estimate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-072",
+    "user_message": "训练后应该吃什么比较合适？（表达变体 5） [tool scenario 73]",
+    "expected_intent": "nutrition_advice",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "nutrition.estimate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.estimate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-073",
+    "user_message": "How much protein should I eat for muscle gain?（表达变体 6） [tool scenario 74]",
+    "expected_intent": "nutrition_advice",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "nutrition.estimate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.estimate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-074",
+    "user_message": "减脂期间蛋白质应该怎么安排？（表达变体 7） [tool scenario 75]",
+    "expected_intent": "nutrition_advice",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "nutrition.estimate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.estimate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-075",
+    "user_message": "训练后应该吃什么比较合适？（表达变体 8） [tool scenario 76]",
+    "expected_intent": "nutrition_advice",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "nutrition.estimate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.estimate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-076",
+    "user_message": "How much protein should I eat for muscle gain?（表达变体 9） [tool scenario 77]",
+    "expected_intent": "nutrition_advice",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "nutrition.estimate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.estimate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-077",
+    "user_message": "减脂期间蛋白质应该怎么安排？（表达变体 10） [tool scenario 78]",
+    "expected_intent": "nutrition_advice",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "nutrition.estimate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.estimate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-078",
+    "user_message": "训练后应该吃什么比较合适？（表达变体 11） [tool scenario 79]",
+    "expected_intent": "nutrition_advice",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "nutrition.estimate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.estimate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-079",
+    "user_message": "How much protein should I eat for muscle gain?（表达变体 12） [tool scenario 80]",
+    "expected_intent": "nutrition_advice",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "nutrition.estimate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.estimate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-080",
+    "user_message": "昨晚睡眠不足，今天应该怎么恢复？（表达变体 1） [tool scenario 81]",
+    "expected_intent": "recovery_check",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-081",
+    "user_message": "最近很疲劳，是否需要降低训练量？（表达变体 2） [tool scenario 82]",
+    "expected_intent": "recovery_check",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-082",
+    "user_message": "I feel tired after poor sleep; how should I recover?（表达变体 3） [tool scenario 83]",
+    "expected_intent": "recovery_check",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-083",
+    "user_message": "昨晚睡眠不足，今天应该怎么恢复？（表达变体 4） [tool scenario 84]",
+    "expected_intent": "recovery_check",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-084",
+    "user_message": "最近很疲劳，是否需要降低训练量？（表达变体 5） [tool scenario 85]",
+    "expected_intent": "recovery_check",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-085",
+    "user_message": "I feel tired after poor sleep; how should I recover?（表达变体 6） [tool scenario 86]",
+    "expected_intent": "recovery_check",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-086",
+    "user_message": "昨晚睡眠不足，今天应该怎么恢复？（表达变体 7） [tool scenario 87]",
+    "expected_intent": "recovery_check",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-087",
+    "user_message": "最近很疲劳，是否需要降低训练量？（表达变体 8） [tool scenario 88]",
+    "expected_intent": "recovery_check",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-088",
+    "user_message": "I feel tired after poor sleep; how should I recover?（表达变体 9） [tool scenario 89]",
+    "expected_intent": "recovery_check",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-089",
+    "user_message": "昨晚睡眠不足，今天应该怎么恢复？（表达变体 10） [tool scenario 90]",
+    "expected_intent": "recovery_check",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-090",
+    "user_message": "最近很疲劳，是否需要降低训练量？（表达变体 11） [tool scenario 91]",
+    "expected_intent": "recovery_check",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-091",
+    "user_message": "I feel tired after poor sleep; how should I recover?（表达变体 12） [tool scenario 92]",
+    "expected_intent": "recovery_check",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-092",
+    "user_message": "你还记得我的训练目标吗？（表达变体 1） [tool scenario 93]",
+    "expected_intent": "memory_query",
+    "expected_tools": [
+      "memory.search"
+    ],
+    "expected_sequence": [
+      "memory.search"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-093",
+    "user_message": "请从记忆里找出我之前的器材偏好。（表达变体 2） [tool scenario 94]",
+    "expected_intent": "memory_query",
+    "expected_tools": [
+      "memory.search"
+    ],
+    "expected_sequence": [
+      "memory.search"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-094",
+    "user_message": "Do you remember my fitness profile?（表达变体 3） [tool scenario 95]",
+    "expected_intent": "memory_query",
+    "expected_tools": [
+      "memory.search"
+    ],
+    "expected_sequence": [
+      "memory.search"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-095",
+    "user_message": "你还记得我的训练目标吗？（表达变体 4） [tool scenario 96]",
+    "expected_intent": "memory_query",
+    "expected_tools": [
+      "memory.search"
+    ],
+    "expected_sequence": [
+      "memory.search"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-096",
+    "user_message": "请从记忆里找出我之前的器材偏好。（表达变体 5） [tool scenario 97]",
+    "expected_intent": "memory_query",
+    "expected_tools": [
+      "memory.search"
+    ],
+    "expected_sequence": [
+      "memory.search"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-097",
+    "user_message": "Do you remember my fitness profile?（表达变体 6） [tool scenario 98]",
+    "expected_intent": "memory_query",
+    "expected_tools": [
+      "memory.search"
+    ],
+    "expected_sequence": [
+      "memory.search"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-098",
+    "user_message": "你还记得我的训练目标吗？（表达变体 7） [tool scenario 99]",
+    "expected_intent": "memory_query",
+    "expected_tools": [
+      "memory.search"
+    ],
+    "expected_sequence": [
+      "memory.search"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-099",
+    "user_message": "请从记忆里找出我之前的器材偏好。（表达变体 8） [tool scenario 100]",
+    "expected_intent": "memory_query",
+    "expected_tools": [
+      "memory.search"
+    ],
+    "expected_sequence": [
+      "memory.search"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-100",
+    "user_message": "我28岁，身高175cm。（表达变体 1） [tool scenario 101]",
+    "expected_intent": "profile_update",
+    "expected_tools": [
+      "profile.update"
+    ],
+    "expected_sequence": [
+      "profile.update"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-101",
+    "user_message": "我的体重是70kg，目标是减脂。（表达变体 2） [tool scenario 102]",
+    "expected_intent": "profile_update",
+    "expected_tools": [
+      "profile.update"
+    ],
+    "expected_sequence": [
+      "profile.update"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-102",
+    "user_message": "我的年龄是35岁，训练经验两年。（表达变体 3） [tool scenario 103]",
+    "expected_intent": "profile_update",
+    "expected_tools": [
+      "profile.update"
+    ],
+    "expected_sequence": [
+      "profile.update"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-103",
+    "user_message": "我28岁，身高175cm。（表达变体 4） [tool scenario 104]",
+    "expected_intent": "profile_update",
+    "expected_tools": [
+      "profile.update"
+    ],
+    "expected_sequence": [
+      "profile.update"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-104",
+    "user_message": "我的体重是70kg，目标是减脂。（表达变体 5） [tool scenario 105]",
+    "expected_intent": "profile_update",
+    "expected_tools": [
+      "profile.update"
+    ],
+    "expected_sequence": [
+      "profile.update"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-105",
+    "user_message": "我的年龄是35岁，训练经验两年。（表达变体 6） [tool scenario 106]",
+    "expected_intent": "profile_update",
+    "expected_tools": [
+      "profile.update"
+    ],
+    "expected_sequence": [
+      "profile.update"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-106",
+    "user_message": "我28岁，身高175cm。（表达变体 7） [tool scenario 107]",
+    "expected_intent": "profile_update",
+    "expected_tools": [
+      "profile.update"
+    ],
+    "expected_sequence": [
+      "profile.update"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-107",
+    "user_message": "我的体重是70kg，目标是减脂。（表达变体 8） [tool scenario 108]",
+    "expected_intent": "profile_update",
+    "expected_tools": [
+      "profile.update"
+    ],
+    "expected_sequence": [
+      "profile.update"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-108",
+    "user_message": "请做一次本周训练复盘。（表达变体 1） [tool scenario 109]",
+    "expected_intent": "weekly_review",
+    "expected_tools": [
+      "context.build",
+      "review.weekly"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "review.weekly"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-109",
+    "user_message": "帮我总结本周的训练表现。（表达变体 2） [tool scenario 110]",
+    "expected_intent": "weekly_review",
+    "expected_tools": [
+      "context.build",
+      "review.weekly"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "review.weekly"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-110",
+    "user_message": "Please give me a weekly review.（表达变体 3） [tool scenario 111]",
+    "expected_intent": "weekly_review",
+    "expected_tools": [
+      "context.build",
+      "review.weekly"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "review.weekly"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-111",
+    "user_message": "请做一次本周训练复盘。（表达变体 4） [tool scenario 112]",
+    "expected_intent": "weekly_review",
+    "expected_tools": [
+      "context.build",
+      "review.weekly"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "review.weekly"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-112",
+    "user_message": "帮我总结本周的训练表现。（表达变体 5） [tool scenario 113]",
+    "expected_intent": "weekly_review",
+    "expected_tools": [
+      "context.build",
+      "review.weekly"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "review.weekly"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-113",
+    "user_message": "Please give me a weekly review.（表达变体 6） [tool scenario 114]",
+    "expected_intent": "weekly_review",
+    "expected_tools": [
+      "context.build",
+      "review.weekly"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "review.weekly"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-114",
+    "user_message": "请做一次月复盘。（表达变体 1） [tool scenario 115]",
+    "expected_intent": "monthly_review",
+    "expected_tools": [
+      "context.build",
+      "review.monthly"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "review.monthly"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-115",
+    "user_message": "帮我总结这个月的训练趋势。（表达变体 2） [tool scenario 116]",
+    "expected_intent": "monthly_review",
+    "expected_tools": [
+      "context.build",
+      "review.monthly"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "review.monthly"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-116",
+    "user_message": "Please give me a monthly review.（表达变体 3） [tool scenario 117]",
+    "expected_intent": "monthly_review",
+    "expected_tools": [
+      "context.build",
+      "review.monthly"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "review.monthly"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-117",
+    "user_message": "请做一次月复盘。（表达变体 4） [tool scenario 118]",
+    "expected_intent": "monthly_review",
+    "expected_tools": [
+      "context.build",
+      "review.monthly"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "review.monthly"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-118",
+    "user_message": "帮我总结这个月的训练趋势。（表达变体 5） [tool scenario 119]",
+    "expected_intent": "monthly_review",
+    "expected_tools": [
+      "context.build",
+      "review.monthly"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "review.monthly"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-119",
+    "user_message": "Please give me a monthly review.（表达变体 6） [tool scenario 120]",
+    "expected_intent": "monthly_review",
+    "expected_tools": [
+      "context.build",
+      "review.monthly"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "review.monthly"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-120",
+    "user_message": "我的肩膀训练时疼痛，应该怎么办？（表达变体 1） [tool scenario 121]",
+    "expected_intent": "injury_or_risk",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate",
+      "safety.check"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "safety.check",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-121",
+    "user_message": "深蹲时膝盖有刺痛，需要停止吗？（表达变体 2） [tool scenario 122]",
+    "expected_intent": "injury_or_risk",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate",
+      "safety.check"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "safety.check",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-122",
+    "user_message": "硬拉后腰部受伤了，今天还能练吗？（表达变体 3） [tool scenario 123]",
+    "expected_intent": "injury_or_risk",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate",
+      "safety.check"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "safety.check",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-123",
+    "user_message": "卧推时手腕疼痛，应该如何处理？（表达变体 4） [tool scenario 124]",
+    "expected_intent": "injury_or_risk",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate",
+      "safety.check"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "safety.check",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-124",
+    "user_message": "跑步时脚踝扭伤了，我需要调整训练吗？（表达变体 5） [tool scenario 125]",
+    "expected_intent": "injury_or_risk",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate",
+      "safety.check"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "safety.check",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-125",
+    "user_message": "我的肩膀训练时疼痛，应该怎么办？（表达变体 6） [tool scenario 126]",
+    "expected_intent": "injury_or_risk",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate",
+      "safety.check"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "safety.check",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-126",
+    "user_message": "深蹲时膝盖有刺痛，需要停止吗？（表达变体 7） [tool scenario 127]",
+    "expected_intent": "injury_or_risk",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate",
+      "safety.check"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "safety.check",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-127",
+    "user_message": "硬拉后腰部受伤了，今天还能练吗？（表达变体 8） [tool scenario 128]",
+    "expected_intent": "injury_or_risk",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate",
+      "safety.check"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "safety.check",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-128",
+    "user_message": "卧推时手腕疼痛，应该如何处理？（表达变体 9） [tool scenario 129]",
+    "expected_intent": "injury_or_risk",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate",
+      "safety.check"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "safety.check",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-129",
+    "user_message": "跑步时脚踝扭伤了，我需要调整训练吗？（表达变体 10） [tool scenario 130]",
+    "expected_intent": "injury_or_risk",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate",
+      "safety.check"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "safety.check",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-130",
+    "user_message": "我的肩膀训练时疼痛，应该怎么办？（表达变体 11） [tool scenario 131]",
+    "expected_intent": "injury_or_risk",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate",
+      "safety.check"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "safety.check",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-131",
+    "user_message": "深蹲时膝盖有刺痛，需要停止吗？（表达变体 12） [tool scenario 132]",
+    "expected_intent": "injury_or_risk",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate",
+      "safety.check"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "safety.check",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-132",
+    "user_message": "硬拉后腰部受伤了，今天还能练吗？（表达变体 13） [tool scenario 133]",
+    "expected_intent": "injury_or_risk",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate",
+      "safety.check"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "safety.check",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-133",
+    "user_message": "卧推时手腕疼痛，应该如何处理？（表达变体 14） [tool scenario 134]",
+    "expected_intent": "injury_or_risk",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate",
+      "safety.check"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "safety.check",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-134",
+    "user_message": "跑步时脚踝扭伤了，我需要调整训练吗？（表达变体 15） [tool scenario 135]",
+    "expected_intent": "injury_or_risk",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate",
+      "safety.check"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "safety.check",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-135",
+    "user_message": "我的肩膀训练时疼痛，应该怎么办？（表达变体 16） [tool scenario 136]",
+    "expected_intent": "injury_or_risk",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate",
+      "safety.check"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "safety.check",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-136",
+    "user_message": "深蹲时膝盖有刺痛，需要停止吗？（表达变体 17） [tool scenario 137]",
+    "expected_intent": "injury_or_risk",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate",
+      "safety.check"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "safety.check",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-137",
+    "user_message": "硬拉后腰部受伤了，今天还能练吗？（表达变体 18） [tool scenario 138]",
+    "expected_intent": "injury_or_risk",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate",
+      "safety.check"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "safety.check",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-138",
+    "user_message": "卧推时手腕疼痛，应该如何处理？（表达变体 19） [tool scenario 139]",
+    "expected_intent": "injury_or_risk",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate",
+      "safety.check"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "safety.check",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-139",
+    "user_message": "跑步时脚踝扭伤了，我需要调整训练吗？（表达变体 20） [tool scenario 140]",
+    "expected_intent": "injury_or_risk",
+    "expected_tools": [
+      "context.build",
+      "recovery.evaluate",
+      "safety.check"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "safety.check",
+      "recovery.evaluate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-140",
+    "user_message": "请给我制定一周训练计划。（表达变体 1） [tool scenario 141]",
+    "expected_intent": "training_plan",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "knowledge.retrieve",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-141",
+    "user_message": "帮我安排一个三天健身计划。（表达变体 2） [tool scenario 142]",
+    "expected_intent": "training_plan",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "knowledge.retrieve",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-142",
+    "user_message": "Please create a workout plan for this week.（表达变体 3） [tool scenario 143]",
+    "expected_intent": "training_plan",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "knowledge.retrieve",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-143",
+    "user_message": "请给我制定一周训练计划。（表达变体 4） [tool scenario 144]",
+    "expected_intent": "training_plan",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "knowledge.retrieve",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-144",
+    "user_message": "帮我安排一个三天健身计划。（表达变体 5） [tool scenario 145]",
+    "expected_intent": "training_plan",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "knowledge.retrieve",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-145",
+    "user_message": "Please create a workout plan for this week.（表达变体 6） [tool scenario 146]",
+    "expected_intent": "training_plan",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "knowledge.retrieve",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-146",
+    "user_message": "请给我制定一周训练计划。（表达变体 7） [tool scenario 147]",
+    "expected_intent": "training_plan",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "knowledge.retrieve",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-147",
+    "user_message": "帮我安排一个三天健身计划。（表达变体 8） [tool scenario 148]",
+    "expected_intent": "training_plan",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "knowledge.retrieve",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-148",
+    "user_message": "Please create a workout plan for this week.（表达变体 9） [tool scenario 149]",
+    "expected_intent": "training_plan",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "knowledge.retrieve",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-149",
+    "user_message": "请给我制定一周训练计划。（表达变体 10） [tool scenario 150]",
+    "expected_intent": "training_plan",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "knowledge.retrieve",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-150",
+    "user_message": "帮我安排一个三天健身计划。（表达变体 11） [tool scenario 151]",
+    "expected_intent": "training_plan",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "knowledge.retrieve",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-151",
+    "user_message": "Please create a workout plan for this week.（表达变体 12） [tool scenario 152]",
+    "expected_intent": "training_plan",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "knowledge.retrieve",
+      "plan.generate",
+      "plan.validate"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-152",
+    "user_message": "我的卧推进入平台期，下一步怎么突破？（表达变体 1） [tool scenario 153]",
+    "expected_intent": "progression_decision",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "recovery.evaluate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "recovery.evaluate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-153",
+    "user_message": "深蹲重量停滞了三周，应该加重还是减载？（表达变体 2） [tool scenario 154]",
+    "expected_intent": "progression_decision",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "recovery.evaluate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "recovery.evaluate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-154",
+    "user_message": "How should I progress after my bench stalled?（表达变体 3） [tool scenario 155]",
+    "expected_intent": "progression_decision",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "recovery.evaluate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "recovery.evaluate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-155",
+    "user_message": "我的卧推进入平台期，下一步怎么突破？（表达变体 4） [tool scenario 156]",
+    "expected_intent": "progression_decision",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "recovery.evaluate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "recovery.evaluate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-156",
+    "user_message": "深蹲重量停滞了三周，应该加重还是减载？（表达变体 5） [tool scenario 157]",
+    "expected_intent": "progression_decision",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "recovery.evaluate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "recovery.evaluate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-157",
+    "user_message": "How should I progress after my bench stalled?（表达变体 6） [tool scenario 158]",
+    "expected_intent": "progression_decision",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "recovery.evaluate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "recovery.evaluate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-158",
+    "user_message": "我的卧推进入平台期，下一步怎么突破？（表达变体 7） [tool scenario 159]",
+    "expected_intent": "progression_decision",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "recovery.evaluate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "recovery.evaluate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-159",
+    "user_message": "深蹲重量停滞了三周，应该加重还是减载？（表达变体 8） [tool scenario 160]",
+    "expected_intent": "progression_decision",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "recovery.evaluate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "recovery.evaluate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-160",
+    "user_message": "How should I progress after my bench stalled?（表达变体 9） [tool scenario 161]",
+    "expected_intent": "progression_decision",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "recovery.evaluate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "recovery.evaluate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-161",
+    "user_message": "我的卧推进入平台期，下一步怎么突破？（表达变体 10） [tool scenario 162]",
+    "expected_intent": "progression_decision",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "recovery.evaluate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "recovery.evaluate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-162",
+    "user_message": "深蹲重量停滞了三周，应该加重还是减载？（表达变体 11） [tool scenario 163]",
+    "expected_intent": "progression_decision",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "recovery.evaluate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "recovery.evaluate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-163",
+    "user_message": "How should I progress after my bench stalled?（表达变体 12） [tool scenario 164]",
+    "expected_intent": "progression_decision",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "memory.search",
+      "recovery.evaluate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "memory.search",
+      "recovery.evaluate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-164",
+    "user_message": "请记录我的早餐：鸡蛋和米饭。（表达变体 1） [tool scenario 165]",
+    "expected_intent": "nutrition_log",
+    "expected_tools": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-165",
+    "user_message": "午餐吃了鸡胸肉和蔬菜，帮我记录饮食。（表达变体 2） [tool scenario 166]",
+    "expected_intent": "nutrition_log",
+    "expected_tools": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-166",
+    "user_message": "Record my dinner: salmon and potatoes.（表达变体 3） [tool scenario 167]",
+    "expected_intent": "nutrition_log",
+    "expected_tools": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-167",
+    "user_message": "请记录我的早餐：鸡蛋和米饭。（表达变体 4） [tool scenario 168]",
+    "expected_intent": "nutrition_log",
+    "expected_tools": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-168",
+    "user_message": "午餐吃了鸡胸肉和蔬菜，帮我记录饮食。（表达变体 5） [tool scenario 169]",
+    "expected_intent": "nutrition_log",
+    "expected_tools": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-169",
+    "user_message": "Record my dinner: salmon and potatoes.（表达变体 6） [tool scenario 170]",
+    "expected_intent": "nutrition_log",
+    "expected_tools": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-170",
+    "user_message": "请记录我的早餐：鸡蛋和米饭。（表达变体 7） [tool scenario 171]",
+    "expected_intent": "nutrition_log",
+    "expected_tools": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-171",
+    "user_message": "午餐吃了鸡胸肉和蔬菜，帮我记录饮食。（表达变体 8） [tool scenario 172]",
+    "expected_intent": "nutrition_log",
+    "expected_tools": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-172",
+    "user_message": "Record my dinner: salmon and potatoes.（表达变体 9） [tool scenario 173]",
+    "expected_intent": "nutrition_log",
+    "expected_tools": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-173",
+    "user_message": "请记录我的早餐：鸡蛋和米饭。（表达变体 10） [tool scenario 174]",
+    "expected_intent": "nutrition_log",
+    "expected_tools": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-174",
+    "user_message": "午餐吃了鸡胸肉和蔬菜，帮我记录饮食。（表达变体 11） [tool scenario 175]",
+    "expected_intent": "nutrition_log",
+    "expected_tools": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-175",
+    "user_message": "Record my dinner: salmon and potatoes.（表达变体 12） [tool scenario 176]",
+    "expected_intent": "nutrition_log",
+    "expected_tools": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-176",
+    "user_message": "今天完成了卧推四组，每组八次。（表达变体 1） [tool scenario 177]",
+    "expected_intent": "training_log",
+    "expected_tools": [
+      "context.build",
+      "training.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "training.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-177",
+    "user_message": "我刚练完深蹲，做了三组。（表达变体 2） [tool scenario 178]",
+    "expected_intent": "training_log",
+    "expected_tools": [
+      "context.build",
+      "training.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "training.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-178",
+    "user_message": "I did bench press for four sets today.（表达变体 3） [tool scenario 179]",
+    "expected_intent": "training_log",
+    "expected_tools": [
+      "context.build",
+      "training.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "training.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-179",
+    "user_message": "今天完成了卧推四组，每组八次。（表达变体 4） [tool scenario 180]",
+    "expected_intent": "training_log",
+    "expected_tools": [
+      "context.build",
+      "training.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "training.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-180",
+    "user_message": "我刚练完深蹲，做了三组。（表达变体 5） [tool scenario 181]",
+    "expected_intent": "training_log",
+    "expected_tools": [
+      "context.build",
+      "training.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "training.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-181",
+    "user_message": "I did bench press for four sets today.（表达变体 6） [tool scenario 182]",
+    "expected_intent": "training_log",
+    "expected_tools": [
+      "context.build",
+      "training.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "training.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-182",
+    "user_message": "今天完成了卧推四组，每组八次。（表达变体 7） [tool scenario 183]",
+    "expected_intent": "training_log",
+    "expected_tools": [
+      "context.build",
+      "training.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "training.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-183",
+    "user_message": "我刚练完深蹲，做了三组。（表达变体 8） [tool scenario 184]",
+    "expected_intent": "training_log",
+    "expected_tools": [
+      "context.build",
+      "training.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "training.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-184",
+    "user_message": "I did bench press for four sets today.（表达变体 9） [tool scenario 185]",
+    "expected_intent": "training_log",
+    "expected_tools": [
+      "context.build",
+      "training.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "training.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-185",
+    "user_message": "今天完成了卧推四组，每组八次。（表达变体 10） [tool scenario 186]",
+    "expected_intent": "training_log",
+    "expected_tools": [
+      "context.build",
+      "training.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "training.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-186",
+    "user_message": "我刚练完深蹲，做了三组。（表达变体 11） [tool scenario 187]",
+    "expected_intent": "training_log",
+    "expected_tools": [
+      "context.build",
+      "training.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "training.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-187",
+    "user_message": "I did bench press for four sets today.（表达变体 12） [tool scenario 188]",
+    "expected_intent": "training_log",
+    "expected_tools": [
+      "context.build",
+      "training.log.write"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "training.log.write"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-188",
+    "user_message": "减脂期间蛋白质应该怎么安排？（表达变体 1） [tool scenario 189]",
+    "expected_intent": "nutrition_advice",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "nutrition.estimate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.estimate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-189",
+    "user_message": "训练后应该吃什么比较合适？（表达变体 2） [tool scenario 190]",
+    "expected_intent": "nutrition_advice",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "nutrition.estimate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.estimate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-190",
+    "user_message": "How much protein should I eat for muscle gain?（表达变体 3） [tool scenario 191]",
+    "expected_intent": "nutrition_advice",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "nutrition.estimate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.estimate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-191",
+    "user_message": "减脂期间蛋白质应该怎么安排？（表达变体 4） [tool scenario 192]",
+    "expected_intent": "nutrition_advice",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "nutrition.estimate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.estimate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-192",
+    "user_message": "训练后应该吃什么比较合适？（表达变体 5） [tool scenario 193]",
+    "expected_intent": "nutrition_advice",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "nutrition.estimate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.estimate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-193",
+    "user_message": "How much protein should I eat for muscle gain?（表达变体 6） [tool scenario 194]",
+    "expected_intent": "nutrition_advice",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "nutrition.estimate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.estimate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-194",
+    "user_message": "减脂期间蛋白质应该怎么安排？（表达变体 7） [tool scenario 195]",
+    "expected_intent": "nutrition_advice",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "nutrition.estimate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.estimate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-195",
+    "user_message": "训练后应该吃什么比较合适？（表达变体 8） [tool scenario 196]",
+    "expected_intent": "nutrition_advice",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "nutrition.estimate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.estimate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-196",
+    "user_message": "How much protein should I eat for muscle gain?（表达变体 9） [tool scenario 197]",
+    "expected_intent": "nutrition_advice",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "nutrition.estimate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.estimate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-197",
+    "user_message": "减脂期间蛋白质应该怎么安排？（表达变体 10） [tool scenario 198]",
+    "expected_intent": "nutrition_advice",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "nutrition.estimate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.estimate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-198",
+    "user_message": "训练后应该吃什么比较合适？（表达变体 11） [tool scenario 199]",
+    "expected_intent": "nutrition_advice",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "nutrition.estimate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.estimate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  },
+  {
+    "case_id": "tool-199",
+    "user_message": "How much protein should I eat for muscle gain?（表达变体 12） [tool scenario 200]",
+    "expected_intent": "nutrition_advice",
+    "expected_tools": [
+      "context.build",
+      "knowledge.retrieve",
+      "nutrition.estimate"
+    ],
+    "expected_sequence": [
+      "context.build",
+      "nutrition.estimate",
+      "knowledge.retrieve"
+    ],
+    "source": "seed_eval",
+    "partition": "test"
+  }
+]

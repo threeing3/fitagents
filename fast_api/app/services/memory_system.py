@@ -1,6 +1,6 @@
+import re
 import uuid
 from datetime import date, datetime
-import re
 from typing import Any
 
 from sqlalchemy import desc, func, literal, or_, select
@@ -48,7 +48,9 @@ class MemoryManager:
             content=content,
             summary=payload.get("summary"),
             importance_score=float(payload.get("importance_score", payload.get("importance", 0.6))),
-            confidence_score=float(payload.get("confidence_score", payload.get("confidence", 0.75))),
+            confidence_score=float(
+                payload.get("confidence_score", payload.get("confidence", 0.75))
+            ),
             source_type=payload.get("source_type", payload.get("source", "manual")),
             source_id=payload.get("source_id"),
             metadata=payload.get("metadata") or payload.get("memory_metadata") or {},
@@ -182,7 +184,18 @@ class MemoryManager:
         )
 
     def is_correction_message(self, text: str) -> bool:
-        signals = ["不对", "不是", "改了", "现在不是", "已经好了", "医生说", "更正", "纠正", "changed", "not anymore"]
+        signals = [
+            "不对",
+            "不是",
+            "改了",
+            "现在不是",
+            "已经好了",
+            "医生说",
+            "更正",
+            "纠正",
+            "changed",
+            "not anymore",
+        ]
         lowered = (text or "").lower()
         return any(signal in lowered for signal in signals)
 
@@ -194,20 +207,29 @@ class MemoryManager:
         link_type: str | None = None,
     ) -> dict[str, Any]:
         if not self.is_correction_message(message):
-            return {"correction_detected": False, "memory": None, "updated_memories": [], "links": []}
-        old_memories = self.search_memories(user_id, message, top_k=5, category=category, include_expired=False)
+            return {
+                "correction_detected": False,
+                "memory": None,
+                "updated_memories": [],
+                "links": [],
+            }
+        old_memories = self.search_memories(
+            user_id, message, top_k=5, category=category, include_expired=False
+        )
         new_memory = self.retain_memory(
             user_id=user_id,
             content=message,
             memory_network="world",
             fact_kind="correction",
             category=category or self._infer_correction_category(message),
-            evidence=[{
-                "table": "user_messages",
-                "id": "current",
-                "summary": self._compact_summary(message, 120),
-                "time": datetime.utcnow().isoformat(),
-            }],
+            evidence=[
+                {
+                    "table": "user_messages",
+                    "id": "current",
+                    "summary": self._compact_summary(message, 120),
+                    "time": datetime.utcnow().isoformat(),
+                }
+            ],
             importance_score=0.78,
             confidence_score=0.85,
             source_type="correction",
@@ -292,7 +314,9 @@ class MemoryManager:
         risk_notes = self.get_active_risk_notes(user_id)
         risk_content = "No active risk notes."
         if risk_notes:
-            risk_content = "\n".join(f"- {note.risk_type}: {note.description}" for note in risk_notes[:5])
+            risk_content = "\n".join(
+                f"- {note.risk_type}: {note.description}" for note in risk_notes[:5]
+            )
         self.update_memory_block(user_id, "risk", risk_content, "Risk Notes", 180, 0.95)
 
         preference_memories = self.list_memories(
@@ -403,12 +427,17 @@ class MemoryManager:
                 self.db.scalars(
                     select(models.LongTermMemory)
                     .where(*filters)
-                    .order_by(desc(models.LongTermMemory.importance), desc(models.LongTermMemory.created_at))
+                    .order_by(
+                        desc(models.LongTermMemory.importance),
+                        desc(models.LongTermMemory.created_at),
+                    )
                     .limit(top_k * 8)
                 )
             )
             entity_candidates = [
-                memory for memory in entity_candidates if self._memory_has_entity(memory, wanted_entities)
+                memory
+                for memory in entity_candidates
+                if self._memory_has_entity(memory, wanted_entities)
             ]
 
         keyword_candidates, keyword_signal_scores = self._keyword_candidates(query, filters, top_k)
@@ -431,8 +460,7 @@ class MemoryManager:
             )
         )
         relevance_ids = {
-            memory.id
-            for memory in [*vector_candidates, *entity_candidates, *keyword_candidates]
+            memory.id for memory in [*vector_candidates, *entity_candidates, *keyword_candidates]
         }
         temporal_candidates = [
             memory
@@ -451,7 +479,9 @@ class MemoryManager:
         candidates = list(by_id.values())
         bm25_matches = rank_by_bm25(candidates, query, self._memory_bm25_document)
         bm25_scores = {
-            match.item.id: max(match.normalized_score, keyword_signal_scores.get(match.item.id, 0.0))
+            match.item.id: max(
+                match.normalized_score, keyword_signal_scores.get(match.item.id, 0.0)
+            )
             for match in bm25_matches
         }
         keyword_matches = sorted(
@@ -507,6 +537,8 @@ class MemoryManager:
     ) -> list[models.LongTermMemory]:
         try:
             query_embedding = self.model_provider.embed_text(query)
+            if query_embedding is None:
+                return []
             return list(
                 self.db.scalars(
                     select(models.LongTermMemory)
@@ -537,7 +569,9 @@ class MemoryManager:
             self.db.scalars(
                 select(models.LongTermMemory)
                 .where(*filters)
-                .order_by(desc(models.LongTermMemory.importance), desc(models.LongTermMemory.created_at))
+                .order_by(
+                    desc(models.LongTermMemory.importance), desc(models.LongTermMemory.created_at)
+                )
                 .limit(limit)
             )
         )
@@ -555,7 +589,10 @@ class MemoryManager:
             self.db.scalars(
                 select(models.MemoryCatalog)
                 .where(*filters)
-                .order_by(desc(models.MemoryCatalog.importance_score), desc(models.MemoryCatalog.last_updated_at))
+                .order_by(
+                    desc(models.MemoryCatalog.importance_score),
+                    desc(models.MemoryCatalog.last_updated_at),
+                )
                 .limit(limit)
             )
         )
@@ -573,7 +610,10 @@ class MemoryManager:
         return list(
             self.db.scalars(
                 select(models.RiskNote)
-                .where(models.RiskNote.user_id == user_id, models.RiskNote.status.in_(["active", "monitoring"]))
+                .where(
+                    models.RiskNote.user_id == user_id,
+                    models.RiskNote.status.in_(["active", "monitoring"]),
+                )
                 .order_by(desc(models.RiskNote.severity_score), desc(models.RiskNote.last_seen_at))
                 .limit(limit)
             )
@@ -605,7 +645,10 @@ class MemoryManager:
             row[0]
             for row in self.db.execute(
                 select(models.LongTermMemory.category)
-                .where(models.LongTermMemory.user_id == user_id, models.LongTermMemory.status == "active")
+                .where(
+                    models.LongTermMemory.user_id == user_id,
+                    models.LongTermMemory.status == "active",
+                )
                 .group_by(models.LongTermMemory.category)
             )
             if row[0]
@@ -730,13 +773,19 @@ class MemoryManager:
                     self.db.execute(
                         select(models.LongTermMemory, rank)
                         .where(*filters, tsvector.op("@@")(tsquery))
-                        .order_by(desc(rank), desc(models.LongTermMemory.importance), desc(models.LongTermMemory.created_at))
+                        .order_by(
+                            desc(rank),
+                            desc(models.LongTermMemory.importance),
+                            desc(models.LongTermMemory.created_at),
+                        )
                         .limit(top_k * 8)
                     )
                 )
                 for memory, score in rows:
                     candidates.append(memory)
-                    signal_scores[memory.id] = max(signal_scores.get(memory.id, 0.0), float(score or 0.0))
+                    signal_scores[memory.id] = max(
+                        signal_scores.get(memory.id, 0.0), float(score or 0.0)
+                    )
             except Exception:
                 candidates = []
 
@@ -782,15 +831,22 @@ class MemoryManager:
             self.db.scalars(
                 select(models.LongTermMemory)
                 .where(*filters, or_(*clauses))
-                .order_by(desc(models.LongTermMemory.importance), desc(models.LongTermMemory.created_at))
+                .order_by(
+                    desc(models.LongTermMemory.importance), desc(models.LongTermMemory.created_at)
+                )
                 .limit(top_k * 12)
             )
         )
-        scored = [(memory, self._token_overlap_score(query, self._memory_bm25_document(memory))) for memory in rows]
+        scored = [
+            (memory, self._token_overlap_score(query, self._memory_bm25_document(memory)))
+            for memory in rows
+        ]
         return sorted(scored, key=lambda item: item[1], reverse=True)
 
     def _query_tokens(self, text: str) -> list[str]:
-        tokens = [token.lower() for token in re.findall(r"[A-Za-z0-9_]+|[\u4e00-\u9fff]{1,4}", text or "")]
+        tokens = [
+            token.lower() for token in re.findall(r"[A-Za-z0-9_]+|[\u4e00-\u9fff]{1,4}", text or "")
+        ]
         tokens.extend(entity["canonical"].lower() for entity in self.extract_entities(text or ""))
         seen: set[str] = set()
         unique: list[str] = []
@@ -863,7 +919,9 @@ class MemoryManager:
             "risk_priority": score_details["risk_priority"],
             "importance": float(memory.importance or 0.0),
             "recency": temporal.score,
-            "reference_time": temporal.reference_time.isoformat() if temporal.reference_time else None,
+            "reference_time": temporal.reference_time.isoformat()
+            if temporal.reference_time
+            else None,
             "age_days": temporal.age_days,
             "half_life_days": temporal.half_life_days,
             "temporal_floor": temporal.floor,
@@ -946,9 +1004,14 @@ class MemoryManager:
 
     def _infer_correction_category(self, text: str) -> str:
         lowered = (text or "").lower()
-        if any(term in lowered for term in ["减脂", "增肌", "目标", "goal", "fat loss", "muscle gain"]):
+        if any(
+            term in lowered for term in ["减脂", "增肌", "目标", "goal", "fat loss", "muscle gain"]
+        ):
             return "profile"
-        if any(term in lowered for term in ["好了", "疼", "痛", "医生", "风险", "risk", "pain", "resolved"]):
+        if any(
+            term in lowered
+            for term in ["好了", "疼", "痛", "医生", "风险", "risk", "pain", "resolved"]
+        ):
             return "risk"
         if any(term in lowered for term in ["吃", "饮食", "素食", "外卖", "nutrition", "diet"]):
             return "nutrition"
@@ -1017,11 +1080,13 @@ class MemoryManager:
             key = (entity_type, canonical)
             if key in seen:
                 continue
-            merged.append({
-                "type": entity_type,
-                "name": str(entity.get("name") or canonical),
-                "canonical": canonical,
-            })
+            merged.append(
+                {
+                    "type": entity_type,
+                    "name": str(entity.get("name") or canonical),
+                    "canonical": canonical,
+                }
+            )
             seen.add(key)
         return merged
 
@@ -1034,9 +1099,14 @@ class MemoryManager:
     def _is_risk_or_health_memory(self, memory: models.LongTermMemory) -> bool:
         return (
             memory.category == "risk"
-            or memory.memory_type in {"medical_context", "risk_signal", "symptom_event", "health_fact", "medication"}
-            or getattr(memory, "fact_kind", "") in {"health_fact", "symptom_event", "medication_event", "medication"}
-            or any((entity.get("type") == "medication") for entity in (getattr(memory, "entities", None) or []))
+            or memory.memory_type
+            in {"medical_context", "risk_signal", "symptom_event", "health_fact", "medication"}
+            or getattr(memory, "fact_kind", "")
+            in {"health_fact", "symptom_event", "medication_event", "medication"}
+            or any(
+                (entity.get("type") == "medication")
+                for entity in (getattr(memory, "entities", None) or [])
+            )
         )
 
     def _catalog_title(self, category: str) -> str:
@@ -1045,7 +1115,9 @@ class MemoryManager:
     def _catalog_summary(self, category: str, memories: list[models.LongTermMemory]) -> str:
         if not memories:
             return f"No active {category} memories yet."
-        summaries = [memory.summary or self._compact_summary(memory.content) for memory in memories[:5]]
+        summaries = [
+            memory.summary or self._compact_summary(memory.content) for memory in memories[:5]
+        ]
         return f"{len(memories)} active {category} memories. Recent: " + " | ".join(summaries)
 
     def _query_hints(self, category: str) -> list[str]:

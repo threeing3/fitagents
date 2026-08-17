@@ -1,0 +1,30 @@
+{
+  "manifest_version": "maturity-03-v1",
+  "locked": true,
+  "source": "seed_eval",
+  "partition": "test",
+  "training_eligible": false,
+  "generated_at": "2026-08-09T00:00:00+08:00",
+  "datasets": {
+    "intent_eval_cases.json": {
+      "rows": 120,
+      "sha256": "3722eaa66ddbd021d3db74204c8be650acf90354959837d793dd9e780e7f9635"
+    },
+    "retrieval_eval_cases.json": {
+      "rows": 80,
+      "sha256": "28e8e058154b433297957075a30a2c8a4e02749000f07aefee7b02752eb9ad5d"
+    },
+    "tool_plan_eval_cases.json": {
+      "rows": 200,
+      "sha256": "9fe09b76fc3b988840bbe859a9b9fbadd338e8dce5be6ad4109832681b896ce0"
+    },
+    "safety_eval_cases.json": {
+      "rows": 150,
+      "sha256": "81884974fbbdd9fe9c897757dd91078119c715c53321121ef05394a4ecfff50b"
+    },
+    "response_quality_eval_cases.json": {
+      "rows": 100,
+      "sha256": "63ca865d85e520497e6775129b064ed63e08d0b58fe63be283c24d28cc7dd275"
+    }
+  }
+}

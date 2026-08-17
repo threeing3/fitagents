@@ -18,6 +18,7 @@ def test_training_example_validation_and_roundtrip():
         user_message="今天如何安排训练？",
         source="expert_labeled",
         split="test",
+        quality_labels={"review_status": "approved"},
     )
     assert example.validate() == []
     restored = TrainingExample.from_dict(json.loads(json.dumps(example.to_dict())))
@@ -85,6 +86,26 @@ def test_validation_detects_duplicate_ids_and_unknown_source():
     assert report["error_count"] >= 2
 
 
+def test_eval_rows_cannot_enter_training_and_expert_labels_require_review():
+    eval_row = TrainingExample(
+        example_id="eval-leak",
+        task_type="coach_response",
+        user_message="fixed test prompt",
+        source="seed_eval",
+        split="train",
+    )
+    assert "test-only" in " ".join(eval_row.validate())
+
+    unreviewed = TrainingExample(
+        example_id="fake-expert",
+        task_type="coach_response",
+        user_message="unreviewed prompt",
+        source="expert_labeled",
+        split="test",
+    )
+    assert "review_status=approved" in " ".join(unreviewed.validate())
+
+
 def test_validation_detects_user_split_leakage():
     rows = [
         {
@@ -150,6 +171,16 @@ def test_small_user_cohort_gets_all_evaluation_partitions_when_possible():
     split, counts = split_records(rows)
     assert {row["split"] for row in split} == {"train", "validation", "test"}
     assert all(counts[name] > 0 for name in ("train", "validation", "test"))
+
+
+def test_large_user_cohort_uses_nearest_whole_user_80_10_10_split():
+    rows = [
+        {"user_hash": f"user-{index:02d}", "user_message": str(index), "task_type": "general"}
+        for index in range(40)
+    ]
+    split, counts = split_records(rows)
+    assert counts == {"train": 32, "validation": 4, "test": 4}
+    assert len({(row["user_hash"], row["split"]) for row in split}) == 40
 
 
 def test_preference_pair_rejects_identical_candidates():

@@ -1,0 +1,106 @@
+{
+  "experiment_id": "maturity_03_algorithms_20260809",
+  "created_at": "2026-08-09T06:03:25.154164+00:00",
+  "code_version": "4d469997b71ffe0960cb593e3ab353b4bf6569e9+dirty",
+  "environment": {
+    "python": "3.11.4",
+    "platform": "Windows-10-10.0.26200-SP0"
+  },
+  "provenance": {
+    "evaluation_source": "seed_eval",
+    "evaluation_partition": "test",
+    "training_eligible": false,
+    "vector_policy": "embedding-service provenance required",
+    "business_outcome_claim": "simulated_outcome only"
+  },
+  "metrics": {
+    "business": {
+      "cases": 38,
+      "passed": 38,
+      "gate_passed": true,
+      "command": "python -m pytest tests/test_eval_cases.py -q --no-cov"
+    },
+    "intent": {
+      "cases": 120,
+      "accuracy": 1.0,
+      "macro_f1": 1.0,
+      "risk_recall": 1.0
+    },
+    "retrieval": {
+      "records": 80,
+      "k": 5,
+      "strategies": {
+        "bm25": {
+          "available": true,
+          "recall_at_k": 0.95,
+          "p50_latency_ms": 0.3262,
+          "p95_latency_ms": 0.4433
+        },
+        "hybrid": {
+          "available": true,
+          "recall_at_k": 1.0,
+          "p50_latency_ms": 0.3309,
+          "p95_latency_ms": 0.4247
+        },
+        "vector": {
+          "available": false,
+          "status": "vector unavailable",
+          "reason": "no embedding-service scores with explicit provenance; SHA-256 pseudo-vectors are excluded"
+        }
+      },
+      "vector_status": "vector unavailable",
+      "embedding_policy": "explicit_vector_only_no_sha256_pseudo_vector"
+    },
+    "tool_planning": {
+      "cases": 200,
+      "fixed_chain": {
+        "tool_selection_exact_match": 0.0,
+        "tool_sequence_accuracy": 0.0,
+        "schema_valid_rate": 1.0,
+        "unnecessary_tool_rate": 0.36
+      },
+      "rule_planner": {
+        "tool_selection_exact_match": 1.0,
+        "tool_sequence_accuracy": 1.0,
+        "schema_valid_rate": 1.0,
+        "unnecessary_tool_rate": 0.0,
+        "p50_latency_ms": 0.2163,
+        "p95_latency_ms": 0.4351
+      },
+      "llm_planner": {
+        "available": false,
+        "status": "not evaluated without an explicitly configured model"
+      }
+    },
+    "safety": {
+      "cases": 150,
+      "risk_cases": 100,
+      "risk_recall": 1.0,
+      "guardrail_accuracy": 1.0,
+      "critical_dangerous_allowed": 0,
+      "hard_gate_passed": true
+    },
+    "response_quality": {
+      "cases": 100,
+      "safe_rate": 1.0,
+      "pass_rate": 1.0,
+      "hard_gate_passed": true
+    },
+    "token_cost": {
+      "tokens": 0,
+      "reason": "deterministic offline baselines"
+    }
+  },
+  "gates": {
+    "manifest_locked": true,
+    "business_38_of_38": true,
+    "intent_macro_f1": true,
+    "risk_recall": true,
+    "retrieval_query_count": true,
+    "tool_schema_valid": true,
+    "critical_dangerous_zero_allowed": true,
+    "response_safety": true
+  },
+  "passed": true,
+  "manifest_errors": []
+}

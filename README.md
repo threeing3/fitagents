@@ -211,6 +211,24 @@ PostgreSQL 统一保存：
 - 在 AutoDL 上使用独立训练依赖运行 QLoRA/DPO。
 - 保存数据 manifest、实验配置、评测报告和模型卡。
 
+### 阶段三可信基线（2026-08-09）
+
+- 38 条固定业务样例全部通过；固定评测集包含 120 条意图、80 条召回、200 条工具规划、150 条安全和 100 条回复质量样例。
+- 意图 Macro-F1 为 1.00，风险 Recall 为 1.00；这些结果来自 `seed_eval` 规则覆盖集，只证明固定场景门禁，不代表真实线上分布。
+- BM25 的 Recall@5 为 0.95；当前没有带真实向量服务来源的分数，因此向量结果明确显示 `vector unavailable`，不会用 SHA-256 伪向量替代。
+- 规则 Planner 的工具选择和顺序准确率均为 1.00，结构合法率为 1.00；未配置模型时不伪造 LLM Planner 结果。
+- 训练工厂可复现生成 1200 条 `synthetic` 样本，按 50 个用户整体切分为 960/120/120，零用户泄漏；业务结果只标记为 `simulated_outcome`。
+- 当前没有经过真实人工审核的偏好对，因此 DPO 保持关闭。完整脱敏结果见 `algorithm/evaluation/reports/maturity_03_baseline.summary.json` 和 `algorithm/datasets/manifests/maturity_03_synthetic.summary.json`。
+
+统一阶段三门禁：
+
+```powershell
+python -m algorithm.evaluation.build_fixed_evals --verify
+python -m algorithm.evaluation.run_maturity_gate `
+  --experiment-id maturity_03_algorithms_20260809 `
+  --output <new-experiment-report.json>
+```
+
 项目还提供“学习模式”，用于把每个算法模块变成可练习、可验收、可面试表达的课程。默认采用 conversation-first（对话优先）方式：你在 Codex 对话中回答概念题和实验预测，由 Codex 执行命令、展示结果、维护进度和实验日志，你不需要自己操作终端。
 
 ```powershell
@@ -247,7 +265,7 @@ python -m algorithm.app_algorithms.intent_baseline tests/evals/intent_eval_cases
 需要在真实轨迹不足时做学习实验，可使用一键数据集总工厂；合成样本会显式标记来源，不会伪装成真实业务数据：
 
 ```powershell
-python -m algorithm.datasets.build_bundle --input algorithm/datasets/manifests/training_examples.jsonl --output-dir algorithm/datasets/manifests --synthetic-count 700 --seed 42
+python -m algorithm.datasets.build_bundle --input algorithm/datasets/manifests/training_examples.jsonl --output-dir <ignored-experiment-directory> --synthetic-count 1200 --seed 42
 python -m algorithm.business.business_baseline --count 240 --seed 42 --experiment-id business-baseline-v1 --output <report.json>
 python -m algorithm.app_algorithms.memory_retrieval_eval
 ```

@@ -30,8 +30,26 @@ def assign_split(user_hash: str, scenario: str, train=0.8, validation=0.1) -> st
 
 def split_records(records: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], dict[str, int]]:
     groups = {str(record.get("user_hash") or "unknown") for record in records}
-    assignments = {group: assign_split(group, "") for group in groups}
-    if len(groups) >= 3:
+    assignments: dict[str, str]
+    if len(groups) >= 10:
+        # Allocate whole users by deterministic hash rank. This is the closest
+        # feasible 80/10/10 allocation without leaking one user across splits.
+        ordered = [group for _, group in sorted((_bucket(group), group) for group in groups)]
+        train_count = round(len(ordered) * 0.8)
+        validation_count = round(len(ordered) * 0.1)
+        train_count = min(max(train_count, 1), len(ordered) - 2)
+        validation_count = min(max(validation_count, 1), len(ordered) - train_count - 1)
+        assignments = {}
+        for index, group in enumerate(ordered):
+            if index < train_count:
+                assignments[group] = "train"
+            elif index < train_count + validation_count:
+                assignments[group] = "validation"
+            else:
+                assignments[group] = "test"
+    else:
+        assignments = {group: assign_split(group, "") for group in groups}
+    if 3 <= len(groups) < 10:
         # A small real dataset can randomly miss the 10% validation bucket.
         # Move the nearest deterministic train group only when a partition is
         # empty; this keeps user disjointness and makes the experiment usable.
