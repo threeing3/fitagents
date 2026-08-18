@@ -10,8 +10,10 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from algorithm.evaluation.intent_live_eval import RISK_ORDER, _checks
+from algorithm.evaluation.intent_eval_core import RISK_ORDER, intent_checks
 from fast_api.app.services.intent_decision import IntentDecision, IntentRouter
+
+_checks = intent_checks
 
 SYSTEM_PROMPT = (
     "你是 FitAgent 的意图决策器。只输出 JSON，不输出思考过程。字段必须包含 primary_intent、"

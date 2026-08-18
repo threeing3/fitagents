@@ -1,0 +1,34 @@
+{
+  "schema_version": "fitagent-public-intent-release/v1",
+  "experiment_id": "intent_qwen3_4b_20260817",
+  "status": "verified_offline",
+  "base_model": "Qwen/Qwen3-4B",
+  "dataset": {
+    "source": "fixed_challenge_test",
+    "training_eligible": false,
+    "cases": 120
+  },
+  "metrics": {
+    "base_exact_match": 0.0583,
+    "adapter_exact_match": 0.1333,
+    "adapter_schema_valid_rate": 1.0,
+    "adapter_risk_recall": 1.0,
+    "risk_cases": 32,
+    "latency_ms": {
+      "p50": 3210.97,
+      "p95": 3630.41
+    }
+  },
+  "adapter_sha256": "bdb5c8567a27bb6988603a9e54893ec9fd3bb79eafa4cb27c9f788d9b749a8a6",
+  "evidence_sha256": {
+    "release_manifest": "c4eb9e6400ad1c24f2146a58d13c9a820d8bfe94fb7326f47df0ba0c7b20380a",
+    "base_report": "2da41754e7a6dc6ec1f6e3c4453b6dd05b80d3758270dc0cc35b6f0796481221",
+    "adapter_report": "4ac3ad3e73043b73343e70cd799044e5d8d971b926050de2aadf9cc511bf380d"
+  },
+  "claims": {
+    "offline_evaluation_verified": true,
+    "online_business_uplift": false,
+    "real_user_outcome": false
+  },
+  "published_at": "2026-08-18T13:13:37.393420+00:00"
+}

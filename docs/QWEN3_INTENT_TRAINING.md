@@ -2,9 +2,9 @@
 
 ## 当前状态
 
-截至 2026-08-17，Intent 04 已完成数据、配置、真实 Qwen3 分词模板、助手回复损失掩码、
-不可覆盖运行记录和统一评测入口的本地预检。尚未完成 GPU 训练，因此仓库不声明已有 Adapter，
-也不声明 Qwen3-4B 微调后优于底座。
+截至 2026-08-18，Intent 04 已在 AutoDL RTX 4090 上完成 50 条烟雾训练、800 条正式训练、
+独立进程 Adapter 重载，以及底座/Adapter 的同入口固定挑战集评测。批准版 Adapter 已下载回本地并通过
+SHA-256 校验。该结论只适用于固定离线测试集，不代表线上业务提升或真实用户效果。
 
 ## 固定方案
 
@@ -59,14 +59,14 @@ python -m pip install -r algorithm/training/requirements-training.txt
 
 python -m algorithm.training.prepare_experiment_run \
   --config algorithm/training/configs/intent_qwen3_4b_qlora.json \
-  --run-id smoke-50-seed42-v1 \
+  --run-id smoke-50-seed42-v3 \
   --variant smoke \
   --snapshot-id <content-addressed-snapshot-id> \
   --row-limit 50
 
 python -m algorithm.training.sft.train_qlora \
   --config algorithm/training/configs/intent_qwen3_4b_qlora.json \
-  --run-id smoke-50-seed42-v1
+  --run-id smoke-50-seed42-v3
 ```
 
 烟雾训练通过后，使用新的 `full-800-seed42-v1` 运行 ID，省略 `--row-limit` 创建正式运行。
@@ -77,11 +77,11 @@ python -m algorithm.training.sft.train_qlora \
 ```bash
 python -m algorithm.training.verify_adapter_reload \
   --base-model Qwen/Qwen3-4B \
-  --adapter research_state/experiments/intent_qwen3_4b_20260817/runs/smoke-50-seed42-v1/adapter \
-  --output research_state/experiments/intent_qwen3_4b_20260817/runs/smoke-50-seed42-v1/records/adapter_reload_report.json
+  --adapter research_state/experiments/intent_qwen3_4b_20260817/runs/smoke-50-seed42-v3/outputs/adapter \
+  --output research_state/experiments/intent_qwen3_4b_20260817/runs/smoke-50-seed42-v3/records/adapter_reload_report.json
 
 python -m algorithm.training.verify_experiment_run \
-  research_state/experiments/intent_qwen3_4b_20260817/runs/smoke-50-seed42-v1 \
+  research_state/experiments/intent_qwen3_4b_20260817/runs/smoke-50-seed42-v3 \
   --require-adapter-reload
 ```
 
@@ -111,3 +111,28 @@ python -m algorithm.evaluation.intent_local_model_eval \
 
 报告分别展示原始模型指标和确定性安全合并指标。模型 JSON 无法解析时，原始 Schema 合法率记为失败，
 生产安全路径回退到规则；规则收益不得写成微调模型收益。
+
+## 已验证结果
+
+正式运行 `full-800-seed42-v1` 使用 800 条合成训练样本和 100 条验证样本，训练 2 个 epoch：
+
+- 训练耗时 704.11 秒，训练 loss 为 0.1399，验证 loss 为 0.1260；
+- Adapter 在全新 Python 进程中成功重载并生成合法结构；
+- Adapter 文件大小 132,187,888 字节，SHA-256 为
+  `bdb5c8567a27bb6988603a9e54893ec9fd3bb79eafa4cb27c9f788d9b749a8a6`；
+- 批准版归档 SHA-256 为
+  `c5f365126675459046282fb08d0f7b154af71bb5325d420dc339ff2d64c56d48`。
+
+120 条永久隔离挑战集上的同入口确定性解码结果：
+
+| 指标 | 原始 Qwen3-4B | QLoRA Adapter |
+| --- | ---: | ---: |
+| 原始结构合法率 | 78.33% | 100.00% |
+| 安全合并后完全匹配率 | 5.83% | 13.33% |
+| 原始风险召回率 | 37.50% | 100.00% |
+| 安全合并后风险召回率 | 65.62% | 100.00% |
+| P50 延迟 | 2309.85 ms | 3210.97 ms |
+| P95 延迟 | 3188.23 ms | 3630.41 ms |
+
+完全匹配率仍然偏低，说明当前合成训练分布与高难度挑战集之间仍有明显差距；发布批准只表示结构、安全和
+相对底座提升门禁通过。线上执行仍采用“确定性规则 → 已验证适配器 → DeepSeek 回退”，安全权威始终属于规则。

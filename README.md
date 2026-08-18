@@ -226,6 +226,13 @@ PostgreSQL 统一保存：
 - 训练工厂可复现生成 1200 条 `synthetic` 样本，按 50 个用户整体切分为 960/120/120，零用户泄漏；业务结果只标记为 `simulated_outcome`。
 - 当前没有经过真实人工审核的偏好对，因此 DPO 保持关闭。完整脱敏结果见 `algorithm/evaluation/reports/maturity_03_baseline.summary.json` 和 `algorithm/datasets/manifests/maturity_03_synthetic.summary.json`。
 
+### Intent 04 真实 Qwen3-4B 后训练（2026-08-18）
+
+- 在单张 RTX 4090 上完成 Qwen3-4B 的 4-bit QLoRA 意图适配器训练，并通过独立进程重载。
+- 120 条永久隔离挑战集上，适配器结构合法率为 100%，风险召回率为 100%；安全合并后完全匹配率由底座的 5.83% 提升到 13.33%。
+- 完全匹配率仍低，因此当前只标记为 `verified_offline`，不声明线上业务提升；生产安全仍由确定性规则控制。
+- 脱敏发布摘要见 `algorithm/evaluation/reports/intent_qwen3_4b_release.summary.json`，完整训练说明见 `docs/QWEN3_INTENT_TRAINING.md`。
+
 统一阶段三门禁：
 
 ```powershell

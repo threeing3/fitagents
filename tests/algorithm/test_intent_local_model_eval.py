@@ -1,11 +1,25 @@
 import pytest
 
+from algorithm.evaluation.intent_eval_core import intent_checks
 from algorithm.evaluation.intent_local_model_eval import (
     evaluate_predictions,
     merge_deterministic_safety,
     parse_intent_json,
 )
 from fast_api.app.services.intent_decision import IntentDecision
+
+
+def test_shared_intent_checks_have_no_online_service_dependency():
+    decision = IntentDecision(primary_intent="general_chat", risk_level="low")
+    checks = intent_checks(
+        {
+            "expected_primary_intent": "general_chat",
+            "minimum_risk_level": "low",
+            "expected_clarification": False,
+        },
+        decision,
+    )
+    assert all(checks.values())
 
 
 def test_parse_intent_json_accepts_fenced_strict_payload():

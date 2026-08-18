@@ -24,6 +24,8 @@ def prepare_run(
     variant: str,
     snapshot_id: str,
     row_limit: int | None = None,
+    model_cache_root: str | None = None,
+    offline_models: bool = False,
 ) -> Path:
     """Create a new run record; an existing run ID is never overwritten."""
 
@@ -43,9 +45,20 @@ def prepare_run(
         "--run-id",
         run_id,
     ]
+    command_env: dict[str, str] = {}
+    if model_cache_root:
+        command_env["HF_HOME"] = model_cache_root
+    if offline_models:
+        command_env.update(
+            {
+                "HF_HUB_OFFLINE": "1",
+                "TRANSFORMERS_OFFLINE": "1",
+            }
+        )
     command = {
         "argv": argv,
         "cwd": ".",
+        "env": command_env,
         "created_at": _now(),
         "variant": variant,
         "row_limit": row_limit,
@@ -84,6 +97,7 @@ def prepare_run(
                 f"train_dataset={summary['train_dataset_path']}",
                 f"eval_dataset={summary['eval_dataset_path']}",
                 f"dataset_version={summary['dataset_version']} seed={summary['seed']}",
+                f"command_env_keys={sorted(command_env)}",
                 "",
             ]
         ),
@@ -136,6 +150,15 @@ def main() -> int:
     parser.add_argument("--variant", choices=["smoke", "full"], required=True)
     parser.add_argument("--snapshot-id", required=True)
     parser.add_argument("--row-limit", type=int)
+    parser.add_argument(
+        "--model-cache-root",
+        help="Remote Hugging Face cache root recorded in the immutable command",
+    )
+    parser.add_argument(
+        "--offline-models",
+        action="store_true",
+        help="Require model loading to use the pre-populated local cache",
+    )
     args = parser.parse_args()
     run_dir = prepare_run(
         load_config(args.config),
@@ -144,6 +167,8 @@ def main() -> int:
         variant=args.variant,
         snapshot_id=args.snapshot_id,
         row_limit=args.row_limit,
+        model_cache_root=args.model_cache_root,
+        offline_models=args.offline_models,
     )
     print(run_dir)
     return 0

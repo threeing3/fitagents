@@ -145,7 +145,17 @@ def test_algorithm_summary_marks_fixed_and_simulated_evidence():
         "verified_service_configured",
     }
     assert payload["intent_inference"]["online_result_claimed"] is False
-    assert payload["intent_inference"]["verified_release"] is None
+    release = payload["intent_inference"]["verified_release"]
+    assert release["status"] == "verified_offline"
+    assert release["dataset"] == {
+        "source": "fixed_challenge_test",
+        "training_eligible": False,
+        "cases": 120,
+    }
+    assert release["metrics"]["adapter_schema_valid_rate"] == 1.0
+    assert release["metrics"]["adapter_risk_recall"] == 1.0
+    assert release["claims"]["online_business_uplift"] is False
+    assert release["claims"]["real_user_outcome"] is False
 
     experiment = client.get("/v1/algorithm/experiments/maturity_03_algorithms_20260809")
     assert experiment.status_code == 200

@@ -12,32 +12,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
 
+from algorithm.evaluation.intent_eval_core import intent_checks
 from fast_api.app.core.config import get_settings
-from fast_api.app.services.intent_decision import IntentDecision, IntentRouter
+from fast_api.app.services.intent_decision import IntentRouter
 from fast_api.app.services.intent_decision_engine import IntentDecisionEngine
 from fast_api.app.services.llm_intent_classifier import LLMIntentClassifier
 from fast_api.app.services.model_provider import ModelProvider
 
 EvalMode = Literal["rule_only", "deepseek_all_with_rule_safety", "hybrid"]
-RISK_ORDER = {"low": 0, "medium": 1, "high": 2, "critical": 3}
-
-
-def _checks(row: dict[str, Any], decision: IntentDecision) -> dict[str, bool]:
-    expected_primary = row.get("expected_primary_intent") or row.get("expected_intent")
-    expected_secondary = set(
-        row.get("expected_secondary_intents") or row.get("required_secondary_intents") or []
-    )
-    expected_risk = row.get("expected_risk_level") or row.get("minimum_risk_level") or "low"
-    expected_clarification = row.get("expected_needs_clarification")
-    if expected_clarification is None:
-        expected_clarification = row.get("expected_clarification")
-    return {
-        "primary_intent": decision.primary_intent == expected_primary,
-        "secondary_intents": expected_secondary.issubset(set(decision.secondary_intents)),
-        "risk_level": RISK_ORDER.get(decision.risk_level, -1)
-        >= RISK_ORDER.get(str(expected_risk), 0),
-        "clarification": decision.needs_clarification is bool(expected_clarification),
-    }
+_checks = intent_checks
 
 
 def _percentile(values: list[float], fraction: float) -> float:

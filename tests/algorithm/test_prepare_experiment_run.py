@@ -48,6 +48,8 @@ def test_prepare_run_creates_required_records_and_refuses_overwrite(tmp_path):
         variant="smoke",
         snapshot_id="snapshot-123",
         row_limit=50,
+        model_cache_root="/root/autodl-tmp/weights/huggingface",
+        offline_models=True,
     )
     records = run_dir / "records"
     assert {
@@ -65,6 +67,11 @@ def test_prepare_run_creates_required_records_and_refuses_overwrite(tmp_path):
     command = json.loads((records / "command.json").read_text())
     assert command["argv"][0] == "python3"
     assert command["cwd"] == "."
+    assert command["env"] == {
+        "HF_HOME": "/root/autodl-tmp/weights/huggingface",
+        "HF_HUB_OFFLINE": "1",
+        "TRANSFORMERS_OFFLINE": "1",
+    }
     assert json.loads((records / "run_manifest.json").read_text())["snapshot_id"] == "snapshot-123"
     with pytest.raises(FileExistsError, match="immutable run_id"):
         prepare_run(
