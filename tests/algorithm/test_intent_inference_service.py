@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 
+from algorithm.inference.intent_catalog import AgentIntentCatalog
 from algorithm.inference.intent_service import IntentRequest, QwenIntentPredictor, create_app
 
 
@@ -22,6 +23,12 @@ class FakePredictor:
             "confidence": 0.9,
             "reason": "risk_context",
         }, {"prompt_tokens": 30, "completion_tokens": 20}
+
+
+def test_dependency_light_catalog_contains_the_public_contract():
+    assert "injury_or_risk" in AgentIntentCatalog.VALID_INTENTS
+    assert "training_plan" in AgentIntentCatalog.VALID_INTENTS
+    assert len(AgentIntentCatalog.VALID_INTENTS) == 16
 
 
 def test_service_loads_once_and_serves_authenticated_contract():

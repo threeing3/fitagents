@@ -33,6 +33,8 @@
 4. 扩展 Agent Lab 单例诊断，展示规则、适配器、DeepSeek 和最终来源四个阶段。
 5. 新增 `python -m algorithm.inference.verify_service` 部署验收程序。
 6. 执行后端定向测试、Ruff、前端类型检查、组件测试和生产构建。
+7. GPU 恢复后启动 `runtime-service-smoke-v1`；服务在模型加载前因 `langchain_core` 缺失退出，显存占用为 0 MiB。
+8. 根因是轻量推理服务从线上分类模块导入意图枚举，形成不必要依赖；将枚举迁移到无线上依赖的共享模块，准备新的 v2 运行。
 
 ## 实验结果
 
@@ -42,6 +44,7 @@
 - 前端组件测试：1 passed。
 - 前端生产构建：通过，主 JavaScript 产物 198.41 kB（gzip 64.92 kB）。
 - GPU 服务尚未启动，因此本轮结果只证明部署前代码、契约和诊断链路就绪，不声明在线可用。
+- `runtime-service-smoke-v1` 技术失败，完整堆栈保存在远端独立 `run.log`；失败没有被覆盖或伪装为模型问题。
 
 ## 失败原因或下一步计划
 

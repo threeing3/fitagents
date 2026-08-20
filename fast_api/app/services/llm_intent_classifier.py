@@ -9,6 +9,7 @@ from typing import Any
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from algorithm.inference.intent_catalog import AgentIntentCatalog
 from fast_api.app.services.intent_decision import IntentDecision, IntentRouter
 from fast_api.app.services.model_provider import ModelProvider
 
@@ -266,24 +267,3 @@ class LLMIntentClassifier:
             ensure_ascii=False,
             default=str,
         )
-
-
-class AgentIntentCatalog:
-    VALID_INTENTS = {
-        "general_chat",
-        "concept_explanation",
-        "small_talk",
-        "onboarding",
-        "profile_update",
-        "profile_correction",
-        "training_plan",
-        "training_log",
-        "progression_decision",
-        "nutrition_advice",
-        "nutrition_log",
-        "recovery_check",
-        "injury_or_risk",
-        "weekly_review",
-        "monthly_review",
-        "memory_query",
-    }

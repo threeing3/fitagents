@@ -15,9 +15,9 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from algorithm.evaluation.intent_local_model_eval import parse_intent_json
+from algorithm.inference.intent_catalog import AgentIntentCatalog
 from algorithm.training.promote_intent_adapter import validate_release_manifest
 from algorithm.training.verify_adapter_reload import validate_adapter_directory
-from fast_api.app.services.llm_intent_classifier import AgentIntentCatalog
 
 SYSTEM_PROMPT = "你是 FitAgent 的意图决策器。只输出符合 IntentDecisionV2 的 JSON，不输出思考过程。"
 
