@@ -148,6 +148,24 @@ async function mockApi(page: Page) {
       });
       return;
     }
+    if (path === "/v1/algorithm/intent-evaluation/summary") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          schema_version: "fitagent-public-intent-evaluation/v1",
+          dataset: { name: "agent_challenge_v1", cases: 120, partition: "test", source: "challenge_eval", training_eligible: false, user_messages_exposed: false },
+          paths: [
+            { id: "rule_only", label: "Rules v2", role: "safety_baseline", exact_pass_rate: 0.1667, risk_score: 0.8333, model_calls: 0, latency_p50_ms: 0, latency_p95_ms: 0 },
+            { id: "qwen3_adapter", label: "Qwen3-4B QLoRA", role: "local_adapter_candidate", exact_pass_rate: 0.1333, risk_score: 1, model_calls: 120, latency_p50_ms: 3210.97, latency_p95_ms: 3630.41 },
+          ],
+          adapter_delta_vs_base: 0.075,
+          observations: [],
+          limitations: ["Offline fixed-test evidence only."],
+        }),
+      });
+      return;
+    }
     await route.fulfill({ status: 404, contentType: "application/json", body: "{}" });
   });
 }
@@ -179,6 +197,8 @@ test("public demo covers registration, cookie session UI, chat, plan, check-in a
 
   await page.getByRole("button", { name: "算法实验" }).click();
   await expect(page.getByText("20/120")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "意图算法批量对照" })).toBeVisible();
+  await expect(page.getByText("Rules v2")).toBeVisible();
   await expect(page.getByText("就按上次那个继续")).toBeVisible();
   await expect(page.getByText("完成一次聊天后", { exact: false })).toBeVisible();
 });
