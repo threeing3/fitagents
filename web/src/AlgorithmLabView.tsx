@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { AlertTriangle, CheckCircle2, FlaskConical, Route, ShieldCheck, Wrench } from "lucide-react";
 
-import { compareIntent, fetchAgentChallenges, fetchAgentLabRun, fetchAgentLabRuns, fetchAlgorithmSummary } from "./api";
+import { compareIntent, fetchAgentChallenges, fetchAgentLabRun, fetchAgentLabRuns, fetchAlgorithmSummary, fetchIntentEvaluation } from "./api";
 import { useLanguage } from "./LanguageContext";
-import type { AgentChallengeSummary, AgentRunAnalysis, AlgorithmCompare, AlgorithmSummary } from "./types";
+import type { AgentChallengeSummary, AgentRunAnalysis, AlgorithmCompare, AlgorithmSummary, IntentEvaluationSummary } from "./types";
 
 const pct = (value: number) => `${Math.round(value * 100)}%`;
 
@@ -30,16 +30,18 @@ export function AlgorithmLabView() {
   const [selected, setSelected] = useState<AgentRunAnalysis | null>(null);
   const [challenge, setChallenge] = useState<AgentChallengeSummary | null>(null);
   const [summary, setSummary] = useState<AlgorithmSummary | null>(null);
+  const [intentEvaluation, setIntentEvaluation] = useState<IntentEvaluationSummary | null>(null);
   const [compareMessage, setCompareMessage] = useState("我膝盖疼，但明天还能继续深蹲吗？");
   const [comparison, setComparison] = useState<AlgorithmCompare | null>(null);
   const [comparing, setComparing] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    Promise.all([fetchAgentLabRuns(), fetchAgentChallenges()])
-      .then(async ([runRows, challengeReport]) => {
+    Promise.all([fetchAgentLabRuns(), fetchAgentChallenges(), fetchIntentEvaluation()])
+      .then(async ([runRows, challengeReport, intentReport]) => {
         setRuns(runRows);
         setChallenge(challengeReport);
+        setIntentEvaluation(intentReport);
         if (runRows[0]) setSelected(await fetchAgentLabRun(runRows[0].run_id));
       })
       .catch((reason) => setError(String(reason)));
@@ -64,6 +66,8 @@ export function AlgorithmLabView() {
     <div className="algorithm-warning"><ShieldCheck size={18} /><span>{isZh ? "仅展示当前登录用户的脱敏投影，不返回原始输入、工具参数、模型上下文或日志路径。" : "Only a sanitized projection for the signed-in user is shown."}</span></div>
 
     {summary?.intent_inference && <section className="algorithm-panel challenge-panel"><div className="challenge-title"><div><span className="algorithm-kicker">intent routing</span><h3>{isZh ? "意图识别运行架构" : "Intent inference runtime"}</h3></div><strong>{summary.intent_inference.adapter_status}</strong></div><p className="muted">{isZh ? "确定性规则先做风险兜底；Qwen3-4B 适配器可用时负责语义分类，不可用时才回退 DeepSeek。页面不会把未验证的适配器标记为在线成果。" : "Rules retain safety authority; the Qwen3-4B adapter handles semantic classification when available, with DeepSeek as fallback."}</p><div className="decision-strip"><span>primary <b>Qwen3-4B QLoRA</b></span><span>fallback <b>DeepSeek</b></span><span>safety <b>rules</b></span></div><div className="failure-sample"><span>{isZh ? "单例实时对比（不计入离线指标）" : "Live single-case comparison (not an offline metric)"}</span><textarea value={compareMessage} onChange={(event) => setCompareMessage(event.target.value)} rows={3} /><button type="button" onClick={runComparison} disabled={comparing || !compareMessage.trim()}>{comparing ? (isZh ? "分析中…" : "Running…") : (isZh ? "运行意图对比" : "Compare intent")}</button>{comparison && <RoutingResult comparison={comparison} isZh={isZh} />}</div></section>}
+
+    {intentEvaluation && <section className="algorithm-panel intent-evaluation"><div className="challenge-title"><div><span className="algorithm-kicker">fixed challenge · batch evaluation</span><h3>{isZh ? "意图算法批量对照" : "Intent algorithm comparison"}</h3></div><strong>{intentEvaluation.dataset.cases} cases</strong></div><p className="muted">{isZh ? "同一套隔离测试集上的聚合结果。精确通过要求主意图、次意图、风险等级和澄清判断同时正确；不展示原始用户文本。" : "Aggregate results on the same isolated test set. Exact pass requires all decision fields to be correct; prompts are never exposed."}</p><div className="evaluation-grid">{intentEvaluation.paths.map((path) => <article key={path.id}><small>{path.role}</small><strong>{path.label}</strong><div><b>{pct(path.exact_pass_rate)}</b><span>{isZh ? "精确通过" : "exact pass"}</span></div><dl><dt>{isZh ? "风险得分" : "Risk score"}</dt><dd>{pct(path.risk_score)}</dd><dt>{isZh ? "模型调用" : "Model calls"}</dt><dd>{path.model_calls}</dd><dt>P50 / P95</dt><dd>{Math.round(path.latency_p50_ms)} / {Math.round(path.latency_p95_ms)} ms</dd></dl></article>)}</div><div className="evaluation-notes"><p><b>{isZh ? "数据边界：" : "Data boundary: "}</b>{intentEvaluation.dataset.partition} · training_eligible=false · user_messages_exposed=false</p><p><b>{isZh ? "适配器增益：" : "Adapter gain: "}</b>{(intentEvaluation.adapter_delta_vs_base * 100).toFixed(2)} pp vs base Qwen3-4B</p><p><b>{isZh ? "限制：" : "Limitation: "}</b>{intentEvaluation.limitations[intentEvaluation.limitations.length - 1]}</p></div></section>}
 
     <section className="agent-lab-layout">
       <aside className="agent-run-list algorithm-panel"><h3><Route size={18} /> {isZh ? "最近执行" : "Recent runs"}</h3>{runs.length === 0 && <p className="muted">{isZh ? "完成一次聊天后，这里会出现可回放轨迹。" : "Complete a chat to create a replayable trace."}</p>}{runs.map((run) => <button type="button" className={selected?.run_id === run.run_id ? "agent-run active" : "agent-run"} key={run.run_id} onClick={() => selectRun(run.run_id)}><strong>{run.run_type}</strong><span>{run.status} · {run.node_count} nodes</span><small>{new Date(run.started_at).toLocaleString()}</small></button>)}</aside>

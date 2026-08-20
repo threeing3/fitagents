@@ -121,6 +121,31 @@ export type AlgorithmCompare = {
   disclaimer: string;
 };
 
+export type IntentEvaluationSummary = {
+  schema_version: string;
+  dataset: {
+    name: string;
+    cases: number;
+    partition: string;
+    source: string;
+    training_eligible: false;
+    user_messages_exposed: false;
+  };
+  paths: Array<{
+    id: string;
+    label: string;
+    role: string;
+    exact_pass_rate: number;
+    risk_score: number;
+    model_calls: number;
+    latency_p50_ms: number;
+    latency_p95_ms: number;
+  }>;
+  adapter_delta_vs_base: number;
+  observations: string[];
+  limitations: string[];
+};
+
 export type AgentFinding = {
   code: string;
   severity: "info" | "low" | "medium" | "high";

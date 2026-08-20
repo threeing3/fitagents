@@ -40,6 +40,13 @@ INTENT_RELEASE_REPORT_PATH = (
     / "reports"
     / "intent_qwen3_4b_release.summary.json"
 )
+INTENT_COMPARISON_REPORT_PATH = (
+    Path(__file__).resolve().parents[3]
+    / "algorithm"
+    / "evaluation"
+    / "reports"
+    / "intent_deepseek_comparison_20260817.summary.json"
+)
 
 
 class AlgorithmCompareRequest(BaseModel):
@@ -97,6 +104,88 @@ def _intent_release() -> dict | None:
             )
         },
         "published_at": report.get("published_at"),
+    }
+
+
+def _intent_evaluation() -> dict:
+    """Build a stable, sample-free comparison from reviewed fixed-test reports."""
+
+    release = _intent_release()
+    if release is None or not INTENT_COMPARISON_REPORT_PATH.exists():
+        raise HTTPException(status_code=503, detail="Intent evaluation is not available.")
+    comparison = json.loads(INTENT_COMPARISON_REPORT_PATH.read_text(encoding="utf-8"))
+    paths = comparison.get("paths") if isinstance(comparison.get("paths"), dict) else {}
+    rule = paths.get("rule_only") if isinstance(paths.get("rule_only"), dict) else {}
+    deepseek = (
+        paths.get("deepseek_all_with_rule_safety")
+        if isinstance(paths.get("deepseek_all_with_rule_safety"), dict)
+        else {}
+    )
+    hybrid = paths.get("hybrid") if isinstance(paths.get("hybrid"), dict) else {}
+    release_metrics = release["metrics"]
+    return {
+        "schema_version": "fitagent-public-intent-evaluation/v1",
+        "dataset": {
+            "name": comparison.get("dataset"),
+            "cases": comparison.get("cases"),
+            "partition": comparison.get("partition"),
+            "source": comparison.get("source"),
+            "training_eligible": False,
+            "user_messages_exposed": False,
+        },
+        "paths": [
+            {
+                "id": "rule_only",
+                "label": "Rules v2",
+                "role": "safety_baseline",
+                "exact_pass_rate": rule.get("exact_pass_rate"),
+                "risk_score": rule.get("risk_level"),
+                "model_calls": rule.get("model_calls"),
+                "latency_p50_ms": 0.0,
+                "latency_p95_ms": 0.0,
+            },
+            {
+                "id": "deepseek_all",
+                "label": "DeepSeek + rule safety",
+                "role": "quality_ceiling",
+                "exact_pass_rate": deepseek.get("exact_pass_rate"),
+                "risk_score": deepseek.get("risk_level"),
+                "model_calls": deepseek.get("model_calls"),
+                "latency_p50_ms": deepseek.get("latency_p50_ms"),
+                "latency_p95_ms": deepseek.get("latency_p95_ms"),
+            },
+            {
+                "id": "hybrid",
+                "label": "Rules + DeepSeek routing",
+                "role": "cost_latency_tradeoff",
+                "exact_pass_rate": hybrid.get("exact_pass_rate"),
+                "risk_score": hybrid.get("risk_level"),
+                "model_calls": hybrid.get("model_calls"),
+                "latency_p50_ms": hybrid.get("latency_p50_ms"),
+                "latency_p95_ms": hybrid.get("latency_p95_ms"),
+            },
+            {
+                "id": "qwen3_adapter",
+                "label": "Qwen3-4B QLoRA",
+                "role": "local_adapter_candidate",
+                "exact_pass_rate": release_metrics.get("adapter_exact_match"),
+                "risk_score": release_metrics.get("adapter_risk_recall"),
+                "model_calls": release["dataset"].get("cases"),
+                "latency_p50_ms": release_metrics.get("latency_ms", {}).get("p50"),
+                "latency_p95_ms": release_metrics.get("latency_ms", {}).get("p95"),
+            },
+        ],
+        "adapter_delta_vs_base": round(
+            float(release_metrics.get("adapter_exact_match") or 0)
+            - float(release_metrics.get("base_exact_match") or 0),
+            4,
+        ),
+        "observations": list(comparison.get("observations") or []),
+        "limitations": list(comparison.get("limitations") or [])
+        + [
+            "Qwen3 adapter and DeepSeek were evaluated in separate runs; latency is descriptive, not a concurrency benchmark.",
+            "All results are offline fixed-test evidence and do not represent production business uplift.",
+        ],
     }
 
 
@@ -291,6 +380,13 @@ def algorithm_challenge_summary() -> dict:
     if not CHALLENGE_REPORT_PATH.exists():
         raise HTTPException(status_code=503, detail="Agent challenge report is not available.")
     return json.loads(CHALLENGE_REPORT_PATH.read_text(encoding="utf-8"))
+
+
+@algorithm_router.get("/intent-evaluation/summary")
+def algorithm_intent_evaluation_summary() -> dict:
+    """Return reviewed aggregate metrics without prompts or per-case predictions."""
+
+    return _intent_evaluation()
 
 
 @algorithm_router.get("/agent-runs")

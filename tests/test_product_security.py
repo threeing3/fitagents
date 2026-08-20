@@ -176,6 +176,28 @@ def test_agent_lab_challenge_report_is_test_only():
     assert payload["failure_examples"]
 
 
+def test_intent_evaluation_summary_is_aggregate_and_test_only():
+    client, _ = _create_client_and_db()
+
+    response = client.get("/v1/algorithm/intent-evaluation/summary")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["dataset"]["cases"] == 120
+    assert payload["dataset"]["partition"] == "test"
+    assert payload["dataset"]["training_eligible"] is False
+    assert payload["dataset"]["user_messages_exposed"] is False
+    assert {row["id"] for row in payload["paths"]} == {
+        "rule_only",
+        "deepseek_all",
+        "hybrid",
+        "qwen3_adapter",
+    }
+    assert payload["adapter_delta_vs_base"] == 0.075
+    assert all("user_message" not in row for row in payload["paths"])
+    assert "predictions" not in response.text
+
+
 def test_algorithm_compare_requires_login_and_reports_real_fallback_state():
     client, _ = _create_client_and_db()
     assert client.post("/v1/algorithm/compare", json={"message": "怎么练？"}).status_code == 401
