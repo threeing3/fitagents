@@ -72,7 +72,11 @@ class IntentDecisionEngine:
             if should_refine
             else None
         )
+        safety_override_reasons: list[str] = []
         if local_trace and local_trace.succeeded and local_trace.payload:
+            safety_override_reasons = self._adapter_safety_override_reasons(
+                rule_decision, local_trace.payload
+            )
             final_decision = self.classifier._merge_with_rule_decision(
                 local_trace.payload, rule_decision
             )
@@ -100,6 +104,13 @@ class IntentDecisionEngine:
             "local_model_used": bool(local_trace and local_trace.succeeded),
             "local_model_status": local_trace.status if local_trace else "refinement_not_required",
             "local_model_version": local_trace.model_version if local_trace else None,
+            "local_model_usage": local_trace.usage if local_trace else {},
+            "adapter_fallback_reason": (
+                local_trace.status
+                if local_trace and local_trace.attempted and not local_trace.succeeded
+                else None
+            ),
+            "adapter_http_status": local_trace.http_status if local_trace else None,
             "deepseek_used": model_succeeded
             and provider == "deepseek"
             and not bool(local_trace and local_trace.succeeded),
@@ -121,6 +132,8 @@ class IntentDecisionEngine:
             ),
             "model_fallback_reason": model_trace.get("fallback_reason"),
             "model_usage": model_trace.get("usage") or {},
+            "safety_override_applied": bool(safety_override_reasons),
+            "safety_override_reasons": safety_override_reasons,
             "final_source": (
                 "adapter_with_rule_override"
                 if local_trace and local_trace.succeeded
@@ -142,6 +155,22 @@ class IntentDecisionEngine:
             risk_evidence=self._risk_evidence(message),
         )
         return IntentEngineResult(v2, route.mode, route.reason, route.matched_rules)
+
+    @staticmethod
+    def _adapter_safety_override_reasons(
+        rule: IntentDecision, payload: dict[str, Any]
+    ) -> list[str]:
+        """Describe only real rule-over-model safety corrections."""
+
+        reasons: list[str] = []
+        risk_order = {"low": 0, "medium": 1, "high": 2, "critical": 3}
+        candidate_risk = str(payload.get("risk_level") or "low")
+        if risk_order.get(candidate_risk, 0) < risk_order.get(rule.risk_level, 0):
+            reasons.append("rule_risk_floor")
+        candidate_primary = str(payload.get("primary_intent") or "")
+        if rule.primary_intent == "injury_or_risk" and candidate_primary != "injury_or_risk":
+            reasons.append("rule_injury_primary_intent")
+        return reasons
 
     @staticmethod
     def _profile_summary(profile: Any | None) -> dict[str, Any]:

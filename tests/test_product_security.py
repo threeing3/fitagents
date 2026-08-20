@@ -193,9 +193,12 @@ def test_algorithm_compare_requires_login_and_reports_real_fallback_state():
     assert response.status_code == 200
     payload = response.json()
     assert payload["runtime_decision"]["risk_level"] in {"medium", "high", "critical"}
-    assert payload["routing"]["safety_rule_applied"] is True
+    assert payload["routing"]["rules_evaluated"] is True
+    assert payload["routing"]["safety_override_applied"] is False
+    assert payload["routing"]["safety_override_reasons"] == []
     assert payload["routing"]["local_model_status"] == "not_configured"
     assert payload["routing"]["local_model_used"] is False
+    assert payload["routing"]["adapter_fallback_reason"] is None
 
 
 def test_agent_lab_runs_are_authenticated_user_isolated_and_sanitized():

@@ -112,3 +112,35 @@ def test_engine_prefers_adapter_and_keeps_rule_safety_authority():
     assert result.decision.provenance["local_model_version"] == "qwen3-4b-intent-test"
     assert result.decision.provenance["deepseek_used"] is False
     assert result.decision.provenance["final_source"] == "adapter_with_rule_override"
+    assert result.decision.provenance["safety_override_applied"] is True
+    assert result.decision.provenance["safety_override_reasons"] == [
+        "rule_risk_floor",
+        "rule_injury_primary_intent",
+    ]
+
+
+class FailedInferenceClient:
+    async def classify(self, message, rule_decision, profile_summary):
+        return IntentInferenceResult(
+            attempted=True,
+            succeeded=False,
+            status="service_unavailable",
+            latency_ms=17,
+            http_status=503,
+        )
+
+
+def test_engine_records_adapter_failure_before_deepseek_fallback():
+    provider = FakeModelProvider(
+        '{"primary_intent":"general_chat","secondary_intents":[],"risk_level":"low"}'
+    )
+    engine = IntentDecisionEngine(provider, inference_client=FailedInferenceClient())
+
+    result = asyncio.run(engine.decide("这个情况我也说不清，你怎么看？"))
+
+    provenance = result.decision.provenance
+    assert provenance["adapter_fallback_reason"] == "service_unavailable"
+    assert provenance["adapter_http_status"] == 503
+    assert provenance["local_model_used"] is False
+    assert provenance["deepseek_used"] is True
+    assert result.decision.latency_ms["local_model"] == 17

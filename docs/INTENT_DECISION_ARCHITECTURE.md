@@ -11,7 +11,13 @@ FitAgent 将意图识别定义为一次性的 Agent 决策，而不是多个模�
         ↓
 IntentRouter 规则基线
         ↓
-LLMIntentClassifier（仅复杂请求）
+复杂请求？──否──→ 直接使用规则决策
+        │是
+        ↓
+Qwen3-4B QLoRA 独立推理服务
+        │失败/超时/未配置
+        ↓
+DeepSeek LLMIntentClassifier
         ↓
 规则安全覆盖
         ↓
@@ -22,7 +28,7 @@ IntentDecisionV2
         └── Agent trace
 ```
 
-当前模型提供器由 `LLM_PROVIDER` 决定。使用 DeepSeek 时，复杂请求可以由 DeepSeek 精修；没有密钥、额度耗尽、调用失败或返回非法结构时退回规则决策。意图精修阶段每个回合最多调用一次模型，执行流程选择不再发起第二次模型分类。
+复杂请求优先调用受鉴权的 Qwen3-4B 意图适配器；适配器未配置、超时、鉴权失败、服务不可用或返回非法结构时，才进入由 `LLM_PROVIDER` 决定的 DeepSeek 精修。DeepSeek 没有密钥、额度耗尽、调用失败或返回非法结构时退回规则决策。适配器成功后不会再调用 DeepSeek。
 
 意图精修使用 `ModelProvider.intent_model()` 专用客户端。DeepSeek路径关闭思考模式、温度固定为0并限制输出长度；普通回复和工具规划仍使用各自的模型配置，不能共享分类成本结论。
 
@@ -32,6 +38,13 @@ IntentDecisionV2
 - 规则识别为 `injury_or_risk` 时，模型不能将其他意图提升为主意图。
 - 模型不能重新允许规则已经禁止的计划生成动作。
 - 来源记录必须区分模型尝试、模型成功和最终回退，不能根据是否配置密钥推断调用成功。
+- `rules_evaluated` 只表示规则参与决策；`safety_override_applied` 才表示规则真实纠正了模型，并必须记录具体覆盖原因。
+
+## 部署与可观测性
+
+独立服务只接收用户消息、白名单化规则字段和白名单化档案字段。服务通过 Bearer Token 鉴权，启动时验证发布清单、适配器完整性和 CUDA 可用性；健康检查不等同于质量结论。
+
+Agent Lab 的单例诊断展示：规则耗时、适配器状态与耗时、DeepSeek 是否被调用、最终来源、适配器模型版本、Token 用量、失败原因，以及安全覆盖是否真实触发。单例结果明确不计入固定离线指标。
 
 ## 版本化契约
 
@@ -50,4 +63,5 @@ IntentDecisionV2
 1. Intent 02：用固定测试集运行真实 DeepSeek 基线。
 2. Intent 03：构建与测试集隔离的数据工厂。
 3. Intent 04：将 `local_model_used` 接入 Qwen3-4B 后训练模型。
-4. Intent 05：通过独立推理服务提供本地模型，并在低置信度时升级至 DeepSeek。
+4. Intent 05：实现独立推理服务和适配器优先、DeepSeek 回退的主应用链路。
+5. Intent 06：在真实 GPU 上部署服务，执行鉴权、结构、安全、延迟和主应用端到端验收。

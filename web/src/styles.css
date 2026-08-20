@@ -1941,6 +1941,16 @@ button:disabled {
 .failure-sample { padding: 13px; border: 1px dashed rgba(255, 107, 107, 0.45); border-radius: 9px; }
 .failure-sample span, .failure-sample small { color: var(--text-muted); font-size: 11px; }
 .failure-sample p { color: var(--text-primary); }
+.routing-result { display: grid; gap: 10px; margin-top: 14px; }
+.routing-result-head { display: flex; align-items: center; gap: 10px; color: var(--text-muted); }
+.routing-result-head b { color: var(--text-primary); }
+.routing-stages { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.routing-stages article { display: grid; gap: 5px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: rgba(255, 255, 255, 0.02); }
+.routing-stages strong { overflow-wrap: anywhere; color: var(--green); font-size: 12px; }
+.routing-stages span { color: var(--text-muted); font-size: 11px; }
+.routing-diagnostic { margin: 0 !important; padding: 8px 10px; border-left: 3px solid #ffd166; background: rgba(255, 183, 3, 0.07); font-size: 12px; }
+.routing-diagnostic.safety { border-color: #ff6b6b; background: rgba(255, 107, 107, 0.08); }
+@media (max-width: 760px) { .routing-stages { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 .gate-panel p {
   color: var(--text-muted);

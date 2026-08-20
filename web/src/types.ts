@@ -104,7 +104,19 @@ export type AlgorithmSummary = {
 export type AlgorithmCompare = {
   rule_baseline: { primary_intent: string; risk_level: string; confidence: number };
   runtime_decision: { primary_intent: string; secondary_intents: string[]; risk_level: string; confidence: number };
-  routing: { final_source: string; local_model_status: string; local_model_used: boolean; deepseek_used: boolean; safety_rule_applied: boolean };
+  routing: {
+    final_source: string;
+    local_model_status: string;
+    local_model_used: boolean;
+    local_model_version?: string | null;
+    local_model_usage: Record<string, number>;
+    adapter_fallback_reason?: string | null;
+    adapter_http_status?: number | null;
+    deepseek_used: boolean;
+    rules_evaluated: boolean;
+    safety_override_applied: boolean;
+    safety_override_reasons: string[];
+  };
   latency_ms: Record<string, number>;
   disclaimer: string;
 };

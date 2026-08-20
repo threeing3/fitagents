@@ -20,6 +20,7 @@ class IntentInferenceResult:
     model_version: str | None = None
     latency_ms: int = 0
     usage: dict[str, Any] = field(default_factory=dict)
+    http_status: int | None = None
 
 
 class IntentInferenceClient:
@@ -63,6 +64,18 @@ class IntentInferenceClient:
                 body = response.json()
         except httpx.TimeoutException:
             return self._failure("timeout", started)
+        except httpx.HTTPStatusError as exc:
+            status_code = exc.response.status_code
+            status = (
+                "unauthorized"
+                if status_code in {401, 403}
+                else "invalid_model_output"
+                if status_code == 422
+                else "service_unavailable"
+                if status_code >= 500
+                else "request_rejected"
+            )
+            return self._failure(status, started, http_status=status_code)
         except (httpx.HTTPError, ValueError, TypeError):
             return self._failure("request_failed", started)
 
@@ -79,8 +92,20 @@ class IntentInferenceClient:
             usage=body.get("usage", {}) if isinstance(body.get("usage"), dict) else {},
         )
 
-    def _failure(self, status: str, started: float) -> IntentInferenceResult:
-        return IntentInferenceResult(True, False, status, latency_ms=self._elapsed(started))
+    def _failure(
+        self,
+        status: str,
+        started: float,
+        *,
+        http_status: int | None = None,
+    ) -> IntentInferenceResult:
+        return IntentInferenceResult(
+            True,
+            False,
+            status,
+            latency_ms=self._elapsed(started),
+            http_status=http_status,
+        )
 
     @staticmethod
     def _elapsed(started: float) -> int:
