@@ -196,6 +196,17 @@ def test_intent_evaluation_summary_is_aggregate_and_test_only():
     assert payload["adapter_delta_vs_base"] == 0.075
     assert all("user_message" not in row for row in payload["paths"])
     assert "predictions" not in response.text
+    taxonomy = payload["failure_taxonomy"]
+    assert taxonomy["transitions"]["deepseek_all"] == {
+        "rescued_from_rule": 22,
+        "regressed_from_rule": 3,
+    }
+    assert taxonomy["transitions"]["hybrid"] == {
+        "rescued_from_rule": 12,
+        "regressed_from_rule": 0,
+    }
+    assert all(row["actionability"] == "diagnostic_only_do_not_tune_on_test" for row in taxonomy["categories"])
+    assert taxonomy["next_data_contract"]["required_partition"] == "development"
 
 
 def test_algorithm_compare_requires_login_and_reports_real_fallback_state():

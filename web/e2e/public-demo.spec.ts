@@ -162,6 +162,12 @@ async function mockApi(page: Page) {
           adapter_delta_vs_base: 0.075,
           observations: [],
           limitations: ["Offline fixed-test evidence only."],
+          failure_taxonomy: {
+            transitions: { deepseek_all: { rescued_from_rule: 22, regressed_from_rule: 3 }, hybrid: { rescued_from_rule: 12, regressed_from_rule: 0 } },
+            categories: [{ category: "multi_intent", cases: 20, paths: { rule_only: { exact_pass_rate: 0, check_scores: {} }, deepseek_all: { exact_pass_rate: 0.3, check_scores: {} }, hybrid: { exact_pass_rate: 0.1, check_scores: {} } }, best_observed_paths: ["deepseek_all"], dominant_deepseek_failure: "secondary_intents", actionability: "diagnostic_only_do_not_tune_on_test" }],
+            next_data_contract: { required_partition: "development", must_not_copy_fixed_test_prompts: true, minimum_cases_per_priority_category: 30 },
+            limitations: [],
+          },
         }),
       });
       return;
@@ -199,6 +205,7 @@ test("public demo covers registration, cookie session UI, chat, plan, check-in a
   await expect(page.getByText("20/120")).toBeVisible();
   await expect(page.getByRole("heading", { name: "意图算法批量对照" })).toBeVisible();
   await expect(page.getByText("Rules v2")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "错误分桶与路径救回" })).toBeVisible();
   await expect(page.getByText("就按上次那个继续")).toBeVisible();
   await expect(page.getByText("完成一次聊天后", { exact: false })).toBeVisible();
 });

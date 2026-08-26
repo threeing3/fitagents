@@ -47,6 +47,13 @@ INTENT_COMPARISON_REPORT_PATH = (
     / "reports"
     / "intent_deepseek_comparison_20260817.summary.json"
 )
+INTENT_FAILURE_REPORT_PATH = (
+    Path(__file__).resolve().parents[3]
+    / "algorithm"
+    / "evaluation"
+    / "reports"
+    / "intent_failure_taxonomy_20260826.summary.json"
+)
 
 
 class AlgorithmCompareRequest(BaseModel):
@@ -123,6 +130,20 @@ def _intent_evaluation() -> dict:
     )
     hybrid = paths.get("hybrid") if isinstance(paths.get("hybrid"), dict) else {}
     release_metrics = release["metrics"]
+    failure_taxonomy = None
+    if INTENT_FAILURE_REPORT_PATH.exists():
+        taxonomy = json.loads(INTENT_FAILURE_REPORT_PATH.read_text(encoding="utf-8"))
+        if (
+            taxonomy.get("schema_version") == "fitagent-intent-failure-taxonomy/v1"
+            and taxonomy.get("training_eligible") is False
+            and taxonomy.get("contains_user_messages") is False
+        ):
+            failure_taxonomy = {
+                "transitions": taxonomy.get("transitions") or {},
+                "categories": taxonomy.get("categories") or [],
+                "next_data_contract": taxonomy.get("next_data_contract") or {},
+                "limitations": taxonomy.get("limitations") or [],
+            }
     return {
         "schema_version": "fitagent-public-intent-evaluation/v1",
         "dataset": {
@@ -186,6 +207,7 @@ def _intent_evaluation() -> dict:
             "Qwen3 adapter and DeepSeek were evaluated in separate runs; latency is descriptive, not a concurrency benchmark.",
             "All results are offline fixed-test evidence and do not represent production business uplift.",
         ],
+        "failure_taxonomy": failure_taxonomy,
     }
 
 

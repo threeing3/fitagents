@@ -144,6 +144,23 @@ export type IntentEvaluationSummary = {
   adapter_delta_vs_base: number;
   observations: string[];
   limitations: string[];
+  failure_taxonomy?: {
+    transitions: Record<string, { rescued_from_rule: number; regressed_from_rule: number }>;
+    categories: Array<{
+      category: string;
+      cases: number;
+      paths: Record<string, { exact_pass_rate: number; check_scores: Record<string, number> }>;
+      best_observed_paths: string[];
+      dominant_deepseek_failure?: string | null;
+      actionability: string;
+    }>;
+    next_data_contract: {
+      required_partition: string;
+      must_not_copy_fixed_test_prompts: boolean;
+      minimum_cases_per_priority_category: number;
+    };
+    limitations: string[];
+  } | null;
 };
 
 export type AgentFinding = {

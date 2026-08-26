@@ -1,0 +1,338 @@
+{
+  "schema_version": "fitagent-intent-failure-taxonomy/v1",
+  "source": "fixed_challenge_test_aggregate",
+  "partition": "test",
+  "training_eligible": false,
+  "contains_user_messages": false,
+  "cases": 120,
+  "paths": {
+    "rule_only": {
+      "cases": 120,
+      "exact_passed": 20,
+      "exact_pass_rate": 0.1667,
+      "check_scores": {
+        "primary_intent": 0.6917,
+        "secondary_intents": 0.7333,
+        "risk_level": 0.8333,
+        "clarification": 0.4667
+      }
+    },
+    "deepseek_all": {
+      "cases": 120,
+      "exact_passed": 39,
+      "exact_pass_rate": 0.325,
+      "check_scores": {
+        "primary_intent": 0.8167,
+        "secondary_intents": 0.8333,
+        "risk_level": 0.9,
+        "clarification": 0.525
+      }
+    },
+    "hybrid": {
+      "cases": 120,
+      "exact_passed": 32,
+      "exact_pass_rate": 0.2667,
+      "check_scores": {
+        "primary_intent": 0.8417,
+        "secondary_intents": 0.8,
+        "risk_level": 0.9,
+        "clarification": 0.4917
+      }
+    }
+  },
+  "transitions": {
+    "deepseek_all": {
+      "rescued_from_rule": 22,
+      "regressed_from_rule": 3
+    },
+    "hybrid": {
+      "rescued_from_rule": 12,
+      "regressed_from_rule": 0
+    }
+  },
+  "categories": [
+    {
+      "category": "ambiguous_reference",
+      "cases": 20,
+      "paths": {
+        "rule_only": {
+          "cases": 20,
+          "exact_passed": 0,
+          "exact_pass_rate": 0.0,
+          "check_scores": {
+            "primary_intent": 0.8,
+            "secondary_intents": 1.0,
+            "risk_level": 1.0,
+            "clarification": 0.0
+          }
+        },
+        "deepseek_all": {
+          "cases": 20,
+          "exact_passed": 3,
+          "exact_pass_rate": 0.15,
+          "check_scores": {
+            "primary_intent": 0.8,
+            "secondary_intents": 1.0,
+            "risk_level": 1.0,
+            "clarification": 0.25
+          }
+        },
+        "hybrid": {
+          "cases": 20,
+          "exact_passed": 3,
+          "exact_pass_rate": 0.15,
+          "check_scores": {
+            "primary_intent": 0.95,
+            "secondary_intents": 1.0,
+            "risk_level": 1.0,
+            "clarification": 0.2
+          }
+        }
+      },
+      "best_observed_paths": [
+        "deepseek_all",
+        "hybrid"
+      ],
+      "dominant_deepseek_failure": "clarification",
+      "actionability": "diagnostic_only_do_not_tune_on_test"
+    },
+    {
+      "category": "colloquial_noise",
+      "cases": 20,
+      "paths": {
+        "rule_only": {
+          "cases": 20,
+          "exact_passed": 8,
+          "exact_pass_rate": 0.4,
+          "check_scores": {
+            "primary_intent": 0.6,
+            "secondary_intents": 0.8,
+            "risk_level": 0.8,
+            "clarification": 0.8
+          }
+        },
+        "deepseek_all": {
+          "cases": 20,
+          "exact_passed": 10,
+          "exact_pass_rate": 0.5,
+          "check_scores": {
+            "primary_intent": 1.0,
+            "secondary_intents": 1.0,
+            "risk_level": 0.85,
+            "clarification": 0.5
+          }
+        },
+        "hybrid": {
+          "cases": 20,
+          "exact_passed": 11,
+          "exact_pass_rate": 0.55,
+          "check_scores": {
+            "primary_intent": 1.0,
+            "secondary_intents": 1.0,
+            "risk_level": 0.85,
+            "clarification": 0.55
+          }
+        }
+      },
+      "best_observed_paths": [
+        "hybrid"
+      ],
+      "dominant_deepseek_failure": "clarification",
+      "actionability": "diagnostic_only_do_not_tune_on_test"
+    },
+    {
+      "category": "memory_conflict",
+      "cases": 20,
+      "paths": {
+        "rule_only": {
+          "cases": 20,
+          "exact_passed": 4,
+          "exact_pass_rate": 0.2,
+          "check_scores": {
+            "primary_intent": 0.2,
+            "secondary_intents": 0.8,
+            "risk_level": 1.0,
+            "clarification": 0.6
+          }
+        },
+        "deepseek_all": {
+          "cases": 20,
+          "exact_passed": 7,
+          "exact_pass_rate": 0.35,
+          "check_scores": {
+            "primary_intent": 0.5,
+            "secondary_intents": 0.8,
+            "risk_level": 1.0,
+            "clarification": 0.75
+          }
+        },
+        "hybrid": {
+          "cases": 20,
+          "exact_passed": 7,
+          "exact_pass_rate": 0.35,
+          "check_scores": {
+            "primary_intent": 0.5,
+            "secondary_intents": 0.8,
+            "risk_level": 1.0,
+            "clarification": 0.75
+          }
+        }
+      },
+      "best_observed_paths": [
+        "deepseek_all",
+        "hybrid"
+      ],
+      "dominant_deepseek_failure": "primary_intent",
+      "actionability": "diagnostic_only_do_not_tune_on_test"
+    },
+    {
+      "category": "missing_parameters",
+      "cases": 20,
+      "paths": {
+        "rule_only": {
+          "cases": 20,
+          "exact_passed": 8,
+          "exact_pass_rate": 0.4,
+          "check_scores": {
+            "primary_intent": 0.95,
+            "secondary_intents": 1.0,
+            "risk_level": 1.0,
+            "clarification": 0.4
+          }
+        },
+        "deepseek_all": {
+          "cases": 20,
+          "exact_passed": 13,
+          "exact_pass_rate": 0.65,
+          "check_scores": {
+            "primary_intent": 1.0,
+            "secondary_intents": 1.0,
+            "risk_level": 1.0,
+            "clarification": 0.65
+          }
+        },
+        "hybrid": {
+          "cases": 20,
+          "exact_passed": 9,
+          "exact_pass_rate": 0.45,
+          "check_scores": {
+            "primary_intent": 1.0,
+            "secondary_intents": 1.0,
+            "risk_level": 1.0,
+            "clarification": 0.45
+          }
+        }
+      },
+      "best_observed_paths": [
+        "deepseek_all"
+      ],
+      "dominant_deepseek_failure": "clarification",
+      "actionability": "diagnostic_only_do_not_tune_on_test"
+    },
+    {
+      "category": "multi_intent",
+      "cases": 20,
+      "paths": {
+        "rule_only": {
+          "cases": 20,
+          "exact_passed": 0,
+          "exact_pass_rate": 0.0,
+          "check_scores": {
+            "primary_intent": 0.6,
+            "secondary_intents": 0.0,
+            "risk_level": 0.8,
+            "clarification": 0.8
+          }
+        },
+        "deepseek_all": {
+          "cases": 20,
+          "exact_passed": 6,
+          "exact_pass_rate": 0.3,
+          "check_scores": {
+            "primary_intent": 0.6,
+            "secondary_intents": 0.4,
+            "risk_level": 0.95,
+            "clarification": 0.8
+          }
+        },
+        "hybrid": {
+          "cases": 20,
+          "exact_passed": 2,
+          "exact_pass_rate": 0.1,
+          "check_scores": {
+            "primary_intent": 0.6,
+            "secondary_intents": 0.2,
+            "risk_level": 0.9,
+            "clarification": 0.8
+          }
+        }
+      },
+      "best_observed_paths": [
+        "deepseek_all"
+      ],
+      "dominant_deepseek_failure": "secondary_intents",
+      "actionability": "diagnostic_only_do_not_tune_on_test"
+    },
+    {
+      "category": "safety_bypass",
+      "cases": 20,
+      "paths": {
+        "rule_only": {
+          "cases": 20,
+          "exact_passed": 0,
+          "exact_pass_rate": 0.0,
+          "check_scores": {
+            "primary_intent": 1.0,
+            "secondary_intents": 0.8,
+            "risk_level": 0.4,
+            "clarification": 0.2
+          }
+        },
+        "deepseek_all": {
+          "cases": 20,
+          "exact_passed": 0,
+          "exact_pass_rate": 0.0,
+          "check_scores": {
+            "primary_intent": 1.0,
+            "secondary_intents": 0.8,
+            "risk_level": 0.6,
+            "clarification": 0.2
+          }
+        },
+        "hybrid": {
+          "cases": 20,
+          "exact_passed": 0,
+          "exact_pass_rate": 0.0,
+          "check_scores": {
+            "primary_intent": 1.0,
+            "secondary_intents": 0.8,
+            "risk_level": 0.65,
+            "clarification": 0.2
+          }
+        }
+      },
+      "best_observed_paths": [
+        "rule_only",
+        "deepseek_all",
+        "hybrid"
+      ],
+      "dominant_deepseek_failure": "clarification",
+      "actionability": "diagnostic_only_do_not_tune_on_test"
+    }
+  ],
+  "next_data_contract": {
+    "required_partition": "development",
+    "must_not_copy_fixed_test_prompts": true,
+    "required_failure_fields": [
+      "primary_intent",
+      "secondary_intents",
+      "risk_level",
+      "clarification"
+    ],
+    "minimum_cases_per_priority_category": 30
+  },
+  "limitations": [
+    "This taxonomy diagnoses a frozen test set and must not be used to tune routing thresholds.",
+    "Qwen3 adapter evidence is aggregate-only in the published artifact, so per-case transitions cover rules and DeepSeek paths only."
+  ]
+}
