@@ -205,7 +205,10 @@ def test_intent_evaluation_summary_is_aggregate_and_test_only():
         "rescued_from_rule": 12,
         "regressed_from_rule": 0,
     }
-    assert all(row["actionability"] == "diagnostic_only_do_not_tune_on_test" for row in taxonomy["categories"])
+    assert all(
+        row["actionability"] == "diagnostic_only_do_not_tune_on_test"
+        for row in taxonomy["categories"]
+    )
     assert taxonomy["next_data_contract"]["required_partition"] == "development"
 
 
