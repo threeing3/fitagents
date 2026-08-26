@@ -161,6 +161,16 @@ export type IntentEvaluationSummary = {
     };
     limitations: string[];
   } | null;
+  development_protocol?: {
+    dataset: { cases: number; partition: string; training_eligible: false; human_review_status: string };
+    isolation: { passed: boolean; exact_overlap_count: number; maximum_character_5gram_jaccard: number };
+    paths: Record<string, { cases: number; exact_pass_rate: number; check_scores: Record<string, number> }>;
+    categories: Record<string, Record<string, { cases: number; exact_pass_rate: number; check_scores: Record<string, number> }>>;
+    protocol_reason_counts: Record<string, number>;
+    field_router: { primary_intent_threshold: number; secondary_intents_threshold: number; risk_authority: string; low_confidence_action: string; evaluated_with_live_adapter: boolean };
+    claims: { test_set_used_for_tuning: false; production_uplift: false; human_reviewed: false };
+    limitations: string[];
+  } | null;
 };
 
 export type AgentFinding = {

@@ -30,6 +30,16 @@ vi.mock("./api", () => ({
       next_data_contract: { required_partition: "development", must_not_copy_fixed_test_prompts: true, minimum_cases_per_priority_category: 30 },
       limitations: [],
     },
+    development_protocol: {
+      dataset: { cases: 90, partition: "development", training_eligible: false, human_review_status: "not_reviewed" },
+      isolation: { passed: true, exact_overlap_count: 0, maximum_character_5gram_jaccard: 0.0612 },
+      paths: { rule_only: { cases: 90, exact_pass_rate: 0, check_scores: {} }, rule_with_protocol: { cases: 90, exact_pass_rate: 0.0667, check_scores: {} } },
+      categories: {},
+      protocol_reason_counts: {},
+      field_router: { primary_intent_threshold: 0.8, secondary_intents_threshold: 0.75, risk_authority: "deterministic_rules", low_confidence_action: "request_deepseek_field_review", evaluated_with_live_adapter: false },
+      claims: { test_set_used_for_tuning: false, production_uplift: false, human_reviewed: false },
+      limitations: [],
+    },
   }),
 }));
 
@@ -46,5 +56,7 @@ describe("AlgorithmLabView", () => {
     expect(screen.getByText(/7.50 pp/)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "错误分桶与路径救回" })).toBeInTheDocument();
     expect(screen.getByText("secondary_intents")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "独立开发集与字段路由" })).toBeInTheDocument();
+    expect(screen.getByText(/live_adapter_evaluated=false/)).toBeInTheDocument();
   });
 });

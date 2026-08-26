@@ -210,6 +210,13 @@ def test_intent_evaluation_summary_is_aggregate_and_test_only():
         for row in taxonomy["categories"]
     )
     assert taxonomy["next_data_contract"]["required_partition"] == "development"
+    development = payload["development_protocol"]
+    assert development["dataset"]["cases"] == 90
+    assert development["dataset"]["training_eligible"] is False
+    assert development["dataset"]["contains_user_messages"] is False
+    assert development["isolation"]["passed"] is True
+    assert development["isolation"]["exact_overlap_count"] == 0
+    assert development["claims"]["test_set_used_for_tuning"] is False
 
 
 def test_algorithm_compare_requires_login_and_reports_real_fallback_state():

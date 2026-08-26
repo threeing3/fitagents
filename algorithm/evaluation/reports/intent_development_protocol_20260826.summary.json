@@ -1,0 +1,131 @@
+{
+  "schema_version": "fitagent-intent-development-protocol/v1",
+  "status": "diagnostic_verified",
+  "dataset": {
+    "name": "intent_dev_v1",
+    "cases": 90,
+    "partition": "development",
+    "source": "curated_development_template",
+    "training_eligible": false,
+    "human_review_status": "not_reviewed",
+    "contains_user_messages": false
+  },
+  "isolation": {
+    "passed": true,
+    "exact_overlap_count": 0,
+    "maximum_character_5gram_jaccard": 0.0612
+  },
+  "paths": {
+    "rule_only": {
+      "cases": 90,
+      "exact_pass_rate": 0.0,
+      "check_scores": {
+        "primary_intent": 0.3333,
+        "secondary_intents": 0.5333,
+        "risk_level": 0.7,
+        "clarification": 0.4
+      }
+    },
+    "rule_with_protocol": {
+      "cases": 90,
+      "exact_pass_rate": 0.0667,
+      "check_scores": {
+        "primary_intent": 0.3333,
+        "secondary_intents": 0.5333,
+        "risk_level": 0.7,
+        "clarification": 0.5
+      }
+    }
+  },
+  "categories": {
+    "missing_parameters": {
+      "rule_only": {
+        "cases": 30,
+        "exact_pass_rate": 0.0,
+        "check_scores": {
+          "primary_intent": 0.3,
+          "secondary_intents": 1.0,
+          "risk_level": 1.0,
+          "clarification": 0.0
+        }
+      },
+      "rule_with_protocol": {
+        "cases": 30,
+        "exact_pass_rate": 0.2,
+        "check_scores": {
+          "primary_intent": 0.3,
+          "secondary_intents": 1.0,
+          "risk_level": 1.0,
+          "clarification": 0.3
+        }
+      }
+    },
+    "multi_intent": {
+      "rule_only": {
+        "cases": 30,
+        "exact_pass_rate": 0.0,
+        "check_scores": {
+          "primary_intent": 0.4,
+          "secondary_intents": 0.0,
+          "risk_level": 1.0,
+          "clarification": 0.7
+        }
+      },
+      "rule_with_protocol": {
+        "cases": 30,
+        "exact_pass_rate": 0.0,
+        "check_scores": {
+          "primary_intent": 0.4,
+          "secondary_intents": 0.0,
+          "risk_level": 1.0,
+          "clarification": 0.6
+        }
+      }
+    },
+    "safety_bypass": {
+      "rule_only": {
+        "cases": 30,
+        "exact_pass_rate": 0.0,
+        "check_scores": {
+          "primary_intent": 0.3,
+          "secondary_intents": 0.6,
+          "risk_level": 0.1,
+          "clarification": 0.5
+        }
+      },
+      "rule_with_protocol": {
+        "cases": 30,
+        "exact_pass_rate": 0.0,
+        "check_scores": {
+          "primary_intent": 0.3,
+          "secondary_intents": 0.6,
+          "risk_level": 0.1,
+          "clarification": 0.6
+        }
+      }
+    }
+  },
+  "protocol_reason_counts": {
+    "INJURY_DETAILS_REQUIRED": 15,
+    "PROGRESSION_EVIDENCE_REQUIRED": 6,
+    "RED_FLAG_IMMEDIATE_BLOCK": 3,
+    "TRAINING_LOG_DETAILS_REQUIRED": 15
+  },
+  "field_router": {
+    "primary_intent_threshold": 0.8,
+    "secondary_intents_threshold": 0.75,
+    "risk_authority": "deterministic_rules",
+    "low_confidence_action": "request_deepseek_field_review",
+    "evaluated_with_live_adapter": false
+  },
+  "claims": {
+    "test_set_used_for_tuning": false,
+    "production_uplift": false,
+    "human_reviewed": false
+  },
+  "limitations": [
+    "The development cases are curated templates and have not been human reviewed.",
+    "This report validates protocol behavior, not live Qwen3 adapter calibration.",
+    "The frozen test set remains untouched and must be used only for release evaluation."
+  ]
+}

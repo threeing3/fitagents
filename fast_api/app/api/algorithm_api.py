@@ -54,6 +54,13 @@ INTENT_FAILURE_REPORT_PATH = (
     / "reports"
     / "intent_failure_taxonomy_20260826.summary.json"
 )
+INTENT_DEVELOPMENT_REPORT_PATH = (
+    Path(__file__).resolve().parents[3]
+    / "algorithm"
+    / "evaluation"
+    / "reports"
+    / "intent_development_protocol_20260826.summary.json"
+)
 
 
 class AlgorithmCompareRequest(BaseModel):
@@ -144,6 +151,24 @@ def _intent_evaluation() -> dict:
                 "next_data_contract": taxonomy.get("next_data_contract") or {},
                 "limitations": taxonomy.get("limitations") or [],
             }
+    development_protocol = None
+    if INTENT_DEVELOPMENT_REPORT_PATH.exists():
+        development = json.loads(INTENT_DEVELOPMENT_REPORT_PATH.read_text(encoding="utf-8"))
+        if (
+            development.get("schema_version") == "fitagent-intent-development-protocol/v1"
+            and development.get("dataset", {}).get("training_eligible") is False
+            and development.get("dataset", {}).get("contains_user_messages") is False
+        ):
+            development_protocol = {
+                "dataset": development.get("dataset") or {},
+                "isolation": development.get("isolation") or {},
+                "paths": development.get("paths") or {},
+                "categories": development.get("categories") or {},
+                "protocol_reason_counts": development.get("protocol_reason_counts") or {},
+                "field_router": development.get("field_router") or {},
+                "claims": development.get("claims") or {},
+                "limitations": development.get("limitations") or [],
+            }
     return {
         "schema_version": "fitagent-public-intent-evaluation/v1",
         "dataset": {
@@ -208,6 +233,7 @@ def _intent_evaluation() -> dict:
             "All results are offline fixed-test evidence and do not represent production business uplift.",
         ],
         "failure_taxonomy": failure_taxonomy,
+        "development_protocol": development_protocol,
     }
 
 
@@ -376,6 +402,11 @@ async def algorithm_compare(
             "adapter_fallback_reason": provenance.get("adapter_fallback_reason"),
             "adapter_http_status": provenance.get("adapter_http_status"),
             "deepseek_used": bool(provenance.get("deepseek_used")),
+            "field_sources": provenance.get("field_sources") or {},
+            "field_confidence": provenance.get("field_confidence") or {},
+            "low_confidence_fields": provenance.get("low_confidence_fields") or [],
+            "clarification_reason_codes": provenance.get("clarification_reason_codes") or [],
+            "clarification_blocked_actions": provenance.get("clarification_blocked_actions") or [],
             "rules_evaluated": bool(provenance.get("rule_used")),
             "safety_override_applied": bool(provenance.get("safety_override_applied")),
             "safety_override_reasons": provenance.get("safety_override_reasons") or [],

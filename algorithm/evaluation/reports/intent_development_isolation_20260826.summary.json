@@ -1,0 +1,11 @@
+{
+  "schema_version": "fitagent-intent-development-isolation/v1",
+  "development_cases": 90,
+  "fixed_test_cases": 120,
+  "normalized_exact_overlap": 0,
+  "max_char_5gram_jaccard": 0.0612,
+  "threshold": 0.8,
+  "passed": true,
+  "closest_pair_ids_exposed": false,
+  "closest_pair_found": true
+}

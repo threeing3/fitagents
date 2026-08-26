@@ -6,6 +6,8 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
+from fast_api.app.services.clarification_protocol import ClarificationProtocolValidator
+from fast_api.app.services.field_confidence_router import FieldConfidenceRouter
 from fast_api.app.services.intent_contract import IntentDecisionV2
 from fast_api.app.services.intent_decision import IntentDecision, IntentRouter
 from fast_api.app.services.intent_inference_client import IntentInferenceClient
@@ -46,6 +48,8 @@ class IntentDecisionEngine:
         model_provider: ModelProvider | None = None,
         intent_router: IntentRouter | None = None,
         inference_client: IntentInferenceClient | None = None,
+        field_router: FieldConfidenceRouter | None = None,
+        clarification_validator: ClarificationProtocolValidator | None = None,
     ):
         self.model_provider = model_provider or ModelProvider()
         self.intent_router = intent_router or IntentRouter()
@@ -53,6 +57,8 @@ class IntentDecisionEngine:
         self.inference_client = inference_client or IntentInferenceClient(
             self.model_provider.settings
         )
+        self.field_router = field_router or FieldConfidenceRouter()
+        self.clarification_validator = clarification_validator or ClarificationProtocolValidator()
         self.runtime_router = RuntimeRouter(self.intent_router)
 
     async def decide(self, message: str, profile: Any | None = None) -> IntentEngineResult:
@@ -73,25 +79,59 @@ class IntentDecisionEngine:
             else None
         )
         safety_override_reasons: list[str] = []
+        field_route_plan = None
+        field_sources: dict[str, str] = {
+            "primary_intent": "deterministic_rule",
+            "secondary_intents": "deterministic_rule",
+            "risk_level": "deterministic_rule_floor",
+            "needs_clarification": "clarification_protocol",
+        }
         if local_trace and local_trace.succeeded and local_trace.payload:
             safety_override_reasons = self._adapter_safety_override_reasons(
                 rule_decision, local_trace.payload
             )
-            final_decision = self.classifier._merge_with_rule_decision(
+            adapter_decision = self.classifier._merge_with_rule_decision(
                 local_trace.payload, rule_decision
             )
+            field_route_plan = self.field_router.plan(local_trace.payload)
+            deepseek_decision = None
+            review_trace: dict[str, Any] = {
+                "attempted": False,
+                "succeeded": False,
+                "fallback_reason": "field_review_not_required",
+            }
+            if field_route_plan.requires_deepseek:
+                deepseek_decision, review_trace = await self.classifier.refine_with_trace(
+                    message, rule_decision, profile=profile, force_refine=True
+                )
+                if not review_trace.get("succeeded"):
+                    deepseek_decision = None
+            final_decision, field_sources = self.field_router.merge(
+                adapter_decision,
+                deepseek_decision,
+                rule_decision,
+                field_route_plan,
+                self.intent_router,
+            )
             model_trace = {
-                "attempted": True,
-                "succeeded": True,
-                "fallback_reason": None,
-                "usage": local_trace.usage,
+                "attempted": bool(review_trace.get("attempted")),
+                "succeeded": bool(review_trace.get("succeeded")),
+                "fallback_reason": review_trace.get("fallback_reason"),
+                "usage": review_trace.get("usage") or {},
             }
         else:
             final_decision, model_trace = await self.classifier.refine_with_trace(
                 message, rule_decision, profile=profile
             )
+            if model_trace.get("succeeded"):
+                field_sources["primary_intent"] = "deepseek"
+                field_sources["secondary_intents"] = "deepseek"
         model_ms = round((time.perf_counter() - model_started) * 1000)
         final_decision = self._enforce_rule_safety(rule_decision, final_decision)
+        clarification = self.clarification_validator.validate(message, final_decision, profile)
+        final_decision = self.clarification_validator.apply(
+            final_decision, clarification, self.intent_router
+        )
 
         route = self.runtime_router.route_decision(final_decision, message=message)
         provider = self.model_provider.settings.llm_provider
@@ -111,9 +151,7 @@ class IntentDecisionEngine:
                 else None
             ),
             "adapter_http_status": local_trace.http_status if local_trace else None,
-            "deepseek_used": model_succeeded
-            and provider == "deepseek"
-            and not bool(local_trace and local_trace.succeeded),
+            "deepseek_used": model_succeeded and provider == "deepseek",
             "model_attempted": bool(model_trace.get("attempted")),
             "model_succeeded": model_succeeded,
             "model_provider": (
@@ -134,8 +172,17 @@ class IntentDecisionEngine:
             "model_usage": model_trace.get("usage") or {},
             "safety_override_applied": bool(safety_override_reasons),
             "safety_override_reasons": safety_override_reasons,
+            "field_sources": field_sources,
+            "field_confidence": (field_route_plan.field_confidence if field_route_plan else {}),
+            "low_confidence_fields": (
+                field_route_plan.low_confidence_fields if field_route_plan else []
+            ),
+            "clarification_reason_codes": clarification.reason_codes,
+            "clarification_blocked_actions": clarification.blocked_actions,
             "final_source": (
-                "adapter_with_rule_override"
+                "field_fusion_with_rule_override"
+                if local_trace and local_trace.succeeded and model_succeeded
+                else "adapter_with_rule_override"
                 if local_trace and local_trace.succeeded
                 else "model_with_rule_override"
                 if model_succeeded
@@ -154,6 +201,8 @@ class IntentDecisionEngine:
             candidate_tools=self._candidate_tools(final_decision),
             risk_evidence=self._risk_evidence(message),
         )
+        if field_route_plan:
+            v2.confidence.update(field_route_plan.field_confidence)
         return IntentEngineResult(v2, route.mode, route.reason, route.matched_rules)
 
     @staticmethod
