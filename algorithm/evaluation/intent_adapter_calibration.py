@@ -7,6 +7,7 @@ import json
 import os
 import statistics
 import time
+from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,96 @@ import httpx
 from fast_api.app.services.intent_decision import IntentRouter
 
 RISK_ORDER = {"low": 0, "medium": 1, "high": 2, "critical": 3}
+
+
+def _confusion_matrix(
+    records: list[dict[str, Any]], expected_field: str, predicted_field: str
+) -> dict[str, Any]:
+    """Build a JSON-serializable confusion matrix without external ML dependencies."""
+    labels = sorted(
+        {
+            str(value)
+            for record in records
+            for value in (record.get(expected_field), record.get(predicted_field))
+            if value is not None
+        }
+    )
+    if any(record.get(predicted_field) is None for record in records):
+        labels.append("__invalid__")
+    counts: dict[str, Counter[str]] = defaultdict(Counter)
+    for record in records:
+        expected = str(record[expected_field])
+        predicted = (
+            str(record[predicted_field])
+            if record.get(predicted_field) is not None
+            else "__invalid__"
+        )
+        counts[expected][predicted] += 1
+    return {
+        "labels": labels,
+        "rows": {
+            expected: {predicted: counts[expected][predicted] for predicted in labels}
+            for expected in labels
+            if expected != "__invalid__"
+        },
+    }
+
+
+def _secondary_label_metrics(records: list[dict[str, Any]]) -> dict[str, Any]:
+    labels = sorted(
+        {
+            label
+            for record in records
+            for field in ("expected_secondary_intents", "predicted_secondary_intents")
+            for label in (record.get(field) or [])
+        }
+    )
+    per_label: dict[str, dict[str, float | int]] = {}
+    f1_values: list[float] = []
+    for label in labels:
+        true_positive = false_positive = false_negative = 0
+        for record in records:
+            expected = label in set(record.get("expected_secondary_intents") or [])
+            predicted = label in set(record.get("predicted_secondary_intents") or [])
+            true_positive += int(expected and predicted)
+            false_positive += int(not expected and predicted)
+            false_negative += int(expected and not predicted)
+        precision = true_positive / (true_positive + false_positive) if true_positive + false_positive else 0.0
+        recall = true_positive / (true_positive + false_negative) if true_positive + false_negative else 0.0
+        f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
+        f1_values.append(f1)
+        per_label[label] = {
+            "precision": round(precision, 4),
+            "recall": round(recall, 4),
+            "f1": round(f1, 4),
+            "support": true_positive + false_negative,
+        }
+    return {
+        "macro_f1": round(sum(f1_values) / len(f1_values), 4) if f1_values else 0.0,
+        "per_label": per_label,
+    }
+
+
+def diagnostic_metrics(records: list[dict[str, Any]]) -> dict[str, Any]:
+    """Aggregate predicted fields while keeping user messages out of artifacts."""
+    parse_errors = Counter(
+        record["parse_error_code"] for record in records if record.get("parse_error_code")
+    )
+    return {
+        "primary_confusion_matrix": _confusion_matrix(
+            records, "expected_primary_intent", "predicted_primary_intent"
+        ),
+        "secondary_intents": _secondary_label_metrics(records),
+        "risk_confusion_matrix": _confusion_matrix(
+            records, "expected_minimum_risk_level", "predicted_risk_level"
+        ),
+        "clarification_accuracy": round(
+            sum(record["correct"]["clarification"] for record in records) / len(records), 4
+        ),
+        "parse_error_counts": dict(sorted(parse_errors.items())),
+        "fallback_count": sum(record["fallback_applied"] for record in records),
+        "retry_count": sum(record["retry_count"] for record in records),
+    }
 
 
 def threshold_curve(
@@ -71,13 +162,30 @@ def invalid_model_record(
         "case_id": row["case_id"],
         "category": row["category"],
         "confidence": {"primary_intent": 0.0, "secondary_intents": 0.0},
-        "correct": {"primary_intent": False, "secondary_intents": False},
-        "risk_floor_preserved": RISK_ORDER.get(rule.risk_level, 0)
+        "correct": {
+            "primary_intent": False,
+            "secondary_intents": False,
+            "risk_level": False,
+            "clarification": False,
+        },
+        "expected_primary_intent": row["expected_primary_intent"],
+        "expected_secondary_intents": row["required_secondary_intents"],
+        "expected_minimum_risk_level": row["minimum_risk_level"],
+        "expected_needs_clarification": bool(row["expected_clarification"]),
+        "predicted_primary_intent": None,
+        "predicted_secondary_intents": None,
+        "predicted_risk_level": None,
+        "predicted_needs_clarification": None,
+        "risk_floor_preserved": False,
+        "post_fallback_risk_floor_preserved": RISK_ORDER.get(rule.risk_level, 0)
         >= RISK_ORDER[row["minimum_risk_level"]],
         "latency_ms": round(latency_ms, 2),
         "model_version": None,
         "model_valid": False,
+        "fallback_applied": True,
         "fallback_source": "deterministic_rule",
+        "retry_count": 0,
+        "parse_error_code": "invalid_model_json",
         "error_type": "invalid_model_json",
         "error_detail": detail,
     }
@@ -137,13 +245,32 @@ def calibrate(base_url: str, dataset_path: Path, output_dir: Path, timeout: floa
                         "secondary_intents": set(row["required_secondary_intents"]).issubset(
                             set(decision.get("secondary_intents") or [])
                         ),
+                        "risk_level": RISK_ORDER.get(decision.get("risk_level"), -1)
+                        >= RISK_ORDER[row["minimum_risk_level"]],
+                        "clarification": decision.get("needs_clarification")
+                        is bool(row["expected_clarification"]),
                     },
+                    "expected_primary_intent": row["expected_primary_intent"],
+                    "expected_secondary_intents": row["required_secondary_intents"],
+                    "expected_minimum_risk_level": row["minimum_risk_level"],
+                    "expected_needs_clarification": bool(row["expected_clarification"]),
+                    "predicted_primary_intent": decision.get("primary_intent"),
+                    "predicted_secondary_intents": decision.get("secondary_intents") or [],
+                    "predicted_risk_level": decision.get("risk_level"),
+                    "predicted_needs_clarification": decision.get("needs_clarification"),
                     "risk_floor_preserved": RISK_ORDER.get(decision.get("risk_level"), 0)
+                    >= RISK_ORDER[row["minimum_risk_level"]],
+                    "post_fallback_risk_floor_preserved": RISK_ORDER.get(
+                        decision.get("risk_level"), 0
+                    )
                     >= RISK_ORDER[row["minimum_risk_level"]],
                     "latency_ms": round(latency_ms, 2),
                     "model_version": payload.get("model_version"),
                     "model_valid": True,
+                    "fallback_applied": False,
                     "fallback_source": None,
+                    "retry_count": 0,
+                    "parse_error_code": None,
                     "error_type": None,
                     "error_detail": None,
                 }
@@ -155,7 +282,7 @@ def calibrate(base_url: str, dataset_path: Path, output_dir: Path, timeout: floa
         encoding="utf-8",
     )
     report = {
-        "schema_version": "fitagent-intent-field-calibration/v1",
+        "schema_version": "fitagent-intent-field-calibration/v2",
         "status": "development_diagnostic",
         "dataset": {
             "name": "intent_dev_v1",
@@ -175,6 +302,7 @@ def calibrate(base_url: str, dataset_path: Path, output_dir: Path, timeout: floa
         "model_valid_rate": round(
             sum(record["model_valid"] for record in records) / len(records), 4
         ),
+        "diagnostics": diagnostic_metrics(records),
         "latency_ms": _percentiles([record["latency_ms"] for record in records]),
         "claims": {
             "frozen_test_used_for_tuning": False,
