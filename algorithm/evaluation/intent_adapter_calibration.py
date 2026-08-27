@@ -63,6 +63,26 @@ def _percentiles(values: list[float]) -> dict[str, float]:
     }
 
 
+def invalid_model_record(
+    row: dict[str, Any], rule: Any, latency_ms: float, detail: str
+) -> dict[str, Any]:
+    """Count an invalid structured generation without aborting the calibration run."""
+    return {
+        "case_id": row["case_id"],
+        "category": row["category"],
+        "confidence": {"primary_intent": 0.0, "secondary_intents": 0.0},
+        "correct": {"primary_intent": False, "secondary_intents": False},
+        "risk_floor_preserved": RISK_ORDER.get(rule.risk_level, 0)
+        >= RISK_ORDER[row["minimum_risk_level"]],
+        "latency_ms": round(latency_ms, 2),
+        "model_version": None,
+        "model_valid": False,
+        "fallback_source": "deterministic_rule",
+        "error_type": "invalid_model_json",
+        "error_detail": detail,
+    }
+
+
 def calibrate(base_url: str, dataset_path: Path, output_dir: Path, timeout: float) -> dict:
     key = os.getenv("INTENT_INFERENCE_KEY")
     if not key:
@@ -83,6 +103,20 @@ def calibrate(base_url: str, dataset_path: Path, output_dir: Path, timeout: floa
                 headers=headers,
                 json={"message": row["user_message"], "rule_decision": rule.to_dict()},
             )
+            latency_ms = (time.perf_counter() - started) * 1000
+            if response.status_code == 422:
+                try:
+                    detail = str(response.json().get("detail", "unprocessable intent output"))
+                except (ValueError, AttributeError):
+                    detail = "unprocessable intent output"
+                records.append(invalid_model_record(row, rule, latency_ms, detail))
+                print(
+                    json.dumps(
+                        {"completed": index, "total": len(dataset), "model_valid": False}
+                    ),
+                    flush=True,
+                )
+                continue
             response.raise_for_status()
             payload = response.json()
             decision = payload["decision"]
@@ -106,8 +140,12 @@ def calibrate(base_url: str, dataset_path: Path, output_dir: Path, timeout: floa
                     },
                     "risk_floor_preserved": RISK_ORDER.get(decision.get("risk_level"), 0)
                     >= RISK_ORDER[row["minimum_risk_level"]],
-                    "latency_ms": round((time.perf_counter() - started) * 1000, 2),
+                    "latency_ms": round(latency_ms, 2),
                     "model_version": payload.get("model_version"),
+                    "model_valid": True,
+                    "fallback_source": None,
+                    "error_type": None,
+                    "error_detail": None,
                 }
             )
             print(json.dumps({"completed": index, "total": len(dataset)}), flush=True)
@@ -133,6 +171,9 @@ def calibrate(base_url: str, dataset_path: Path, output_dir: Path, timeout: floa
         },
         "risk_floor_rate": round(
             sum(record["risk_floor_preserved"] for record in records) / len(records), 4
+        ),
+        "model_valid_rate": round(
+            sum(record["model_valid"] for record in records) / len(records), 4
         ),
         "latency_ms": _percentiles([record["latency_ms"] for record in records]),
         "claims": {

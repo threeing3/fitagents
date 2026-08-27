@@ -56,3 +56,57 @@ bash algorithm/inference/run_field_calibration.sh
 - 校准数据：90 条独立 development 样例
 
 当前状态：`blocked_gpu_capacity`。恢复方式为等待 297 有空闲 GPU，或由用户明确批准把计划修订到另一个实例。
+
+## 计划修订 6：切换至 256 机
+
+用户于 2026-08-27 明确批准使用北京 B 区 256 机。任务实例由 `2fa646b3c3-9b548d76` 修订为 `321d48b5b7-6e37372c`，GPU 类型保持 RTX 4090 单卡，单次任务费用上限仍为 8 元，不扩大磁盘、不删除或覆盖既有资产。
+
+- 事件：`instance-start-requested`
+- 新配置：`fitagent-bjb1-4090-256`
+- 启动前控制台状态：已关机、GPU 充足、系统盘 35.66%、数据盘 84.64%、健康正常
+- 切换原因：原 297 机连续三次无空闲 GPU；用户明确批准替代实例
+
+当前状态：`instance-start-requested`
+
+## 计划修订 7：克隆 297 完整环境
+
+2026-08-27 检查发现 256 机并非 297 机克隆，其数据盘内容属于 `VLX-Seek` 项目，不能用于 FitAgent 意图适配器校准。用户释放一个既有实例槽位后，明确要求重新克隆并清晰命名。
+
+- 源实例：北京 B 区 297 机，`2fa646b3c3-9b548d76`
+- 克隆范围：系统盘 + 数据盘；未启用稀疏文件优化
+- 候选配置：北京 B 区 841 机、RTX 4090 24GB 单卡、16 核 CPU、120GB 内存
+- 计费方式：按量计费，页面显示 `2.18 元/小时`
+- 数据盘：免费 50GB，不增加付费扩容
+- 计划名称：`FitAgent-Intent-Qwen3-4B-Calib`
+- 安全状态：配置页已准备，因最终创建属于产生费用的云资源购买动作，等待用户在 AutoDL 页面亲自点击“创建并开机”
+
+当前状态：`awaiting-user-cloud-purchase`
+
+## 克隆完成与启动前预检
+
+用户已在 AutoDL 页面完成创建。2026-08-27 核验结果如下：
+
+- 新实例：北京 B 区 841 机，`ylgygfuaq4-213d78aa`
+- 实例名称：`FitAgent-Intent-Qwen3-4B-Calib`
+- 状态：运行中，RTX 4090 24GB 单卡
+- 磁盘：系统盘 3.06%，数据盘 18.38%，与 297 源实例一致
+- GPU 预检：NVIDIA GeForce RTX 4090，24564 MiB，总显存占用 0 MiB
+- 适配器：`full-800-seed42-v1/outputs/adapter/adapter_model.safetensors` 存在
+- 代码状态：远端现有快照早于本地提交 `f718ea9`，必须同步到新的不可覆盖目录后才能运行字段校准
+
+计划版本升为 7，运行实例改为 841 机；指标、90 条 development 数据、随机种子和 8 元任务预算保持不变。
+
+当前状态：`remote-preflight-passed`
+
+## 失败运行：field-calibration-dev-seed42-v1
+
+- 启动时间：2026-08-27 23:00 +08:00
+- 代码提交：`f718ea9`
+- 结果：前 16/90 条完成，第 17 条服务返回 HTTP 422，运行退出码为 1
+- 首个错误边界：模型服务已成功加载，输入请求通过接口校验，但 Qwen3-4B Adapter 在第 17 条生成了无效意图 JSON
+- 失败分类：`evaluation-implementation-failure`
+- 根因：评测器对单条无效结构化输出调用 `raise_for_status()`，导致整个开发集提前终止；无效模型输出本应作为可度量失败并触发确定性规则回退
+- 修复策略：记录 `model_valid=false`、字段置信度 0、字段判错、错误类型与规则回退来源，并继续处理剩余样例
+- 不变项：数据集、指标、模型、Adapter、随机种子和安全规则均不改变
+
+当前状态：`diagnosed-awaiting-v2`
