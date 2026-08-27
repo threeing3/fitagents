@@ -110,3 +110,47 @@ bash algorithm/inference/run_field_calibration.sh
 - 不变项：数据集、指标、模型、Adapter、随机种子和安全规则均不改变
 
 当前状态：`diagnosed-awaiting-v2`
+
+## 同步与启动失败记录
+
+### field-calibration-dev-seed42-v2
+
+- 结果：仍在第 17/90 条以相同 HTTP 422 退出
+- 根因：国内节点执行 `git fetch` 时尚未完成，后续 `checkout` 被提前输入；远端快照 `HEAD` 实际仍为 `f718ea9`
+- 证据：远端 `git rev-parse HEAD` 返回 `f718ea99166a326fce649bfe15a50fd8b13e6377`，源码不存在 `model_valid_rate`
+- 分类：`infrastructure-sync-ordering-failure`
+
+### field-calibration-dev-seed42-v3
+
+- 同步方式：本地提交 `4296b5b489b9c353e5199b57d96812cd96fdd9c3` 通过 `git archive` 上传到新目录
+- 源码门禁：远端已检出 `model_valid_rate` 标记
+- 结果：启动后立即以退出码 2 失败，没有执行模型推理
+- 根因：ZIP 中 Shell 脚本保留 Windows CRLF 行尾，Linux Bash 无法解析 `set -euo pipefail`
+- 分类：`infrastructure-line-ending-failure`
+- 下一步：保持快照不变，v4 命令在执行时去除回车后通过 Bash 管道运行脚本
+
+当前状态：`diagnosed-awaiting-v4`
+
+## 完成运行：field-calibration-dev-seed42-v4
+
+- 运行时间：2026-08-27 23:26:11 至 23:33:43 +08:00，约 7 分 33 秒
+- 技术状态：`completed`，退出码 0
+- 数据：90 条独立 development 样例；未使用冻结 test 进行调参
+- 模型：Qwen3-4B + `full-800-seed42-v1` Adapter
+- 置信度方法：`generated_token_probability_v1`
+- 模型结构合法率：0.8556
+- 原始模型风险下限保持率：0.8000
+- 延迟：P50 3854.91 ms，P95 13446.31 ms
+- 主意图：所选阈值 0.95，覆盖率 0.5333，接受样本准确率 0.7708，未达到 0.85 目标
+- 次意图：所选阈值 0.95，覆盖率 0.6556，接受样本准确率 0.6441，未达到 0.85 目标
+- 无效结构化输出：第 17、29、30 条等样例被记录为 `model_valid=false` 并继续运行，不再中断实验
+- 安全结论：当前 Adapter 不能直接接管意图决策；确定性规则必须继续承担风险下限和失败回退
+- 校准结论：当前 token 概率不能作为可靠的单一字段路由信号，需要增加约束解码、独立校准器或字段级分类头的对照实验
+
+远端完整工件位于：
+
+`/root/autodl-tmp/research/fitagent/experiments/intent_qwen3_4b_20260817/runs/field-calibration-dev-seed42-v4/`
+
+其中包含 `run.log`、`events.jsonl`、`resource_usage.jsonl`、`status.json`、`run_summary.json`、`output_manifest.json`、`calibration_records.jsonl` 和 `calibration_summary.json`。浏览器下载结果包未成功触发，本地尚未同步原始工件；远端工件保持不变且未删除。
+
+当前状态：`completed-technical-awaiting-local-artifact-sync`
