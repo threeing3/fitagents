@@ -1,0 +1,58 @@
+{
+  "schema_version": "fitagent-intent-failure-analysis/v1",
+  "experiment_id": "intent_qwen3_4b_20260817",
+  "run_id": "field-calibration-dev-seed42-v4",
+  "status": "development_diagnostic",
+  "dataset": {
+    "name": "intent_dev_v1",
+    "partition": "development",
+    "cases": 90,
+    "training_eligible": false
+  },
+  "metrics": {
+    "model_valid_rate": 0.8556,
+    "risk_floor_rate_raw_model": 0.8,
+    "primary_wrong": 41,
+    "secondary_wrong": 45,
+    "high_confidence_primary_wrong": 20,
+    "high_confidence_secondary_wrong": 25,
+    "latency_p50_ms": 3854.91,
+    "latency_p95_ms": 13446.31
+  },
+  "failure_taxonomy": {
+    "missing_parameters": {
+      "cases": 30,
+      "invalid": 0,
+      "primary_wrong": 12,
+      "secondary_wrong": 0,
+      "risk_fail": 0
+    },
+    "multi_intent": {
+      "cases": 30,
+      "invalid": 3,
+      "primary_wrong": 14,
+      "secondary_wrong": 27,
+      "risk_fail": 0
+    },
+    "safety_bypass": {
+      "cases": 30,
+      "invalid": 10,
+      "primary_wrong": 15,
+      "secondary_wrong": 18,
+      "risk_fail": 18
+    }
+  },
+  "release_decision": "blocked",
+  "required_next_steps": [
+    "record predicted fields and parse error codes",
+    "add schema-constrained decoding",
+    "build discriminative multi-task baselines",
+    "calibrate each field independently",
+    "preserve deterministic risk-floor merge"
+  ],
+  "claims": {
+    "frozen_test_used_for_tuning": false,
+    "production_uplift": false,
+    "adapter_safe_for_direct_routing": false
+  }
+}

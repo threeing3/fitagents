@@ -158,3 +158,17 @@ bash algorithm/inference/run_field_calibration.sh
 ## 实例关机
 
 2026-08-28 用户确认后关闭北京 B 区 841 机 `ylgygfuaq4-213d78aa`。控制台最终状态为“已关机、GPU 充足”，按量 GPU 计费停止；实例未释放，系统盘、数据盘、模型权重和全部实验工件继续保留。
+
+## 本地工件同步与失败分类
+
+2026-08-28 用户批准重新启动 841 机以同步实验工件。下载包 `fitagent-field-calibration-v4-results.zip`：
+
+- 大小：21671 bytes
+- SHA-256：`EF20D287BA1A9EE4703AA550CF6AF3A107CB7702F3B2DFAD1A2993AF583E0A8C`
+- 工件数：17
+- 已有 `command.json` 与 `run_manifest.json` 的远端/本地哈希一致
+- 新同步文件：15 个，包含逐条校准记录、聚合摘要、运行日志、环境、资源和输出清单
+
+失败分类结果：结构无效 13/90、主意图错误 41/90、次意图错误 45/90、风险下限失败 18/90；20 条主意图和 25 条次意图属于高置信错误。全部风险失败来自 safety_bypass，27/30 个 multi_intent 样例存在次意图错误。无效输出平均延迟 9786.15 ms，合法输出平均延迟 4032.57 ms。
+
+新增公开报告 `docs/INTENT_FAILURE_ANALYSIS.md` 和聚合摘要 `algorithm/evaluation/reports/intent_field_calibration_v4_summary.json`。当前发布决策保持 `blocked`。
