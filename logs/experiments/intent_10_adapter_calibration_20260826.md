@@ -154,3 +154,7 @@ bash algorithm/inference/run_field_calibration.sh
 其中包含 `run.log`、`events.jsonl`、`resource_usage.jsonl`、`status.json`、`run_summary.json`、`output_manifest.json`、`calibration_records.jsonl` 和 `calibration_summary.json`。浏览器下载结果包未成功触发，本地尚未同步原始工件；远端工件保持不变且未删除。
 
 当前状态：`completed-technical-awaiting-local-artifact-sync`
+
+## 实例关机
+
+2026-08-28 用户确认后关闭北京 B 区 841 机 `ylgygfuaq4-213d78aa`。控制台最终状态为“已关机、GPU 充足”，按量 GPU 计费停止；实例未释放，系统盘、数据盘、模型权重和全部实验工件继续保留。
