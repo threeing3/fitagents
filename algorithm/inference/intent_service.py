@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import math
 import os
+import re
 import secrets
 import threading
 import time
@@ -20,6 +22,47 @@ from algorithm.training.promote_intent_adapter import validate_release_manifest
 from algorithm.training.verify_adapter_reload import validate_adapter_directory
 
 SYSTEM_PROMPT = "你是 FitAgent 的意图决策器。只输出符合 IntentDecisionV2 的 JSON，不输出思考过程。"
+
+
+def field_token_confidence(
+    generated_text: str,
+    token_prefixes: list[str],
+    token_log_probabilities: list[float],
+) -> dict[str, float]:
+    """Average generated-token probabilities over two semantic JSON fields."""
+
+    patterns = {
+        "primary_intent": r'"primary_intent"\s*:\s*"([^\"]+)"',
+        "secondary_intents": r'"secondary_intents"\s*:\s*(\[[^\]]*\])',
+    }
+    intervals: list[tuple[int, int]] = []
+    previous = ""
+    for prefix in token_prefixes:
+        common = 0
+        limit = min(len(previous), len(prefix))
+        while common < limit and previous[common] == prefix[common]:
+            common += 1
+        intervals.append((common, len(prefix)))
+        previous = prefix
+
+    confidence: dict[str, float] = {}
+    for field_name, pattern in patterns.items():
+        match = re.search(pattern, generated_text)
+        if not match:
+            confidence[field_name] = 0.0
+            continue
+        start, end = match.span(1)
+        probabilities = [
+            math.exp(log_probability)
+            for (token_start, token_end), log_probability in zip(
+                intervals, token_log_probabilities, strict=False
+            )
+            if token_end > start and token_start < end
+        ]
+        confidence[field_name] = (
+            round(sum(probabilities) / len(probabilities), 6) if probabilities else 0.0
+        )
+    return confidence
 
 
 class IntentRequest(BaseModel):
@@ -96,14 +139,28 @@ class QwenIntentPredictor:
             enable_thinking=False,
         ).to(self._model.device)
         with self._generation_lock, torch.inference_mode():
-            output = self._model.generate(
+            generation = self._model.generate(
                 **inputs,
                 max_new_tokens=160,
                 do_sample=False,
                 pad_token_id=self._tokenizer.eos_token_id,
+                return_dict_in_generate=True,
+                output_scores=True,
             )
-        generated = output[0][inputs["input_ids"].shape[-1] :]
+        generated = generation.sequences[0][inputs["input_ids"].shape[-1] :]
         text = self._tokenizer.decode(generated, skip_special_tokens=True)
+        transition_scores = self._model.compute_transition_scores(
+            generation.sequences, generation.scores, normalize_logits=True
+        )[0]
+        token_prefixes = [
+            self._tokenizer.decode(generated[: index + 1], skip_special_tokens=True)
+            for index in range(len(generated))
+        ]
+        field_confidence = field_token_confidence(
+            text,
+            token_prefixes,
+            [float(score) for score in transition_scores[-len(generated) :].tolist()],
+        )
         parsed = parse_intent_json(text)
         if parsed.primary_intent not in AgentIntentCatalog.VALID_INTENTS:
             raise ValueError("model returned an unknown primary_intent")
@@ -114,7 +171,11 @@ class QwenIntentPredictor:
             "secondary_intents": parsed.secondary_intents,
             "risk_level": parsed.risk_level,
             "needs_clarification": parsed.needs_clarification,
-            "confidence": parsed.confidence,
+            "confidence": {
+                "overall": parsed.confidence,
+                **field_confidence,
+                "method": "generated_token_probability_v1",
+            },
             "reason": parsed.reason,
         }, {
             "prompt_tokens": int(inputs["input_ids"].shape[-1]),

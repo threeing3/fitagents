@@ -1,7 +1,12 @@
 from fastapi.testclient import TestClient
 
 from algorithm.inference.intent_catalog import AgentIntentCatalog
-from algorithm.inference.intent_service import IntentRequest, QwenIntentPredictor, create_app
+from algorithm.inference.intent_service import (
+    IntentRequest,
+    QwenIntentPredictor,
+    create_app,
+    field_token_confidence,
+)
 
 
 class FakePredictor:
@@ -93,3 +98,12 @@ def test_context_projection_drops_unapproved_fields_and_rejects_oversized_values
         raise AssertionError("oversized context unexpectedly passed")
     except ValueError as exc:
         assert "exceeds" in str(exc)
+
+
+def test_field_token_confidence_is_calculated_for_each_json_field():
+    text = '{"primary_intent":"training_plan","secondary_intents":["memory_query"]}'
+    prefixes = [text[:30], text[:50], text]
+    confidence = field_token_confidence(text, prefixes, [-0.1, -0.2, -0.3])
+
+    assert 0 < confidence["primary_intent"] <= 1
+    assert 0 < confidence["secondary_intents"] <= 1
