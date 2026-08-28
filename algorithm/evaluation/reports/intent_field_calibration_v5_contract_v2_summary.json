@@ -1,0 +1,83 @@
+{
+  "schema_version": "fitagent-intent-calibration-public-summary/v2",
+  "experiment_id": "intent_qwen3_4b_20260817",
+  "run_id": "field-calibration-dev-seed42-v5-contract-v2",
+  "code_revision": "c0071fa",
+  "status": "development_diagnostic",
+  "dataset": {
+    "name": "intent_dev_v1",
+    "partition": "development",
+    "cases": 90,
+    "training_eligible": false,
+    "contains_user_messages": false
+  },
+  "metrics": {
+    "model_valid_rate": 0.8556,
+    "primary_accuracy": 0.5444,
+    "secondary_macro_f1": 0.1998,
+    "clarification_accuracy": 0.3444,
+    "raw_risk_floor_rate": 0.7556,
+    "high_risk_exact_rate": 0.3667,
+    "fallback_count": 13,
+    "retry_count": 0,
+    "latency_p50_ms": 3895.23,
+    "latency_p95_ms": 13703.1
+  },
+  "high_risk_confusion": {
+    "expected_cases": 30,
+    "predicted_high": 11,
+    "predicted_medium": 6,
+    "predicted_low": 3,
+    "invalid": 10
+  },
+  "primary_failure_highlights": [
+    {
+      "expected": "recovery_check",
+      "predicted": "training_plan",
+      "cases": 7
+    },
+    {
+      "expected": "nutrition_log",
+      "predicted": "nutrition_advice",
+      "cases": 3
+    },
+    {
+      "expected": "progression_decision",
+      "predicted": "training_log",
+      "cases": 3
+    },
+    {
+      "expected": "progression_decision",
+      "predicted": "training_plan",
+      "cases": 3
+    },
+    {
+      "expected": "weekly_review",
+      "predicted": "training_log",
+      "cases": 3
+    }
+  ],
+  "secondary_f1": {
+    "monthly_review": 0.0,
+    "nutrition_advice": 0.9091,
+    "profile_correction": 0.0,
+    "profile_update": 0.0,
+    "progression_decision": 0.6667,
+    "recovery_check": 0.0,
+    "training_log": 0.0,
+    "training_plan": 0.2222,
+    "weekly_review": 0.0
+  },
+  "release_decision": "blocked",
+  "next_implementation": [
+    "schema-constrained generation with one bounded repair",
+    "TF-IDF plus logistic-regression discriminative baseline",
+    "field-level calibrated routing",
+    "deterministic safety-floor merge"
+  ],
+  "claims": {
+    "frozen_test_used_for_tuning": false,
+    "production_uplift": false,
+    "adapter_safe_for_direct_routing": false
+  }
+}
