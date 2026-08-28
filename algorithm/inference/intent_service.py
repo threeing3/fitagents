@@ -232,10 +232,14 @@ class QwenIntentPredictor:
             token_prefixes,
             [float(score) for score in transition_scores[-len(generated) :].tolist()],
         )
-        return text, field_confidence, {
-            "prompt_tokens": int(inputs["input_ids"].shape[-1]),
-            "completion_tokens": int(generated.shape[-1]),
-        }
+        return (
+            text,
+            field_confidence,
+            {
+                "prompt_tokens": int(inputs["input_ids"].shape[-1]),
+                "completion_tokens": int(generated.shape[-1]),
+            },
+        )
 
     @staticmethod
     def _parse_and_validate(text: str):

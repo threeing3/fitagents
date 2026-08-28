@@ -25,10 +25,14 @@ class AttemptPredictor(QwenIntentPredictor):
 
     def _generate_attempt(self, request, repair_source=None):
         self.calls.append(repair_source)
-        return next(self.outputs), {"primary_intent": 0.8, "secondary_intents": 0.7}, {
-            "prompt_tokens": 10,
-            "completion_tokens": 5,
-        }
+        return (
+            next(self.outputs),
+            {"primary_intent": 0.8, "secondary_intents": 0.7},
+            {
+                "prompt_tokens": 10,
+                "completion_tokens": 5,
+            },
+        )
 
 
 class FakePredictor:

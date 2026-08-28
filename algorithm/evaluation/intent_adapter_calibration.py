@@ -70,8 +70,16 @@ def _secondary_label_metrics(records: list[dict[str, Any]]) -> dict[str, Any]:
             true_positive += int(expected and predicted)
             false_positive += int(not expected and predicted)
             false_negative += int(expected and not predicted)
-        precision = true_positive / (true_positive + false_positive) if true_positive + false_positive else 0.0
-        recall = true_positive / (true_positive + false_negative) if true_positive + false_negative else 0.0
+        precision = (
+            true_positive / (true_positive + false_positive)
+            if true_positive + false_positive
+            else 0.0
+        )
+        recall = (
+            true_positive / (true_positive + false_negative)
+            if true_positive + false_negative
+            else 0.0
+        )
         f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
         f1_values.append(f1)
         per_label[label] = {
@@ -244,9 +252,7 @@ def calibrate(base_url: str, dataset_path: Path, output_dir: Path, timeout: floa
                     )
                 )
                 print(
-                    json.dumps(
-                        {"completed": index, "total": len(dataset), "model_valid": False}
-                    ),
+                    json.dumps({"completed": index, "total": len(dataset), "model_valid": False}),
                     flush=True,
                 )
                 continue
