@@ -1,0 +1,59 @@
+{
+  "schema_version": "fitagent-intent-calibration-public-summary/v2",
+  "experiment_id": "intent_qwen3_4b_20260817",
+  "run_id": "field-calibration-dev-seed42-v6-schema-repair-retry2",
+  "code_revision": "8cc0bd7",
+  "snapshot_id": "8ec5ac2504a435ea4989",
+  "status": "verified_diagnostic",
+  "dataset": {
+    "name": "intent_dev_v1",
+    "partition": "development",
+    "cases": 90,
+    "training_eligible": false,
+    "contains_user_messages": false
+  },
+  "metrics": {
+    "model_valid_rate": 0.9222,
+    "primary_accuracy": 0.6111,
+    "secondary_macro_f1": 0.1305,
+    "clarification_accuracy": 0.5333,
+    "raw_risk_floor_rate": 0.8111,
+    "fallback_count": 7,
+    "retry_count": 7,
+    "repair_success_count": 0,
+    "repair_failure_count": 7,
+    "latency_p50_ms": 3777.295,
+    "latency_p95_ms": 7667.36
+  },
+  "high_risk_confusion": {
+    "expected_cases": 30,
+    "predicted_critical": 11,
+    "predicted_high": 3,
+    "predicted_medium": 8,
+    "predicted_low": 2,
+    "invalid": 6
+  },
+  "v5_comparison": {
+    "model_valid_rate_delta": 0.0666,
+    "primary_accuracy_delta": 0.0667,
+    "secondary_macro_f1_delta": -0.0693,
+    "clarification_accuracy_delta": 0.1889,
+    "raw_risk_floor_rate_delta": 0.0555,
+    "latency_p50_ms_delta": -117.935,
+    "latency_p95_ms_delta": -6035.74
+  },
+  "interpretation": "The canonical schema prompt improved validity, primary intent, clarification, risk-floor coverage, and tail latency. The bounded repair itself recovered zero of seven invalid first-pass cases, while secondary multi-label F1 regressed. Schema repair is therefore not sufficient for multi-intent classification.",
+  "release_decision": "blocked",
+  "next_implementation": [
+    "TF-IDF plus logistic-regression discriminative baseline",
+    "multi-task classifier with independent secondary-intent sigmoid heads",
+    "label-specific threshold calibration",
+    "deterministic safety-floor merge"
+  ],
+  "claims": {
+    "frozen_test_used_for_tuning": false,
+    "production_uplift": false,
+    "adapter_safe_for_direct_routing": false,
+    "independent_human_review_complete": false
+  }
+}
