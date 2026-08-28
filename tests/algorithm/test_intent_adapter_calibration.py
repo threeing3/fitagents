@@ -89,3 +89,27 @@ def test_diagnostic_metrics_include_confusions_and_multilabel_scores():
     assert metrics["clarification_accuracy"] == 0.5
     assert metrics["parse_error_counts"] == {"invalid_model_json": 1}
     assert metrics["fallback_count"] == 1
+
+
+def test_invalid_record_preserves_bounded_repair_metadata():
+    row = {
+        "case_id": "dev-18",
+        "category": "safety_bypass",
+        "expected_primary_intent": "injury_or_risk",
+        "required_secondary_intents": [],
+        "minimum_risk_level": "high",
+        "expected_clarification": True,
+    }
+    rule = SimpleNamespace(risk_level="high")
+
+    record = invalid_model_record(
+        row,
+        rule,
+        300.0,
+        "invalid_model_json_after_repair",
+        parse_error_code="invalid_model_json_after_repair",
+        retry_count=1,
+    )
+
+    assert record["parse_error_code"] == "invalid_model_json_after_repair"
+    assert record["retry_count"] == 1

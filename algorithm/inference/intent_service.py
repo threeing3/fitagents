@@ -22,6 +22,33 @@ from algorithm.training.promote_intent_adapter import validate_release_manifest
 from algorithm.training.verify_adapter_reload import validate_adapter_directory
 
 SYSTEM_PROMPT = "你是 FitAgent 的意图决策器。只输出符合 IntentDecisionV2 的 JSON，不输出思考过程。"
+INTENT_DECISION_SCHEMA = {
+    "type": "object",
+    "required": [
+        "primary_intent",
+        "secondary_intents",
+        "risk_level",
+        "needs_clarification",
+        "reason_codes",
+    ],
+    "properties": {
+        "primary_intent": {"type": "string"},
+        "secondary_intents": {"type": "array", "items": {"type": "string"}},
+        "risk_level": {"enum": ["low", "medium", "high", "critical"]},
+        "needs_clarification": {"type": "boolean"},
+        "reason_codes": {"type": "array", "items": {"type": "string"}},
+    },
+    "additionalProperties": False,
+}
+
+
+class IntentOutputError(ValueError):
+    """Structured failure raised after the single bounded repair is exhausted."""
+
+    def __init__(self, code: str, retry_count: int):
+        super().__init__(code)
+        self.code = code
+        self.retry_count = retry_count
 
 
 def field_token_confidence(
@@ -119,6 +146,42 @@ class QwenIntentPredictor:
         self._tokenizer = tokenizer
 
     def predict(self, request: IntentRequest) -> tuple[dict[str, Any], dict[str, int]]:
+        attempts: list[tuple[str, dict[str, float], dict[str, int]]] = []
+        first = self._generate_attempt(request)
+        attempts.append(first)
+        try:
+            parsed = self._parse_and_validate(first[0])
+        except (ValueError, TypeError, json.JSONDecodeError):
+            repaired = self._generate_attempt(request, repair_source=first[0][:2000])
+            attempts.append(repaired)
+            try:
+                parsed = self._parse_and_validate(repaired[0])
+            except (ValueError, TypeError, json.JSONDecodeError) as exc:
+                raise IntentOutputError("invalid_model_json_after_repair", 1) from exc
+
+        _, field_confidence, _ = attempts[-1]
+        usage = {
+            "prompt_tokens": sum(item[2]["prompt_tokens"] for item in attempts),
+            "completion_tokens": sum(item[2]["completion_tokens"] for item in attempts),
+            "retry_count": len(attempts) - 1,
+        }
+        return {
+            "primary_intent": parsed.primary_intent,
+            "secondary_intents": parsed.secondary_intents,
+            "risk_level": parsed.risk_level,
+            "needs_clarification": parsed.needs_clarification,
+            "confidence": {
+                "overall": parsed.confidence,
+                **field_confidence,
+                "method": "generated_token_probability_v1",
+            },
+            "reason": parsed.reason,
+        }, usage
+
+    def _generate_attempt(
+        self, request: IntentRequest, repair_source: str | None = None
+    ) -> tuple[str, dict[str, float], dict[str, int]]:
+        """Generate one bounded attempt; a second call is the only permitted repair."""
         if self._model is None or self._tokenizer is None:
             raise RuntimeError("intent model is not loaded")
         import torch
@@ -127,6 +190,14 @@ class QwenIntentPredictor:
         user_prompt = f"用户问题：{request.message}\n上下文：" + json.dumps(
             context, ensure_ascii=False, separators=(",", ":"), default=str
         )
+        user_prompt += "\nJSON Schema：" + json.dumps(
+            INTENT_DECISION_SCHEMA, ensure_ascii=False, separators=(",", ":")
+        )
+        if repair_source is not None:
+            user_prompt += (
+                "\n上一次输出未通过结构校验。只修复为符合 Schema 的 JSON，不解释：\n"
+                + repair_source
+            )
         inputs = self._tokenizer.apply_chat_template(
             [
                 {"role": "system", "content": SYSTEM_PROMPT},
@@ -141,7 +212,7 @@ class QwenIntentPredictor:
         with self._generation_lock, torch.inference_mode():
             generation = self._model.generate(
                 **inputs,
-                max_new_tokens=160,
+                max_new_tokens=160 if repair_source is None else 96,
                 do_sample=False,
                 pad_token_id=self._tokenizer.eos_token_id,
                 return_dict_in_generate=True,
@@ -161,26 +232,19 @@ class QwenIntentPredictor:
             token_prefixes,
             [float(score) for score in transition_scores[-len(generated) :].tolist()],
         )
+        return text, field_confidence, {
+            "prompt_tokens": int(inputs["input_ids"].shape[-1]),
+            "completion_tokens": int(generated.shape[-1]),
+        }
+
+    @staticmethod
+    def _parse_and_validate(text: str):
         parsed = parse_intent_json(text)
         if parsed.primary_intent not in AgentIntentCatalog.VALID_INTENTS:
             raise ValueError("model returned an unknown primary_intent")
         if any(item not in AgentIntentCatalog.VALID_INTENTS for item in parsed.secondary_intents):
             raise ValueError("model returned an unknown secondary_intent")
-        return {
-            "primary_intent": parsed.primary_intent,
-            "secondary_intents": parsed.secondary_intents,
-            "risk_level": parsed.risk_level,
-            "needs_clarification": parsed.needs_clarification,
-            "confidence": {
-                "overall": parsed.confidence,
-                **field_confidence,
-                "method": "generated_token_probability_v1",
-            },
-            "reason": parsed.reason,
-        }, {
-            "prompt_tokens": int(inputs["input_ids"].shape[-1]),
-            "completion_tokens": int(generated.shape[-1]),
-        }
+        return parsed
 
     @staticmethod
     def _bounded_context(request: IntentRequest) -> dict[str, Any]:
@@ -214,7 +278,7 @@ def create_app(
         os.getenv("INTENT_BASE_MODEL", "Qwen/Qwen3-4B"),
         Path(os.getenv("INTENT_ADAPTER_PATH", "adapter")),
     )
-    state = {"ready": False, "error": None}
+    state: dict[str, Any] = {"ready": False, "error": None}
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
@@ -253,9 +317,15 @@ def create_app(
         started = time.perf_counter()
         try:
             decision, usage = runtime.predict(request)
+        except IntentOutputError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={"code": exc.code, "retry_count": exc.retry_count},
+            ) from exc
         except (ValueError, TypeError, json.JSONDecodeError) as exc:
             raise HTTPException(
-                status_code=422, detail="Model returned invalid intent JSON."
+                status_code=422,
+                detail={"code": "invalid_model_json", "retry_count": 0},
             ) from exc
         return {
             "schema_version": "intent_decision_v2",

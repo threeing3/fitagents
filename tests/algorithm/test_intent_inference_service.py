@@ -1,12 +1,34 @@
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 from algorithm.inference.intent_catalog import AgentIntentCatalog
 from algorithm.inference.intent_service import (
+    IntentOutputError,
     IntentRequest,
     QwenIntentPredictor,
     create_app,
     field_token_confidence,
 )
+
+VALID_TEXT = (
+    '{"primary_intent":"training_plan","secondary_intents":[],"risk_level":"low",'
+    '"needs_clarification":false,"reason_codes":[]}'
+)
+
+
+class AttemptPredictor(QwenIntentPredictor):
+    def __init__(self, outputs: list[str]):
+        super().__init__("fixture", Path("adapter"))
+        self.outputs = iter(outputs)
+        self.calls: list[str | None] = []
+
+    def _generate_attempt(self, request, repair_source=None):
+        self.calls.append(repair_source)
+        return next(self.outputs), {"primary_intent": 0.8, "secondary_intents": 0.7}, {
+            "prompt_tokens": 10,
+            "completion_tokens": 5,
+        }
 
 
 class FakePredictor:
@@ -107,3 +129,35 @@ def test_field_token_confidence_is_calculated_for_each_json_field():
 
     assert 0 < confidence["primary_intent"] <= 1
     assert 0 < confidence["secondary_intents"] <= 1
+
+
+def test_predictor_returns_without_retry_for_valid_first_attempt():
+    predictor = AttemptPredictor([VALID_TEXT])
+
+    decision, usage = predictor.predict(IntentRequest(message="制定计划"))
+
+    assert decision["primary_intent"] == "training_plan"
+    assert usage["retry_count"] == 0
+    assert predictor.calls == [None]
+
+
+def test_predictor_repairs_invalid_json_once_and_accounts_for_usage():
+    predictor = AttemptPredictor(["not-json", VALID_TEXT])
+
+    decision, usage = predictor.predict(IntentRequest(message="制定计划"))
+
+    assert decision["primary_intent"] == "training_plan"
+    assert usage == {"prompt_tokens": 20, "completion_tokens": 10, "retry_count": 1}
+    assert predictor.calls == [None, "not-json"]
+
+
+def test_predictor_stops_after_one_failed_repair():
+    predictor = AttemptPredictor(["not-json", "still-not-json"])
+
+    try:
+        predictor.predict(IntentRequest(message="制定计划"))
+        raise AssertionError("invalid repair unexpectedly passed")
+    except IntentOutputError as exc:
+        assert exc.code == "invalid_model_json_after_repair"
+        assert exc.retry_count == 1
+    assert len(predictor.calls) == 2

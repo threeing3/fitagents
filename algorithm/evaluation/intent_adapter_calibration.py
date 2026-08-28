@@ -155,7 +155,13 @@ def _percentiles(values: list[float]) -> dict[str, float]:
 
 
 def invalid_model_record(
-    row: dict[str, Any], rule: Any, latency_ms: float, detail: str
+    row: dict[str, Any],
+    rule: Any,
+    latency_ms: float,
+    detail: str,
+    *,
+    parse_error_code: str = "invalid_model_json",
+    retry_count: int = 0,
 ) -> dict[str, Any]:
     """Count an invalid structured generation without aborting the calibration run."""
     return {
@@ -184,8 +190,8 @@ def invalid_model_record(
         "model_valid": False,
         "fallback_applied": True,
         "fallback_source": "deterministic_rule",
-        "retry_count": 0,
-        "parse_error_code": "invalid_model_json",
+        "retry_count": retry_count,
+        "parse_error_code": parse_error_code,
         "error_type": "invalid_model_json",
         "error_detail": detail,
     }
@@ -214,10 +220,29 @@ def calibrate(base_url: str, dataset_path: Path, output_dir: Path, timeout: floa
             latency_ms = (time.perf_counter() - started) * 1000
             if response.status_code == 422:
                 try:
-                    detail = str(response.json().get("detail", "unprocessable intent output"))
+                    response_detail = response.json().get("detail", {})
+                    if isinstance(response_detail, dict):
+                        error_code = str(response_detail.get("code", "invalid_model_json"))
+                        retry_count = int(response_detail.get("retry_count", 0))
+                        detail = error_code
+                    else:
+                        error_code = "invalid_model_json"
+                        retry_count = 0
+                        detail = str(response_detail)
                 except (ValueError, AttributeError):
+                    error_code = "invalid_model_json"
+                    retry_count = 0
                     detail = "unprocessable intent output"
-                records.append(invalid_model_record(row, rule, latency_ms, detail))
+                records.append(
+                    invalid_model_record(
+                        row,
+                        rule,
+                        latency_ms,
+                        detail,
+                        parse_error_code=error_code,
+                        retry_count=retry_count,
+                    )
+                )
                 print(
                     json.dumps(
                         {"completed": index, "total": len(dataset), "model_valid": False}
@@ -269,7 +294,7 @@ def calibrate(base_url: str, dataset_path: Path, output_dir: Path, timeout: floa
                     "model_valid": True,
                     "fallback_applied": False,
                     "fallback_source": None,
-                    "retry_count": 0,
+                    "retry_count": int((payload.get("usage") or {}).get("retry_count", 0)),
                     "parse_error_code": None,
                     "error_type": None,
                     "error_detail": None,
