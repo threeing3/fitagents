@@ -70,6 +70,14 @@ def check_module(module_id: str) -> dict[str, Any]:
                 "macro_f1": result["macro_f1"],
                 "risk_recall": result["risk_recall"],
             }
+            diagnostic_path = (
+                REPO_ROOT
+                / "algorithm/evaluation/reports/intent_multilabel_v2_1_diagnostic_20260830.summary.json"
+            )
+            if diagnostic_path.exists():
+                diagnostic = json.loads(diagnostic_path.read_text(encoding="utf-8"))
+                details["multilabel_contract"] = diagnostic["contract_gate"]
+                details["multilabel_generalization"] = diagnostic["diagnosis"]
         except (OSError, ValueError, ImportError) as exc:
             passed, details = False, str(exc)
         checks.append({"name": "intent macro-f1 threshold", "passed": passed, "details": details})

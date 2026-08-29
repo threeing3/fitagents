@@ -1,0 +1,37 @@
+{
+  "schema_version": "fitagent-intent-augmentation-generation/v1",
+  "requests_attempted": 48,
+  "outputs_generated": 168,
+  "failures": [
+    {
+      "request_id": "augment-primary-general_chat-train",
+      "error": "Expecting ',' delimiter: line 1 column 128 (char 127)"
+    },
+    {
+      "request_id": "augment-primary-training_plan-validation",
+      "error": "Expecting ',' delimiter: line 1 column 161 (char 160)"
+    },
+    {
+      "request_id": "augment-primary-nutrition_log-validation",
+      "error": "Expecting ',' delimiter: line 1 column 82 (char 81)"
+    },
+    {
+      "request_id": "augment-multi-recovery_check-training_log-train",
+      "error": "Expecting ',' delimiter: line 1 column 77 (char 76)"
+    },
+    {
+      "request_id": "augment-multi-nutrition_advice-recovery_check-validation",
+      "error": "Expecting ',' delimiter: line 1 column 159 (char 158)"
+    },
+    {
+      "request_id": "augment-multi-training_plan-profile_correction-train",
+      "error": "Expecting ',' delimiter: line 1 column 163 (char 162)"
+    }
+  ],
+  "elapsed_ms": 133070.261,
+  "generator_id": "deepseek:deepseek-v4-pro",
+  "human_review_status": "pending",
+  "development_text_access": false,
+  "fixed_test_text_access": false,
+  "training_eligible": false
+}

@@ -1,0 +1,27 @@
+{
+  "schema_version": "fitagent-intent-augmentation-request-manifest/v1",
+  "request_count": 48,
+  "split_counts": {
+    "train": 24,
+    "validation": 24
+  },
+  "source_counts": {
+    "teacher_generated": 48
+  },
+  "factor_counts": {
+    "adversarial_noise": 7,
+    "colloquial": 8,
+    "context_conflict": 8,
+    "ellipsis": 7,
+    "implicit_request": 6,
+    "intent_order": 6,
+    "negation": 6
+  },
+  "development_text_access": false,
+  "fixed_test_text_access": false,
+  "claims": {
+    "contains_generated_outputs": false,
+    "safe_to_start_generation": true,
+    "human_review_required_before_quality_claim": true
+  }
+}

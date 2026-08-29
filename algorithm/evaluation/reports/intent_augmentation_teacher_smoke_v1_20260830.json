@@ -1,0 +1,12 @@
+{
+  "schema_version": "fitagent-intent-augmentation-generation/v1",
+  "requests_attempted": 3,
+  "outputs_generated": 12,
+  "failures": [],
+  "elapsed_ms": 7606.251,
+  "generator_id": "deepseek:deepseek-v4-pro",
+  "human_review_status": "pending",
+  "development_text_access": false,
+  "fixed_test_text_access": false,
+  "training_eligible": false
+}

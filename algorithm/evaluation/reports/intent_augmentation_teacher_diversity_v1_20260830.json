@@ -1,0 +1,17 @@
+{
+  "schema_version": "fitagent-intent-diversity-audit/v1",
+  "rows": 192,
+  "exact_duplicate_rate": 0.0,
+  "distinct_char_trigram_rate": 0.7872,
+  "max_cross_split_trigram_jaccard": 0.3636,
+  "mean_cross_split_trigram_jaccard": 0.0027,
+  "largest_template_family_share": 0.0208,
+  "split_counts": {
+    "train": 96,
+    "validation": 96
+  },
+  "claims": {
+    "semantic_diversity_proven": false,
+    "lexical_diagnostic_only": true
+  }
+}
