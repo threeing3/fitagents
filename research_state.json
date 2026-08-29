@@ -1,10 +1,10 @@
 {
-  "schema_version": "fitagent-research-state/v1",
-  "revision": 1,
-  "phase": "experimentation",
-  "active_experiment_id": "intent_qwen3_4b_20260817",
+  "active_experiment_id": "intent_multilabel_20260829",
   "paths": {
     "experiments": "research_state/experiments"
   },
-  "updated_at": "2026-08-17T16:53:17+08:00"
+  "phase": "experimentation",
+  "revision": 2,
+  "schema_version": "fitagent-research-state/v1",
+  "updated_at": "2026-08-28T16:48:18.788767+00:00"
 }

@@ -1,0 +1,43 @@
+{
+  "schema_version": "fitagent-multilabel-diagnostic-summary/v1",
+  "experiment_id": "intent_multilabel_20260829",
+  "status": "verified-diagnostic",
+  "dataset": {
+    "train_rows": 800,
+    "development_rows": 90,
+    "development_multi_intent_rows": 42,
+    "development_used_for_training": false,
+    "fixed_test_used": false
+  },
+  "data_audit": {
+    "secondary_label_coverage_rate": 0.375,
+    "secondary_support_coverage_rate": 0.5789,
+    "unseen_development_secondary_labels": [
+      "monthly_review",
+      "profile_correction",
+      "profile_update",
+      "progression_decision",
+      "training_log"
+    ],
+    "invalid_train_primary_labels": [
+      "exercise_selection",
+      "workout_logging"
+    ],
+    "training_ready": false
+  },
+  "tfidf_logistic_baseline": {
+    "primary_accuracy": 0.5222,
+    "secondary_macro_f1": 0.0,
+    "secondary_micro_f1": 0.0,
+    "secondary_exact_match": 0.5333,
+    "threshold": 0.5,
+    "fit_and_predict_ms": 3684.437
+  },
+  "decision": "repair_label_contract_and_training_coverage_before_gpu_finetuning",
+  "claims": {
+    "diagnostic_only": true,
+    "production_uplift": false,
+    "model_quality": false,
+    "simulated_or_synthetic_sources_disclosed": true
+  }
+}
