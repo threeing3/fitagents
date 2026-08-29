@@ -6,9 +6,11 @@ pytest.importorskip("sklearn")
 
 from algorithm.app_algorithms.multilabel_intent_baseline import (
     TfidfIntentBaseline,
+    calibrate_secondary_thresholds,
     evaluate_baseline,
     multilabel_metrics,
 )
+from algorithm.data.multilabel_intent_dataset_factory import build_multilabel_intent_examples
 from algorithm.evaluation.multilabel_data_audit import (
     audit_label_coverage,
     select_eligible_train_rows,
@@ -112,3 +114,42 @@ def test_evaluation_filters_non_train_and_ineligible_rows():
 
     assert report["dataset"]["train_rows"] == 12
     assert report["audit"]["unseen_development_primary_labels"] == []
+
+
+def test_threshold_calibration_uses_validation_rows_and_returns_each_label():
+    rows = [row.to_dict() for row in build_multilabel_intent_examples(train_per_family=3)]
+    train = [row for row in rows if row["split"] == "train"]
+    calibration = [row for row in rows if row["split"] == "validation"]
+    labels = sorted(
+        {
+            label
+            for row in train
+            for label in json.loads(row["assistant_response"])["secondary_intents"]
+        }
+    )
+    model = TfidfIntentBaseline()
+    model.fit(train, labels)
+
+    thresholds = calibrate_secondary_thresholds(model, calibration, labels)
+
+    assert set(thresholds) == set(labels)
+    assert all(0 < value < 1 for value in thresholds.values())
+
+
+def test_evaluation_reports_isolated_calibration_as_threshold_source():
+    rows = [row.to_dict() for row in build_multilabel_intent_examples(train_per_family=3)]
+    development = [
+        {
+            "case_id": "calibration-contract-case",
+            "user_message": "复盘这周并判断是否加重量",
+            "expected_primary_intent": "weekly_review",
+            "required_secondary_intents": ["progression_decision"],
+        }
+    ]
+
+    report = evaluate_baseline(rows, development, 0.5, rows)
+
+    assert report["configuration"]["threshold_source"] == "isolated_calibration"
+    assert report["configuration"]["per_label_thresholds"]
+    assert report["dataset"]["calibration_rows"] > 0
+    assert report["calibration_secondary"] is not None

@@ -11,6 +11,7 @@ from typing import Any
 
 from algorithm.evaluation.multilabel_data_audit import (
     audit_label_coverage,
+    select_eligible_calibration_rows,
     select_eligible_train_rows,
 )
 
@@ -115,7 +116,9 @@ class TfidfIntentBaseline:
                 ).fit(features, target)
                 self.secondary_heads[label] = _BinaryHead(constant=None, model=model)
 
-    def predict(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def predict(
+        self, rows: list[dict[str, Any]], *, thresholds: dict[str, float] | None = None
+    ) -> list[dict[str, Any]]:
         if self.vectorizer is None or self.primary_model is None:
             raise RuntimeError("baseline must be fitted before prediction")
         features = self.vectorizer.transform([_text(row) for row in rows])
@@ -129,7 +132,7 @@ class TfidfIntentBaseline:
                 scores = [float(value) for value in head.model.predict_proba(features)[:, 1]]
             for index, score in enumerate(scores):
                 probabilities[index][label] = score
-                if score >= self.threshold:
+                if score >= (thresholds or {}).get(label, self.threshold):
                     secondary_by_row[index].append(label)
         return [
             {
@@ -141,18 +144,84 @@ class TfidfIntentBaseline:
         ]
 
 
+def calibrate_secondary_thresholds(
+    model: TfidfIntentBaseline,
+    calibration_rows: list[dict[str, Any]],
+    labels: list[str],
+    *,
+    candidates: tuple[float, ...] | None = None,
+) -> dict[str, float]:
+    """Choose each label threshold on calibration data only, never development data."""
+
+    if not calibration_rows:
+        raise ValueError("calibration rows are required")
+    predictions = model.predict(calibration_rows)
+    expected = [set(_decision(row).get("secondary_intents", [])) for row in calibration_rows]
+    calibrated: dict[str, float] = {}
+    for label in labels:
+        label_candidates = candidates or tuple(
+            sorted(
+                {
+                    float(prediction["secondary_probabilities"][label])
+                    for prediction in predictions
+                    if 0 < float(prediction["secondary_probabilities"][label]) < 1
+                }
+            )
+        )
+        if not label_candidates:
+            calibrated[label] = 0.5
+            continue
+        best = (float("-inf"), float("-inf"), 0.5)
+        for threshold in label_candidates:
+            guessed = [
+                {label} if prediction["secondary_probabilities"][label] >= threshold else set()
+                for prediction in predictions
+            ]
+            f1 = float(multilabel_metrics(expected, guessed, [label])["macro_f1"])
+            candidate = (f1, -abs(threshold - 0.5), threshold)
+            if candidate > best:
+                best = candidate
+        calibrated[label] = best[2]
+    return calibrated
+
+
 def evaluate_baseline(
-    train_rows: list[dict[str, Any]], development_rows: list[dict[str, Any]], threshold: float
+    train_rows: list[dict[str, Any]],
+    development_rows: list[dict[str, Any]],
+    threshold: float,
+    calibration_rows: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     train_rows = select_eligible_train_rows(train_rows)
     if not train_rows:
         raise ValueError("no eligible train rows were provided")
-    audit = audit_label_coverage(train_rows, development_rows)
+    audit = audit_label_coverage(
+        train_rows, development_rows, minimum_primary_support=20, minimum_secondary_support=20
+    )
     labels = sorted(audit["development_secondary_counts"])
     model = TfidfIntentBaseline(threshold=threshold)
     started = time.perf_counter()
     model.fit(train_rows, labels)
-    predictions = model.predict(development_rows)
+    selected_calibration = (
+        select_eligible_calibration_rows(calibration_rows) if calibration_rows else []
+    )
+    calibrated_thresholds = (
+        calibrate_secondary_thresholds(model, selected_calibration, labels)
+        if selected_calibration
+        else {}
+    )
+    predictions = model.predict(development_rows, thresholds=calibrated_thresholds)
+    calibration_metrics = None
+    if selected_calibration:
+        calibration_predictions = model.predict(
+            selected_calibration, thresholds=calibrated_thresholds
+        )
+        calibration_expected = [
+            set(_decision(row).get("secondary_intents", [])) for row in selected_calibration
+        ]
+        calibration_guessed = [
+            set(prediction["secondary_intents"]) for prediction in calibration_predictions
+        ]
+        calibration_metrics = multilabel_metrics(calibration_expected, calibration_guessed, labels)
     elapsed_ms = (time.perf_counter() - started) * 1000
     expected_secondary = [set(row["required_secondary_intents"]) for row in development_rows]
     predicted_secondary = [set(row["secondary_intents"]) for row in predictions]
@@ -166,10 +235,11 @@ def evaluate_baseline(
     )
     seen_labels = sorted(set(labels) - set(audit["unseen_development_secondary_labels"]))
     return {
-        "schema_version": "fitagent-multilabel-tfidf-baseline/v1",
+        "schema_version": "fitagent-multilabel-tfidf-baseline/v2",
         "dataset": {
             "train_rows": len(train_rows),
             "development_rows": len(development_rows),
+            "calibration_rows": len(selected_calibration),
             "development_used_for_training": False,
             "fixed_test_used": False,
         },
@@ -177,6 +247,8 @@ def evaluate_baseline(
             "features": "character_tfidf_2_5gram",
             "classifier": "independent_logistic_regression",
             "threshold": threshold,
+            "threshold_source": "isolated_calibration" if calibrated_thresholds else "fixed",
+            "per_label_thresholds": calibrated_thresholds,
             "seed": 42,
         },
         "primary_accuracy": round(primary_accuracy, 4),
@@ -184,6 +256,7 @@ def evaluate_baseline(
         "secondary_seen_labels": multilabel_metrics(
             expected_secondary, predicted_secondary, seen_labels
         ),
+        "calibration_secondary": calibration_metrics,
         "fit_and_predict_ms": round(elapsed_ms, 3),
         "audit": audit,
         "predictions": [
@@ -209,6 +282,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--train", type=Path, required=True)
     parser.add_argument("--development", type=Path, required=True)
+    parser.add_argument("--calibration", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--threshold", type=float, default=0.5)
     args = parser.parse_args()
@@ -216,7 +290,16 @@ def main() -> int:
         json.loads(line) for line in args.train.read_text(encoding="utf-8").splitlines() if line
     ]
     development_rows = json.loads(args.development.read_text(encoding="utf-8"))
-    report = evaluate_baseline(train_rows, development_rows, args.threshold)
+    calibration_rows = (
+        [
+            json.loads(line)
+            for line in args.calibration.read_text(encoding="utf-8").splitlines()
+            if line
+        ]
+        if args.calibration
+        else None
+    )
+    report = evaluate_baseline(train_rows, development_rows, args.threshold, calibration_rows)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(
         json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"

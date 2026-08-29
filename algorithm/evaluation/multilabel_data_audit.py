@@ -28,8 +28,22 @@ def select_eligible_train_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any
     ]
 
 
+def select_eligible_calibration_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Select the isolated validation rows used only for threshold calibration."""
+
+    return [
+        row
+        for row in rows
+        if row.get("split") == "validation" and bool(row.get("training_eligible"))
+    ]
+
+
 def audit_label_coverage(
-    train_rows: list[dict[str, Any]], development_rows: list[dict[str, Any]]
+    train_rows: list[dict[str, Any]],
+    development_rows: list[dict[str, Any]],
+    *,
+    minimum_primary_support: int = 1,
+    minimum_secondary_support: int = 1,
 ) -> dict[str, Any]:
     train_primary = Counter(str(_decision(row).get("primary_intent")) for row in train_rows)
     train_secondary: Counter[str] = Counter()
@@ -46,6 +60,12 @@ def audit_label_coverage(
     unseen_secondary = sorted(set(development_secondary) - set(train_secondary))
     invalid_train_primary = sorted(set(train_primary) - valid)
     invalid_train_secondary = sorted(set(train_secondary) - valid)
+    low_support_primary = sorted(
+        label for label, count in train_primary.items() if count < minimum_primary_support
+    )
+    low_support_secondary = sorted(
+        label for label, count in train_secondary.items() if count < minimum_secondary_support
+    )
     development_multi_count = sum(
         bool(row.get("required_secondary_intents")) for row in development_rows
     )
@@ -67,6 +87,12 @@ def audit_label_coverage(
         "unseen_development_secondary_labels": unseen_secondary,
         "invalid_train_primary_labels": invalid_train_primary,
         "invalid_train_secondary_labels": invalid_train_secondary,
+        "minimum_support": {
+            "primary": minimum_primary_support,
+            "secondary": minimum_secondary_support,
+        },
+        "low_support_primary_labels": low_support_primary,
+        "low_support_secondary_labels": low_support_secondary,
         "secondary_label_coverage": {
             "seen_labels": len(set(development_secondary) & set(train_secondary)),
             "required_labels": len(development_secondary),
@@ -81,7 +107,12 @@ def audit_label_coverage(
             else 1.0,
         },
         "training_ready": not (
-            unseen_primary or unseen_secondary or invalid_train_primary or invalid_train_secondary
+            unseen_primary
+            or unseen_secondary
+            or invalid_train_primary
+            or invalid_train_secondary
+            or low_support_primary
+            or low_support_secondary
         ),
         "claims": {
             "development_used_for_training": False,

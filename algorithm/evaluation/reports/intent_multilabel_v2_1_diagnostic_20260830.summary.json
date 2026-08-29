@@ -1,0 +1,45 @@
+{
+  "schema_version": "fitagent-multilabel-data-contract-diagnostic/v1",
+  "experiment_id": "intent_multilabel_data_v2_20260830",
+  "dataset_version": "intent-multilabel-v2.1-20260830",
+  "dataset": {
+    "train_rows": 576,
+    "calibration_rows": 120,
+    "development_rows": 90,
+    "development_used_for_generation": false,
+    "development_used_for_training": false,
+    "fixed_test_used": false,
+    "source": "rule_generated",
+    "human_approved": 0
+  },
+  "contract_gate": {
+    "runtime_primary_coverage": "16/16",
+    "required_secondary_coverage": "8/8",
+    "minimum_primary_train_support": 24,
+    "minimum_secondary_train_support": 24,
+    "user_split_leaks": 0,
+    "template_family_split_leaks": 0,
+    "training_ready_for_pipeline_validation": true
+  },
+  "baseline": {
+    "model": "character_tfidf_independent_logistic_regression",
+    "threshold_source": "isolated_calibration",
+    "calibration_secondary_macro_f1": 1.0,
+    "development_primary_accuracy": 0.3111,
+    "development_secondary_macro_f1": 0.0,
+    "development_secondary_micro_f1": 0.0,
+    "development_secondary_exact_match": 0.5333
+  },
+  "diagnosis": {
+    "status": "coverage_fixed_generalization_blocked",
+    "supported": "The label ontology and minimum-support contract are now complete.",
+    "blocked": "Rule templates are too homogeneous; perfect calibration performance does not transfer to the independently worded development set.",
+    "next_gate": "Add independently authored or teacher-generated language diversity without using development prompts, then re-run a fresh calibration and development evaluation."
+  },
+  "claims": {
+    "diagnostic_only": true,
+    "model_quality": false,
+    "production_uplift": false,
+    "sufficient_for_finetuning": false
+  }
+}

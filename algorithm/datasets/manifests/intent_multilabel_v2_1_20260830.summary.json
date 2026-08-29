@@ -1,0 +1,53 @@
+{
+  "schema_version": "fitagent-intent-multilabel-manifest/v2",
+  "dataset_name": "fitagent_intent_multilabel",
+  "dataset_version": "intent-multilabel-v2.1-20260830",
+  "row_count": 696,
+  "split_counts": {
+    "train": 576,
+    "validation": 120
+  },
+  "primary_counts": {
+    "concept_explanation": 29,
+    "general_chat": 29,
+    "injury_or_risk": 58,
+    "memory_query": 29,
+    "monthly_review": 29,
+    "nutrition_advice": 58,
+    "nutrition_log": 29,
+    "onboarding": 29,
+    "profile_correction": 29,
+    "profile_update": 29,
+    "progression_decision": 29,
+    "recovery_check": 58,
+    "small_talk": 29,
+    "training_log": 58,
+    "training_plan": 116,
+    "weekly_review": 58
+  },
+  "secondary_counts": {
+    "monthly_review": 29,
+    "nutrition_advice": 29,
+    "profile_correction": 29,
+    "profile_update": 29,
+    "progression_decision": 29,
+    "recovery_check": 29,
+    "training_log": 29,
+    "training_plan": 29
+  },
+  "template_family_count": 72,
+  "template_family_split_leaks": {},
+  "user_split_leaks": {},
+  "source_counts": {
+    "rule_generated": 696
+  },
+  "human_approved": 0,
+  "claims": {
+    "real_user_data": false,
+    "expert_labeled": false,
+    "development_used_for_generation": false,
+    "fixed_test_used": false,
+    "sufficient_for_pipeline_validation": true,
+    "sufficient_for_model_quality_claim": false
+  }
+}
