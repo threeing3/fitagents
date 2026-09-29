@@ -4,16 +4,24 @@ Revision ID: 001
 Revises: None
 Create Date: 2026-05-28
 """
+
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
 from pgvector.sqlalchemy import Vector
+from sqlalchemy.dialects import postgresql
+
+from alembic import op
+from fast_api.app.core.config import get_settings
 
 revision: str = "001"
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
+
+settings = get_settings()
+vector_enabled = bool(settings.use_pgvector and Vector is not None)
+vector_type = Vector(settings.vector_dimension) if vector_enabled else postgresql.JSONB
 
 
 def upgrade() -> None:
@@ -31,7 +39,9 @@ def upgrade() -> None:
 
     op.create_table(
         "user_profiles",
-        sa.Column("user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
+        sa.Column(
+            "user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+        ),
         sa.Column("age", sa.Integer()),
         sa.Column("sex", sa.String(20)),
         sa.Column("height_cm", sa.Float()),
@@ -56,7 +66,9 @@ def upgrade() -> None:
     op.create_table(
         "body_metrics",
         sa.Column("id", sa.UUID(), primary_key=True),
-        sa.Column("user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        ),
         sa.Column("measured_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column("weight_kg", sa.Float()),
         sa.Column("body_fat_pct", sa.Float()),
@@ -67,7 +79,9 @@ def upgrade() -> None:
     op.create_table(
         "fitness_goals",
         sa.Column("id", sa.UUID(), primary_key=True),
-        sa.Column("user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        ),
         sa.Column("goal_type", sa.String(40)),
         sa.Column("target_value", sa.Float()),
         sa.Column("deadline", sa.Date()),
@@ -79,7 +93,9 @@ def upgrade() -> None:
     op.create_table(
         "conversation_sessions",
         sa.Column("id", sa.UUID(), primary_key=True),
-        sa.Column("user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        ),
         sa.Column("title", sa.String(200), default="Fitness Chat"),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column("updated_at", sa.DateTime(timezone=True), onupdate=sa.func.now()),
@@ -88,8 +104,15 @@ def upgrade() -> None:
     op.create_table(
         "chat_messages",
         sa.Column("id", sa.UUID(), primary_key=True),
-        sa.Column("session_id", sa.UUID(), sa.ForeignKey("conversation_sessions.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "session_id",
+            sa.UUID(),
+            sa.ForeignKey("conversation_sessions.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column(
+            "user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        ),
         sa.Column("role", sa.String(20), nullable=False),
         sa.Column("content", sa.Text(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
@@ -99,7 +122,9 @@ def upgrade() -> None:
     op.create_table(
         "training_plans",
         sa.Column("id", sa.UUID(), primary_key=True),
-        sa.Column("user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        ),
         sa.Column("status", sa.String(32), default="active"),
         sa.Column("week_start", sa.Date()),
         sa.Column("plan_json", sa.JSON(), default=dict),
@@ -113,7 +138,9 @@ def upgrade() -> None:
     op.create_table(
         "workout_logs",
         sa.Column("id", sa.UUID(), primary_key=True),
-        sa.Column("user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        ),
         sa.Column("performed_at", sa.DateTime(timezone=True)),
         sa.Column("workout_name", sa.String(200)),
         sa.Column("exercises", sa.JSON(), default=list),
@@ -127,7 +154,9 @@ def upgrade() -> None:
     op.create_table(
         "workout_sessions",
         sa.Column("id", sa.UUID(), primary_key=True),
-        sa.Column("user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        ),
         sa.Column("session_date", sa.Date()),
         sa.Column("session_name", sa.String(200)),
         sa.Column("started_at", sa.DateTime(timezone=True)),
@@ -140,8 +169,15 @@ def upgrade() -> None:
     op.create_table(
         "exercise_logs",
         sa.Column("id", sa.UUID(), primary_key=True),
-        sa.Column("user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("session_id", sa.UUID(), sa.ForeignKey("workout_sessions.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        ),
+        sa.Column(
+            "session_id",
+            sa.UUID(),
+            sa.ForeignKey("workout_sessions.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("exercise_name", sa.String(200)),
         sa.Column("set_index", sa.Integer(), default=1),
         sa.Column("reps", sa.Integer()),
@@ -159,7 +195,9 @@ def upgrade() -> None:
     op.create_table(
         "meal_logs",
         sa.Column("id", sa.UUID(), primary_key=True),
-        sa.Column("user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        ),
         sa.Column("logged_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column("meal_type", sa.String(40)),
         sa.Column("food_items", sa.JSON(), default=list),
@@ -171,7 +209,9 @@ def upgrade() -> None:
     op.create_table(
         "nutrition_logs",
         sa.Column("id", sa.UUID(), primary_key=True),
-        sa.Column("user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        ),
         sa.Column("logged_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column("food_name", sa.String(200)),
         sa.Column("estimated_amount", sa.String(100)),
@@ -189,7 +229,9 @@ def upgrade() -> None:
     op.create_table(
         "nutrition_daily_summaries",
         sa.Column("id", sa.UUID(), primary_key=True),
-        sa.Column("user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        ),
         sa.Column("summary_date", sa.Date(), nullable=False),
         sa.Column("total_calories", sa.Float(), default=0),
         sa.Column("total_protein_g", sa.Float(), default=0),
@@ -198,12 +240,22 @@ def upgrade() -> None:
         sa.Column("summary_text", sa.Text()),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
-    op.create_index("ix_nutrition_daily_user_date", "nutrition_daily_summaries", ["user_id", "summary_date"], unique=True)
+    op.create_index(
+        "ix_nutrition_daily_user_date",
+        "nutrition_daily_summaries",
+        ["user_id", "summary_date"],
+        unique=True,
+    )
 
     op.create_table(
         "food_items",
         sa.Column("id", sa.UUID(), primary_key=True),
-        sa.Column("nutrition_log_id", sa.UUID(), sa.ForeignKey("nutrition_logs.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "nutrition_log_id",
+            sa.UUID(),
+            sa.ForeignKey("nutrition_logs.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("name", sa.String(200)),
         sa.Column("amount", sa.String(100)),
         sa.Column("calories", sa.Float()),
@@ -217,7 +269,9 @@ def upgrade() -> None:
     op.create_table(
         "daily_checkins",
         sa.Column("id", sa.UUID(), primary_key=True),
-        sa.Column("user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        ),
         sa.Column("checkin_date", sa.Date()),
         sa.Column("sleep_hours", sa.Float()),
         sa.Column("fatigue", sa.Integer()),
@@ -233,7 +287,9 @@ def upgrade() -> None:
     op.create_table(
         "recovery_logs",
         sa.Column("id", sa.UUID(), primary_key=True),
-        sa.Column("user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        ),
         sa.Column("log_date", sa.Date()),
         sa.Column("sleep_hours", sa.Float()),
         sa.Column("fatigue_score", sa.Integer()),
@@ -248,7 +304,9 @@ def upgrade() -> None:
     op.create_table(
         "symptom_logs",
         sa.Column("id", sa.UUID(), primary_key=True),
-        sa.Column("user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        ),
         sa.Column("symptom_date", sa.Date()),
         sa.Column("symptom_name", sa.String(120)),
         sa.Column("severity", sa.Integer()),
@@ -262,7 +320,9 @@ def upgrade() -> None:
     op.create_table(
         "long_term_memories",
         sa.Column("id", sa.UUID(), primary_key=True),
-        sa.Column("user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        ),
         sa.Column("memory_type", sa.String(60)),
         sa.Column("category", sa.String(80)),
         sa.Column("content", sa.Text()),
@@ -278,18 +338,26 @@ def upgrade() -> None:
         sa.Column("valid_until", sa.DateTime(timezone=True)),
         sa.Column("last_accessed_at", sa.DateTime(timezone=True)),
         sa.Column("access_count", sa.Integer(), default=0),
-        sa.Column("embedding", Vector(1536)),
+        sa.Column("embedding", vector_type),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column("updated_at", sa.DateTime(timezone=True), onupdate=sa.func.now()),
     )
-    op.create_index("ix_long_term_memories_user_status", "long_term_memories", ["user_id", "status"])
-    op.create_index("ix_long_term_memories_type_status", "long_term_memories", ["memory_type", "status"])
-    op.create_index("ix_long_term_memories_user_category", "long_term_memories", ["user_id", "category"])
+    op.create_index(
+        "ix_long_term_memories_user_status", "long_term_memories", ["user_id", "status"]
+    )
+    op.create_index(
+        "ix_long_term_memories_type_status", "long_term_memories", ["memory_type", "status"]
+    )
+    op.create_index(
+        "ix_long_term_memories_user_category", "long_term_memories", ["user_id", "category"]
+    )
 
     op.create_table(
         "memory_blocks",
         sa.Column("id", sa.UUID(), primary_key=True),
-        sa.Column("user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        ),
         sa.Column("block_type", sa.String(60)),
         sa.Column("block_key", sa.String(200)),
         sa.Column("memory_ids", sa.JSON(), default=list),
@@ -301,7 +369,9 @@ def upgrade() -> None:
     op.create_table(
         "memory_catalog",
         sa.Column("id", sa.UUID(), primary_key=True),
-        sa.Column("user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        ),
         sa.Column("category", sa.String(80)),
         sa.Column("entity_count", sa.Integer(), default=0),
         sa.Column("last_updated", sa.DateTime(timezone=True)),
@@ -312,7 +382,9 @@ def upgrade() -> None:
     op.create_table(
         "memory_exports",
         sa.Column("id", sa.UUID(), primary_key=True),
-        sa.Column("user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        ),
         sa.Column("export_type", sa.String(40)),
         sa.Column("format", sa.String(20)),
         sa.Column("file_path", sa.Text()),
@@ -323,8 +395,15 @@ def upgrade() -> None:
     op.create_table(
         "agent_runs",
         sa.Column("id", sa.UUID(), primary_key=True),
-        sa.Column("user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("session_id", sa.UUID(), sa.ForeignKey("conversation_sessions.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        ),
+        sa.Column(
+            "session_id",
+            sa.UUID(),
+            sa.ForeignKey("conversation_sessions.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("run_type", sa.String(40)),
         sa.Column("status", sa.String(32), default="completed"),
         sa.Column("nodes", sa.JSON(), default=list),
@@ -339,7 +418,12 @@ def upgrade() -> None:
     op.create_table(
         "tool_calls",
         sa.Column("id", sa.UUID(), primary_key=True),
-        sa.Column("agent_run_id", sa.UUID(), sa.ForeignKey("agent_runs.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "agent_run_id",
+            sa.UUID(),
+            sa.ForeignKey("agent_runs.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("tool_name", sa.String(120)),
         sa.Column("output_json", sa.JSON(), default=dict),
         sa.Column("status", sa.String(32), default="success"),
@@ -349,7 +433,9 @@ def upgrade() -> None:
     op.create_table(
         "agent_decisions",
         sa.Column("id", sa.UUID(), primary_key=True),
-        sa.Column("user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        ),
         sa.Column("decision_type", sa.String(60)),
         sa.Column("input_summary", sa.Text()),
         sa.Column("context_used", sa.JSON(), default=dict),
@@ -364,7 +450,9 @@ def upgrade() -> None:
     op.create_table(
         "risk_notes",
         sa.Column("id", sa.UUID(), primary_key=True),
-        sa.Column("user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        ),
         sa.Column("body_part", sa.String(80)),
         sa.Column("risk_type", sa.String(60)),
         sa.Column("description", sa.Text()),
@@ -379,7 +467,9 @@ def upgrade() -> None:
     # ---- User Preferences ----
     op.create_table(
         "user_preferences",
-        sa.Column("user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
+        sa.Column(
+            "user_id", sa.UUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+        ),
         sa.Column("language", sa.String(20), default="zh"),
         sa.Column("coach_style", sa.String(40), default="balanced"),
         sa.Column("notification_enabled", sa.Boolean(), default=True),
@@ -434,7 +524,12 @@ def upgrade() -> None:
     op.create_table(
         "eval_results",
         sa.Column("id", sa.UUID(), primary_key=True),
-        sa.Column("eval_case_id", sa.UUID(), sa.ForeignKey("eval_cases.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "eval_case_id",
+            sa.UUID(),
+            sa.ForeignKey("eval_cases.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("eval_run_id", sa.UUID(), sa.ForeignKey("eval_runs.id", ondelete="CASCADE")),
         sa.Column("score", sa.Float()),
         sa.Column("passed", sa.Boolean(), default=False),
@@ -457,7 +552,7 @@ def upgrade() -> None:
         sa.Column("content", sa.Text()),
         sa.Column("keywords", sa.JSON(), default=list),
         sa.Column("intent_tags", sa.JSON(), default=list),
-        sa.Column("embedding", Vector(1536)),
+        sa.Column("embedding", vector_type),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
     op.create_index("ix_explanation_knowledge_topic", "explanation_knowledge", ["topic"])
@@ -475,7 +570,9 @@ def upgrade() -> None:
         sa.Column("version", sa.String(40), default="v1"),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
-    op.create_index("ix_fitness_decision_rules_intent_enabled", "fitness_decision_rules", ["intent", "enabled"])
+    op.create_index(
+        "ix_fitness_decision_rules_intent_enabled", "fitness_decision_rules", ["intent", "enabled"]
+    )
 
     op.create_table(
         "plan_templates",
@@ -500,7 +597,7 @@ def upgrade() -> None:
         sa.Column("scenario", sa.Text()),
         sa.Column("approach", sa.Text()),
         sa.Column("tags", sa.JSON(), default=list),
-        sa.Column("embedding", Vector(1536)),
+        sa.Column("embedding", vector_type),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
     op.create_index("ix_coaching_cases_case_type", "coaching_cases", ["case_type"])

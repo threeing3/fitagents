@@ -1,0 +1,58 @@
+{
+  "schema_version": "fitagent-intent-semantic-probe-report/v1",
+  "partition": "development_diagnostic",
+  "source": "assistant_authored_synthetic",
+  "human_review_status": "not_reviewed",
+  "training_eligible": false,
+  "cases": 12,
+  "paths": {
+    "rule_only": {
+      "all_checks_passed": 6,
+      "all_checks_rate": 0.5,
+      "check_passed": {
+        "required_intents": 9,
+        "forbidden_intents": 10,
+        "risk_bounds": 11,
+        "plan_permission": 10
+      },
+      "failure_case_ids": [
+        "risk-current-01",
+        "risk-absent-02",
+        "red-flag-current-03",
+        "red-flag-other-04",
+        "memory-query-09",
+        "log-and-query-10"
+      ],
+      "failure_families": {
+        "current_vs_absent_symptom": 2,
+        "self_vs_other_red_flag": 2,
+        "query_vs_new_log": 2
+      }
+    },
+    "rule_with_protocol": {
+      "all_checks_passed": 6,
+      "all_checks_rate": 0.5,
+      "check_passed": {
+        "required_intents": 9,
+        "forbidden_intents": 10,
+        "risk_bounds": 11,
+        "plan_permission": 10
+      },
+      "failure_case_ids": [
+        "risk-current-01",
+        "risk-absent-02",
+        "red-flag-current-03",
+        "red-flag-other-04",
+        "memory-query-09",
+        "log-and-query-10"
+      ],
+      "failure_families": {
+        "current_vs_absent_symptom": 2,
+        "self_vs_other_red_flag": 2,
+        "query_vs_new_log": 2
+      }
+    }
+  },
+  "claim_boundary": "Unreviewed synthetic diagnostic; not a final test or production result.",
+  "dataset_schema_version": "fitagent-intent-semantic-probe/v1"
+}

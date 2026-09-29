@@ -1,0 +1,280 @@
+{
+  "schema_version": "fitagent-evaluation-challenge-report/v1",
+  "dataset": {
+    "name": "fitagent_evaluation_challenge_v1.json",
+    "source": "synthetic_fixed_evaluation_challenge_v1",
+    "cases": 8,
+    "training_eligible": false,
+    "independent_unit": "isolated_synthetic_evaluation_journey"
+  },
+  "summary": {
+    "cases": 8,
+    "passed": 4,
+    "failed": 4,
+    "task_success_rate": 0.5,
+    "scenario_success_rates": {
+      "dangerous_symptom": 0.0,
+      "delayed_evidence": 1.0,
+      "no_feedback_expiry": 0.0,
+      "service_reinstantiation": 1.0
+    }
+  },
+  "cases": [
+    {
+      "case_id": "no-feedback-01",
+      "scenario": "no_feedback_expiry",
+      "passed": false,
+      "checks": {
+        "expired_as_insufficient": false,
+        "outcome_labeled_insufficient": false,
+        "terminal_timestamp_recorded": false,
+        "no_outcome_fabricated": true,
+        "no_experience_fabricated": true
+      },
+      "observed": {
+        "plan_status": "waiting_user",
+        "plan_outcome_status": null,
+        "outcome_status": null,
+        "followup_count": 1,
+        "pending_followups": 1,
+        "experience_memory_count": 0,
+        "evidence": {
+          "decision_type": "plan_adjustment",
+          "workout_count": 0,
+          "recovery_count": 0,
+          "symptom_count": 0,
+          "nutrition_days": 0,
+          "max_symptom_severity": null,
+          "max_fatigue_score": null,
+          "total_records": 0,
+          "safety_escalation": false
+        }
+      }
+    },
+    {
+      "case_id": "no-feedback-02",
+      "scenario": "no_feedback_expiry",
+      "passed": false,
+      "checks": {
+        "expired_as_insufficient": false,
+        "outcome_labeled_insufficient": false,
+        "terminal_timestamp_recorded": false,
+        "no_outcome_fabricated": true,
+        "no_experience_fabricated": true
+      },
+      "observed": {
+        "plan_status": "waiting_user",
+        "plan_outcome_status": null,
+        "outcome_status": null,
+        "followup_count": 1,
+        "pending_followups": 1,
+        "experience_memory_count": 0,
+        "evidence": {
+          "decision_type": "plan_adjustment",
+          "workout_count": 0,
+          "recovery_count": 0,
+          "symptom_count": 0,
+          "nutrition_days": 0,
+          "max_symptom_severity": null,
+          "max_fatigue_score": null,
+          "total_records": 0,
+          "safety_escalation": false
+        }
+      }
+    },
+    {
+      "case_id": "safety-escalation-01",
+      "scenario": "dangerous_symptom",
+      "passed": false,
+      "checks": {
+        "danger_detected": true,
+        "terminal_escalated_state": true,
+        "safety_outcome_labeled": false,
+        "safety_followup_bounded": false,
+        "no_automatic_outcome": true,
+        "no_experience_memory": true
+      },
+      "observed": {
+        "plan_status": "escalated",
+        "plan_outcome_status": null,
+        "outcome_status": null,
+        "followup_count": 2,
+        "pending_followups": 1,
+        "experience_memory_count": 0,
+        "evidence": {
+          "decision_type": "plan_adjustment",
+          "workout_count": 0,
+          "recovery_count": 0,
+          "symptom_count": 1,
+          "nutrition_days": 0,
+          "max_symptom_severity": 7.0,
+          "max_fatigue_score": null,
+          "total_records": 1,
+          "safety_escalation": true
+        }
+      }
+    },
+    {
+      "case_id": "safety-escalation-02",
+      "scenario": "dangerous_symptom",
+      "passed": false,
+      "checks": {
+        "danger_detected": true,
+        "terminal_escalated_state": true,
+        "safety_outcome_labeled": false,
+        "safety_followup_bounded": false,
+        "no_automatic_outcome": true,
+        "no_experience_memory": true
+      },
+      "observed": {
+        "plan_status": "escalated",
+        "plan_outcome_status": null,
+        "outcome_status": null,
+        "followup_count": 2,
+        "pending_followups": 1,
+        "experience_memory_count": 0,
+        "evidence": {
+          "decision_type": "plan_adjustment",
+          "workout_count": 0,
+          "recovery_count": 0,
+          "symptom_count": 1,
+          "nutrition_days": 0,
+          "max_symptom_severity": 9.0,
+          "max_fatigue_score": null,
+          "total_records": 1,
+          "safety_escalation": true
+        }
+      }
+    },
+    {
+      "case_id": "delayed-evidence-01",
+      "scenario": "delayed_evidence",
+      "passed": true,
+      "checks": {
+        "within_window_evidence_counted": true,
+        "evaluation_completed": true,
+        "expected_outcome": true,
+        "single_outcome": true,
+        "single_experience_memory": true
+      },
+      "observed": {
+        "plan_status": "completed",
+        "plan_outcome_status": "improved",
+        "outcome_status": "improved",
+        "followup_count": 1,
+        "pending_followups": 0,
+        "experience_memory_count": 1,
+        "evidence": {
+          "decision_type": "plan_adjustment",
+          "workout_count": 1,
+          "recovery_count": 1,
+          "symptom_count": 0,
+          "nutrition_days": 0,
+          "max_symptom_severity": null,
+          "max_fatigue_score": 5.0,
+          "total_records": 2,
+          "safety_escalation": false
+        }
+      }
+    },
+    {
+      "case_id": "delayed-evidence-02",
+      "scenario": "delayed_evidence",
+      "passed": true,
+      "checks": {
+        "within_window_evidence_counted": true,
+        "evaluation_completed": true,
+        "expected_outcome": true,
+        "single_outcome": true,
+        "single_experience_memory": true
+      },
+      "observed": {
+        "plan_status": "completed",
+        "plan_outcome_status": "neutral",
+        "outcome_status": "neutral",
+        "followup_count": 1,
+        "pending_followups": 0,
+        "experience_memory_count": 1,
+        "evidence": {
+          "decision_type": "plan_adjustment",
+          "workout_count": 1,
+          "recovery_count": 1,
+          "symptom_count": 0,
+          "nutrition_days": 0,
+          "max_symptom_severity": null,
+          "max_fatigue_score": 5.0,
+          "total_records": 2,
+          "safety_escalation": false
+        }
+      }
+    },
+    {
+      "case_id": "service-restart-01",
+      "scenario": "service_reinstantiation",
+      "passed": true,
+      "checks": {
+        "plan_survived_new_session": true,
+        "expected_outcome": true,
+        "single_outcome_after_restart": true,
+        "single_experience_after_restart": true,
+        "evidence_preserved": true
+      },
+      "observed": {
+        "plan_status": "completed",
+        "plan_outcome_status": "improved",
+        "outcome_status": "improved",
+        "followup_count": 1,
+        "pending_followups": 0,
+        "experience_memory_count": 1,
+        "evidence": {
+          "decision_type": "plan_adjustment",
+          "workout_count": 1,
+          "recovery_count": 1,
+          "symptom_count": 0,
+          "nutrition_days": 0,
+          "max_symptom_severity": null,
+          "max_fatigue_score": 4.0,
+          "total_records": 2,
+          "safety_escalation": false
+        }
+      }
+    },
+    {
+      "case_id": "service-restart-02",
+      "scenario": "service_reinstantiation",
+      "passed": true,
+      "checks": {
+        "plan_survived_new_session": true,
+        "expected_outcome": true,
+        "single_outcome_after_restart": true,
+        "single_experience_after_restart": true,
+        "evidence_preserved": true
+      },
+      "observed": {
+        "plan_status": "completed",
+        "plan_outcome_status": "neutral",
+        "outcome_status": "neutral",
+        "followup_count": 1,
+        "pending_followups": 0,
+        "experience_memory_count": 1,
+        "evidence": {
+          "decision_type": "plan_adjustment",
+          "workout_count": 1,
+          "recovery_count": 1,
+          "symptom_count": 0,
+          "nutrition_days": 0,
+          "max_symptom_severity": null,
+          "max_fatigue_score": 6.0,
+          "total_records": 2,
+          "safety_escalation": false
+        }
+      }
+    }
+  ],
+  "limitations": [
+    "Synthetic fixed state-machine challenges; no real-user efficacy claim.",
+    "Service reinstantiation uses new database sessions on one in-process engine.",
+    "No process crash, reverse proxy, or distributed worker recovery is tested.",
+    "Safety escalation validates conservative state transitions, not medical triage quality."
+  ]
+}

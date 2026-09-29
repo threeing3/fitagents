@@ -1,0 +1,307 @@
+{
+  "schema_version": "fitagent-journey-eval/v1",
+  "dataset": {
+    "name": "fitagent_journey_v1.json",
+    "source": "synthetic_fixed_journey_v1",
+    "cases": 8,
+    "training_eligible": false,
+    "independent_unit": "isolated_synthetic_user_journey"
+  },
+  "summary": {
+    "cases": 8,
+    "passed": 8,
+    "failed": 0,
+    "task_success_rate": 1.0,
+    "check_rates": {
+      "profile_corrected": 1.0,
+      "stale_memory_inactive": 1.0,
+      "stale_memory_not_retrieved": 1.0,
+      "checkin_replayed_once": 1.0,
+      "single_active_plan": 1.0,
+      "workout_replayed_once": 1.0,
+      "evaluation_evidence_collected": 1.0,
+      "evaluation_completed": 1.0,
+      "experience_memory_created": 1.0
+    }
+  },
+  "cases": [
+    {
+      "case_id": "journey-injury-01",
+      "correction_type": "injury_clear",
+      "passed": true,
+      "checks": {
+        "profile_corrected": true,
+        "stale_memory_inactive": true,
+        "stale_memory_not_retrieved": true,
+        "checkin_replayed_once": true,
+        "single_active_plan": true,
+        "workout_replayed_once": true,
+        "evaluation_evidence_collected": true,
+        "evaluation_completed": true,
+        "experience_memory_created": true
+      },
+      "observed": {
+        "written_correction_memory_count": 1,
+        "active_plan_count": 1,
+        "workout_count": 1,
+        "evaluation_status": "completed",
+        "outcome_status": "improved",
+        "evaluation_evidence": {
+          "decision_type": "plan_adjustment",
+          "workout_count": 1,
+          "recovery_count": 1,
+          "symptom_count": 0,
+          "nutrition_days": 0,
+          "max_symptom_severity": null,
+          "max_fatigue_score": 4.0,
+          "total_records": 2,
+          "safety_escalation": false
+        }
+      }
+    },
+    {
+      "case_id": "journey-injury-02",
+      "correction_type": "injury_clear",
+      "passed": true,
+      "checks": {
+        "profile_corrected": true,
+        "stale_memory_inactive": true,
+        "stale_memory_not_retrieved": true,
+        "checkin_replayed_once": true,
+        "single_active_plan": true,
+        "workout_replayed_once": true,
+        "evaluation_evidence_collected": true,
+        "evaluation_completed": true,
+        "experience_memory_created": true
+      },
+      "observed": {
+        "written_correction_memory_count": 1,
+        "active_plan_count": 1,
+        "workout_count": 1,
+        "evaluation_status": "completed",
+        "outcome_status": "improved",
+        "evaluation_evidence": {
+          "decision_type": "plan_adjustment",
+          "workout_count": 1,
+          "recovery_count": 1,
+          "symptom_count": 0,
+          "nutrition_days": 0,
+          "max_symptom_severity": null,
+          "max_fatigue_score": 4.0,
+          "total_records": 2,
+          "safety_escalation": false
+        }
+      }
+    },
+    {
+      "case_id": "journey-injury-03",
+      "correction_type": "injury_clear",
+      "passed": true,
+      "checks": {
+        "profile_corrected": true,
+        "stale_memory_inactive": true,
+        "stale_memory_not_retrieved": true,
+        "checkin_replayed_once": true,
+        "single_active_plan": true,
+        "workout_replayed_once": true,
+        "evaluation_evidence_collected": true,
+        "evaluation_completed": true,
+        "experience_memory_created": true
+      },
+      "observed": {
+        "written_correction_memory_count": 1,
+        "active_plan_count": 1,
+        "workout_count": 1,
+        "evaluation_status": "completed",
+        "outcome_status": "improved",
+        "evaluation_evidence": {
+          "decision_type": "plan_adjustment",
+          "workout_count": 1,
+          "recovery_count": 1,
+          "symptom_count": 0,
+          "nutrition_days": 0,
+          "max_symptom_severity": null,
+          "max_fatigue_score": 4.0,
+          "total_records": 2,
+          "safety_escalation": false
+        }
+      }
+    },
+    {
+      "case_id": "journey-injury-04",
+      "correction_type": "injury_clear",
+      "passed": true,
+      "checks": {
+        "profile_corrected": true,
+        "stale_memory_inactive": true,
+        "stale_memory_not_retrieved": true,
+        "checkin_replayed_once": true,
+        "single_active_plan": true,
+        "workout_replayed_once": true,
+        "evaluation_evidence_collected": true,
+        "evaluation_completed": true,
+        "experience_memory_created": true
+      },
+      "observed": {
+        "written_correction_memory_count": 1,
+        "active_plan_count": 1,
+        "workout_count": 1,
+        "evaluation_status": "completed",
+        "outcome_status": "improved",
+        "evaluation_evidence": {
+          "decision_type": "plan_adjustment",
+          "workout_count": 1,
+          "recovery_count": 1,
+          "symptom_count": 0,
+          "nutrition_days": 0,
+          "max_symptom_severity": null,
+          "max_fatigue_score": 4.0,
+          "total_records": 2,
+          "safety_escalation": false
+        }
+      }
+    },
+    {
+      "case_id": "journey-goal-01",
+      "correction_type": "goal_replace",
+      "passed": true,
+      "checks": {
+        "profile_corrected": true,
+        "stale_memory_inactive": true,
+        "stale_memory_not_retrieved": true,
+        "checkin_replayed_once": true,
+        "single_active_plan": true,
+        "workout_replayed_once": true,
+        "evaluation_evidence_collected": true,
+        "evaluation_completed": true,
+        "experience_memory_created": true
+      },
+      "observed": {
+        "written_correction_memory_count": 1,
+        "active_plan_count": 1,
+        "workout_count": 1,
+        "evaluation_status": "completed",
+        "outcome_status": "improved",
+        "evaluation_evidence": {
+          "decision_type": "plan_adjustment",
+          "workout_count": 1,
+          "recovery_count": 1,
+          "symptom_count": 0,
+          "nutrition_days": 0,
+          "max_symptom_severity": null,
+          "max_fatigue_score": 4.0,
+          "total_records": 2,
+          "safety_escalation": false
+        }
+      }
+    },
+    {
+      "case_id": "journey-goal-02",
+      "correction_type": "goal_replace",
+      "passed": true,
+      "checks": {
+        "profile_corrected": true,
+        "stale_memory_inactive": true,
+        "stale_memory_not_retrieved": true,
+        "checkin_replayed_once": true,
+        "single_active_plan": true,
+        "workout_replayed_once": true,
+        "evaluation_evidence_collected": true,
+        "evaluation_completed": true,
+        "experience_memory_created": true
+      },
+      "observed": {
+        "written_correction_memory_count": 1,
+        "active_plan_count": 1,
+        "workout_count": 1,
+        "evaluation_status": "completed",
+        "outcome_status": "improved",
+        "evaluation_evidence": {
+          "decision_type": "plan_adjustment",
+          "workout_count": 1,
+          "recovery_count": 1,
+          "symptom_count": 0,
+          "nutrition_days": 0,
+          "max_symptom_severity": null,
+          "max_fatigue_score": 4.0,
+          "total_records": 2,
+          "safety_escalation": false
+        }
+      }
+    },
+    {
+      "case_id": "journey-goal-03",
+      "correction_type": "goal_replace",
+      "passed": true,
+      "checks": {
+        "profile_corrected": true,
+        "stale_memory_inactive": true,
+        "stale_memory_not_retrieved": true,
+        "checkin_replayed_once": true,
+        "single_active_plan": true,
+        "workout_replayed_once": true,
+        "evaluation_evidence_collected": true,
+        "evaluation_completed": true,
+        "experience_memory_created": true
+      },
+      "observed": {
+        "written_correction_memory_count": 1,
+        "active_plan_count": 1,
+        "workout_count": 1,
+        "evaluation_status": "completed",
+        "outcome_status": "improved",
+        "evaluation_evidence": {
+          "decision_type": "plan_adjustment",
+          "workout_count": 1,
+          "recovery_count": 1,
+          "symptom_count": 0,
+          "nutrition_days": 0,
+          "max_symptom_severity": null,
+          "max_fatigue_score": 4.0,
+          "total_records": 2,
+          "safety_escalation": false
+        }
+      }
+    },
+    {
+      "case_id": "journey-goal-04",
+      "correction_type": "goal_replace",
+      "passed": true,
+      "checks": {
+        "profile_corrected": true,
+        "stale_memory_inactive": true,
+        "stale_memory_not_retrieved": true,
+        "checkin_replayed_once": true,
+        "single_active_plan": true,
+        "workout_replayed_once": true,
+        "evaluation_evidence_collected": true,
+        "evaluation_completed": true,
+        "experience_memory_created": true
+      },
+      "observed": {
+        "written_correction_memory_count": 1,
+        "active_plan_count": 1,
+        "workout_count": 1,
+        "evaluation_status": "completed",
+        "outcome_status": "improved",
+        "evaluation_evidence": {
+          "decision_type": "plan_adjustment",
+          "workout_count": 1,
+          "recovery_count": 1,
+          "symptom_count": 0,
+          "nutrition_days": 0,
+          "max_symptom_severity": null,
+          "max_fatigue_score": 4.0,
+          "total_records": 2,
+          "safety_escalation": false
+        }
+      }
+    }
+  ],
+  "limitations": [
+    "Synthetic fixed journeys only; no real-user or online outcome claim.",
+    "SQLite isolated execution; PostgreSQL concurrency is evaluated separately.",
+    "Follow-up answers are scripted simulated outcomes, not human feedback.",
+    "A passed journey demonstrates deterministic system wiring, not coaching efficacy."
+  ]
+}

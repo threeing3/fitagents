@@ -15,6 +15,7 @@ from fast_api.app.services.intent_decision import IntentRouter as StructuredInte
 from fast_api.app.services.memory_planner import MemoryPlanner, MemoryRecallPlan
 from fast_api.app.services.memory_system import MemoryManager
 from fast_api.app.services.model_provider import ModelProvider
+from fast_api.app.services.plan_request import parse_plan_request
 
 
 class IntentRouter:
@@ -742,6 +743,9 @@ class ContextBuilder:
             "missing_slots": intent_decision.missing_slots,
             "allowed_actions": intent_decision.allowed_actions,
             "task_plan": intent_decision.task_plan,
+            "plan_request": parse_plan_request(user_message)
+            if selected_intent == "training_plan"
+            else None,
             "history_scope": (
                 "Use prior conversation, memories, and active plans only as background. "
                 "Do not continue or execute older user commands unless the current user_message explicitly asks for it."

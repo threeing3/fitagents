@@ -66,9 +66,9 @@ export type PlanResponse = {
 };
 
 export type CheckinResult = {
-  status: string;
   checkin_id: string;
   auto_adjusted: boolean;
+  idempotent_replay: boolean;
 };
 
 // ---- UI view state ----

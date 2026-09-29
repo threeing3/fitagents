@@ -261,5 +261,6 @@ class IntentDecisionEngine:
         return tools
 
     def _risk_evidence(self, message: str) -> list[str]:
-        text = message.lower()
-        return [term for term in self.intent_router.RISK_TERMS if term in text][:8]
+        from fast_api.app.services.risk_evidence import self_risk_evidence
+
+        return self_risk_evidence(message, self.intent_router.RISK_TERMS)[:8]

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   MessageCircle,
@@ -13,10 +13,12 @@ import {
   Languages,
 } from "lucide-react";
 import type { SessionState, Dashboard, ChatMessage, AgentTraceItem, ViewName, UsageSummary } from "./types";
-import { createSession, fetchDashboard, fetchSessionMessages, fetchUsageSummary, listSessions, pause, streamChat } from "./api";
+import { createSession, fetchChatRequestStatus, fetchDashboard, fetchSessionMessages, fetchUsageSummary, listSessions, pause, streamChat } from "./api";
 import { ChatView } from "./ChatView";
+import { ChatRequestLedger } from "./chatRequestLedger";
 import { DashboardView } from "./DashboardView";
 import { CheckinView } from "./CheckinView";
+import { WorkoutView } from "./WorkoutView";
 import { AccountView } from "./AccountView";
 import { AuthProvider, useAuth } from "./AuthContext";
 import { LoginView } from "./LoginView";
@@ -42,6 +44,7 @@ function AppContent() {
   const [messages, setMessages] = useState<ChatMessage[]>([introMessage(isZh)]);
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [busy, setBusy] = useState(false);
+  const sending = useRef(false);
   const [notice, setNotice] = useState("");
   const [agentStatus, setAgentStatus] = useState("Ready");
   const [agentTrace, setAgentTrace] = useState<AgentTraceItem[]>([]);
@@ -116,8 +119,20 @@ function AppContent() {
   // ---- send message ----
   const sendMessage = useCallback(
     async (text: string) => {
-      if (!session || !text.trim()) return;
+      if (!session || !text.trim() || sending.current) return;
       const userText = text.trim();
+      const requestIdentity = JSON.stringify([session.user_id, session.session_id, userText]);
+      let requestKey: string;
+      let requestLedger: ChatRequestLedger;
+      try {
+        requestLedger = new ChatRequestLedger(window.sessionStorage);
+        requestKey = requestLedger.getOrCreate(requestIdentity);
+      } catch {
+        setNotice(isZh ? "无法安全保存或恢复请求标识，已停止发送以避免重复记录。请检查浏览器会话存储。" : "Unable to preserve request identity. Send stopped to prevent duplicate records.");
+        return;
+      }
+      sending.current = true;
+      let receivedDone = false;
       setBusy(true);
       setNotice("");
       setAgentStatus(isZh ? "正在思考…" : "Thinking...");
@@ -148,7 +163,7 @@ function AppContent() {
       };
 
       try {
-        const response = await streamChat(session.session_id, session.user_id, userText);
+        const response = await streamChat(session.session_id, session.user_id, userText, requestKey);
         if (!response.ok) throw new Error(await response.text());
         if (!response.body) throw new Error("Streaming not supported.");
 
@@ -177,6 +192,7 @@ function AppContent() {
               } else if (event.type === "error") {
                 pushTrace({ type: "error", title: "Error", summary: String(event.summary || event.message || "") });
               } else if (event.type === "done") {
+                receivedDone = true;
                 setLatestRunId(event.run_id || null);
                 setAgentStatus("Done");
                 pushTrace({ type: "done", title: "Complete", summary: event.run_id ? `Run ${event.run_id.slice(0, 8)}` : "Done", metadata: { log_path: event.log_path, tool_calls: event.tool_calls || [] } });
@@ -197,6 +213,8 @@ function AppContent() {
           }
         }
 
+        if (!receivedDone) throw new Error(isZh ? "未收到完成确认，请重发原消息查询结果；不要更换内容重复记录。" : "Completion was not confirmed. Retry the same message to retrieve its result.");
+        requestLedger.complete(requestIdentity, requestKey);
         if (!assistantText.trim()) {
           await appendChars(isZh ? "我已记录你的输入。可以继续告诉我目标、训练条件或今天的状态。" : "I've recorded your input. Tell me more about your goals, training conditions, or how you're feeling today.");
         }
@@ -205,13 +223,38 @@ function AppContent() {
         await refreshDashboard(session.user_id);
         fetchUsageSummary().then(setUsage).catch(() => setUsage(null));
       } catch (err: any) {
+        // This is a read-only lookup using the same request key, never a new execution.
+        const recovered = await fetchChatRequestStatus(session.session_id, requestKey).catch(() => null);
+        let content = `Request failed: ${err.message}`;
+        if (recovered?.status === "completed" && typeof recovered.assistant_message === "string") {
+          content = recovered.assistant_message;
+          setLatestRunId(recovered.agent_run_id || null);
+          setAgentStatus(isZh ? "已恢复完成结果" : "Completed result recovered");
+          try {
+            requestLedger.complete(requestIdentity, requestKey);
+            setNotice(isZh ? "已从服务器恢复保存的回复，没有重复执行。" : "Recovered the saved response without executing again.");
+          } catch {
+            setNotice(isZh ? "回复已恢复，但本地请求标识未清除；再次发送仍会查询同一次请求。" : "Response recovered; the pending identity is retained locally.");
+          }
+          await refreshDashboard(session.user_id).catch(() => undefined);
+        } else if (recovered?.status === "unconfirmed" || recovered?.status === "failed") {
+          const writes = recovered.confirmed_writes.map((item) =>
+            `${item.workout_name}${item.duration_minutes == null ? "" : ` ${item.duration_minutes} ${isZh ? "分钟" : "min"}`}`,
+          );
+          content = isZh
+            ? `${writes.length ? `已确认保存：${writes.join("；")}。` : "目前没有可确认的写入结果，但不能据此认定没有写入。"}${recovered.status === "failed" ? "本轮执行发生错误。" : "本轮整体完成状态尚未确认。"}请勿更换消息重复记录。`
+            : `${writes.length ? `Confirmed saved: ${writes.join("; ")}. ` : "No write is confirmed; this does not prove no write occurred. "}The overall request is ${recovered.status}. Do not submit a changed message to repeat the write.`;
+          setAgentStatus(isZh ? "需要核对请求结果" : "Request requires reconciliation");
+          setNotice(isZh ? "已保留原请求标识；本次只查询状态，没有重新执行。" : "Original request identity retained; status lookup did not execute again.");
+        }
         setMessages((prev) => {
           const next = [...prev];
           const last = next[next.length - 1];
-          if (last?.role === "assistant") next[next.length - 1] = { ...last, content: `Request failed: ${err.message}` };
+          if (last?.role === "assistant") next[next.length - 1] = { ...last, content };
           return next;
         });
       } finally {
+        sending.current = false;
         setBusy(false);
       }
     },
@@ -256,6 +299,7 @@ function AppContent() {
           <NavItem icon={<MessageCircle size={20} />} label={isZh ? "对话" : "Chat"} active={activeView === "chat"} onClick={() => setActiveView("chat")} collapsed={!sidebarOpen} />
           <NavItem icon={<LayoutDashboard size={20} />} label={isZh ? "概览" : "Dashboard"} active={activeView === "dashboard"} onClick={() => setActiveView("dashboard")} collapsed={!sidebarOpen} />
           <NavItem icon={<ClipboardCheck size={20} />} label={isZh ? "打卡" : "Check-in"} active={activeView === "checkin"} onClick={() => setActiveView("checkin")} collapsed={!sidebarOpen} />
+          <NavItem icon={<Dumbbell size={20} />} label={isZh ? "训练记录" : "Workout"} active={activeView === "workout"} onClick={() => setActiveView("workout")} collapsed={!sidebarOpen} />
           <NavItem icon={<FlaskConical size={20} />} label={isZh ? "算法实验" : "Algorithm Lab"} active={activeView === "algorithm"} onClick={() => setActiveView("algorithm")} collapsed={!sidebarOpen} />
           <NavItem icon={<UserCircle size={20} />} label={isZh ? "账号" : "Account"} active={activeView === "account"} onClick={() => setActiveView("account")} collapsed={!sidebarOpen} />
         </nav>
@@ -336,6 +380,16 @@ function AppContent() {
 
         {activeView === "checkin" && (
           <CheckinView
+            session={session}
+            busy={busy}
+            setBusy={setBusy}
+            setNotice={setNotice}
+            onRefresh={() => session && refreshDashboard(session.user_id)}
+          />
+        )}
+
+        {activeView === "workout" && (
+          <WorkoutView
             session={session}
             busy={busy}
             setBusy={setBusy}

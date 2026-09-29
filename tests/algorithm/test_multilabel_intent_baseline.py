@@ -90,6 +90,23 @@ def test_tfidf_baseline_uses_independent_secondary_heads():
     assert prediction["secondary_probabilities"]["profile_update"] == 0.0
 
 
+def test_shared_intent_head_learns_primary_only_label_without_duplicate_output():
+    rows = [_train_row(f"训练计划增肌第{index}次", "training_plan", []) for index in range(5)] + [
+        _train_row(f"膝盖疼风险第{index}次", "injury_or_risk", []) for index in range(5)
+    ]
+    old = TfidfIntentBaseline()
+    old.fit(rows, ["injury_or_risk", "training_plan"])
+    shared = TfidfIntentBaseline(head_target="any_intent")
+    shared.fit(rows, ["injury_or_risk", "training_plan"])
+
+    assert old.secondary_heads["injury_or_risk"].constant == 0
+    assert shared.secondary_heads["injury_or_risk"].constant is None
+    predicted = shared.predict([{"user_message": "膝盖疼风险", "retrieved_context": {}}])[0]
+    assert predicted["primary_intent"] == "injury_or_risk"
+    assert "injury_or_risk" not in predicted["secondary_intents"]
+    assert 0 < predicted["secondary_probabilities"]["injury_or_risk"] < 1
+
+
 def test_threshold_must_be_strict_probability():
     with pytest.raises(ValueError, match="threshold"):
         TfidfIntentBaseline(threshold=1.0)

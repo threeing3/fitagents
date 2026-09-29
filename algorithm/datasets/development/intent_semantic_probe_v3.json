@@ -1,0 +1,26 @@
+{
+  "schema_version": "fitagent-intent-semantic-probe/v3",
+  "partition": "development_diagnostic",
+  "source": "assistant_authored_synthetic",
+  "human_review_status": "not_reviewed",
+  "training_eligible": false,
+  "label_note": "Frozen before the first v3 run. One assistant author; each expectation is a development hypothesis, not a reviewed gold label.",
+  "cases": [
+    {"case_id":"v3-owner-other-01","family":"symptom_owner","user_message":"妹妹今天膝盖疼，我本人没受伤。请给我制定本周训练计划。","required_intents":["training_plan"],"forbidden_intents":["injury_or_risk"],"minimum_risk_level":"low","maximum_risk_level":"low","generate_plan_allowed":true},
+    {"case_id":"v3-owner-self-02","family":"symptom_owner","user_message":"我今天膝盖疼，妹妹没受伤。请给我制定本周训练计划。","required_intents":["injury_or_risk","training_plan"],"forbidden_intents":[],"minimum_risk_level":"medium","maximum_risk_level":"medium","generate_plan_allowed":false},
+    {"case_id":"v3-owner-other-03","family":"symptom_owner","user_message":"同事说胸口闷，我没有胸口闷。请帮我制定今天的训练计划。","required_intents":["training_plan"],"forbidden_intents":["injury_or_risk"],"minimum_risk_level":"low","maximum_risk_level":"low","generate_plan_allowed":true},
+    {"case_id":"v3-owner-self-04","family":"symptom_owner","user_message":"我胸口闷，同事说自己没有胸口闷。请帮我制定今天训练计划。","required_intents":["injury_or_risk","training_plan"],"forbidden_intents":[],"minimum_risk_level":"high","maximum_risk_level":"high","generate_plan_allowed":false},
+    {"case_id":"v3-polarity-present-05","family":"symptom_polarity","user_message":"我没有胸口闷，但现在头晕。请告诉我今天怎么训练。","required_intents":["injury_or_risk","training_plan"],"forbidden_intents":[],"minimum_risk_level":"high","maximum_risk_level":"high","generate_plan_allowed":false},
+    {"case_id":"v3-polarity-absent-06","family":"symptom_polarity","user_message":"我没有胸口闷，也没有头晕。请告诉我今天怎么训练。","required_intents":["training_plan"],"forbidden_intents":["injury_or_risk"],"minimum_risk_level":"low","maximum_risk_level":"low","generate_plan_allowed":true},
+    {"case_id":"v3-query-only-07","family":"read_write_boundary","user_message":"查查我最近一次硬拉做了几组，不要录入新数据。","required_intents":["memory_query"],"forbidden_intents":["training_log"],"minimum_risk_level":"low","maximum_risk_level":"low","generate_plan_allowed":false},
+    {"case_id":"v3-write-only-08","family":"read_write_boundary","user_message":"今天硬拉做完四组，请记下来。","required_intents":["training_log"],"forbidden_intents":["memory_query"],"minimum_risk_level":"low","maximum_risk_level":"low","generate_plan_allowed":false},
+    {"case_id":"v3-read-and-write-09","family":"read_write_boundary","user_message":"今天硬拉做完四组，请记下来，顺带查查我最近一次做了几组。","required_intents":["training_log","memory_query"],"forbidden_intents":[],"minimum_risk_level":"low","maximum_risk_level":"low","generate_plan_allowed":false},
+    {"case_id":"v3-weight-query-10","family":"read_write_boundary","user_message":"我只想知道上一次深蹲的重量是多少公斤，别添加记录。","required_intents":["memory_query"],"forbidden_intents":["training_log"],"minimum_risk_level":"low","maximum_risk_level":"low","generate_plan_allowed":false},
+    {"case_id":"v3-plan-no-11","family":"plan_polarity","user_message":"不要创建新训练计划；我今天卧推完成两组，帮我记录。","required_intents":["training_log"],"forbidden_intents":["training_plan"],"minimum_risk_level":"low","maximum_risk_level":"low","generate_plan_allowed":false},
+    {"case_id":"v3-plan-yes-12","family":"plan_polarity","user_message":"请创建新训练计划；我今天卧推完成两组，帮我记录。","required_intents":["training_log","training_plan"],"forbidden_intents":[],"minimum_risk_level":"low","maximum_risk_level":"low","generate_plan_allowed":true},
+    {"case_id":"v3-goal-correct-13","family":"profile_change","user_message":"我档案目标增肌填错了，请更正为减脂。","required_intents":["profile_correction"],"forbidden_intents":[],"minimum_risk_level":"low","maximum_risk_level":"low","generate_plan_allowed":false},
+    {"case_id":"v3-goal-update-14","family":"profile_change","user_message":"我今年27岁，目标是减脂，请保存这些新资料。","required_intents":["profile_update"],"forbidden_intents":["profile_correction"],"minimum_risk_level":"low","maximum_risk_level":"low","generate_plan_allowed":false},
+    {"case_id":"v3-two-domains-15","family":"cross_domain","user_message":"我早餐吃了燕麦，请记录饮食；我今天刚完成跑步30分钟，也帮我记录训练。","required_intents":["nutrition_log","training_log"],"forbidden_intents":[],"minimum_risk_level":"low","maximum_risk_level":"low","generate_plan_allowed":false},
+    {"case_id":"v3-food-query-16","family":"cross_domain","user_message":"今天早餐该怎么吃？不要帮我记录饮食。","required_intents":["nutrition_advice"],"forbidden_intents":["nutrition_log"],"minimum_risk_level":"low","maximum_risk_level":"low","generate_plan_allowed":false}
+  ]
+}

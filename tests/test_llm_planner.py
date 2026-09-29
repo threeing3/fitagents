@@ -12,7 +12,6 @@ from fast_api.app.services.agent_runtime import (
     ToolSpec,
 )
 
-
 TOOL_NAMES = [
     "profile.extract",
     "memory.verify",
@@ -37,10 +36,14 @@ def tool_specs() -> list[dict]:
             ToolSpec(
                 name=name,
                 description=name,
-                permission_level="write" if name in {"memory.write", "response.persist"} else "read",
+                permission_level="write"
+                if name in {"memory.write", "response.persist"}
+                else "read",
                 side_effects=name in {"memory.write", "response.persist"},
                 risk_level="high" if name == "guardrail.check" else "low",
-                idempotency_key_fields=["message_id"] if name in {"memory.write", "response.persist"} else [],
+                idempotency_key_fields=["message_id"]
+                if name in {"memory.write", "response.persist"}
+                else [],
             ),
             lambda _payload: {},
         )
@@ -72,9 +75,23 @@ def run(coro):
 def test_llm_planner_parses_valid_plan_and_verifier_preserves_order():
     payload = {
         "intent": "training_log",
-        "selected_tools": ["profile.extract", "memory.verify", "memory.write", "context.build", "coach.reply"],
+        "selected_tools": [
+            "profile.extract",
+            "memory.verify",
+            "memory.write",
+            "context.build",
+            "coach.reply",
+        ],
         "skipped_tools": [{"tool": "plan.generate", "reason": "not requested"}],
-        "tool_order": ["profile.extract", "memory.verify", "memory.write", "context.build", "coach.reply", "guardrail.check", "response.persist"],
+        "tool_order": [
+            "profile.extract",
+            "memory.verify",
+            "memory.write",
+            "context.build",
+            "coach.reply",
+            "guardrail.check",
+            "response.persist",
+        ],
         "required_context": ["profile", "memory", "training_history"],
         "write_intent": True,
         "safety_level": "low",
@@ -82,7 +99,9 @@ def test_llm_planner_parses_valid_plan_and_verifier_preserves_order():
         "reasoning_summary": "记录卧推训练表现，并基于上下文给建议。",
     }
 
-    decision = run(LLMPlanner(FakeModelProvider(payload)).plan("我今天卧推55kg做了3x5", tool_specs()))
+    decision = run(
+        LLMPlanner(FakeModelProvider(payload)).plan("我今天卧推55kg做了3x5", tool_specs())
+    )
     verified = PlannerVerifier().verify_and_repair(decision, tool_specs(), "我今天卧推55kg做了3x5")
     plan = verified.to_execution_plan("我今天卧推55kg做了3x5")
 
@@ -152,7 +171,13 @@ def test_planner_verifier_removes_unrequested_plan_generation():
     decision = PlannerDecision(
         intent="training_log",
         selected_tools=["context.build", "plan.generate", "coach.reply", "response.persist"],
-        tool_order=["context.build", "plan.generate", "plan.verify", "coach.reply", "response.persist"],
+        tool_order=[
+            "context.build",
+            "plan.generate",
+            "plan.verify",
+            "coach.reply",
+            "response.persist",
+        ],
         plan_generation_allowed=True,
     )
 
@@ -163,11 +188,61 @@ def test_planner_verifier_removes_unrequested_plan_generation():
     assert "plan.verify" not in verified.tool_order
 
 
+def test_model_plan_cannot_override_verified_plan_policy_in_either_direction():
+    message = "朋友胸闷，不是我；我没有胸闷。请制定训练计划"
+    route = {
+        "intent_decision": {
+            "primary_intent": "training_plan",
+            "risk": {"level": "low"},
+            "allowed_actions": {"generate_plan": True},
+        }
+    }
+    omitted = PlannerDecision(
+        intent="injury_or_risk", selected_tools=["coach.reply"], tool_order=["coach.reply"]
+    )
+    repaired = PlannerVerifier().verify_and_repair(omitted, tool_specs(), message, route)
+    assert repaired.intent == "training_plan"
+    assert repaired.safety_level == "low"
+    assert repaired.plan_generation_allowed is True
+    assert repaired.tool_order.index("plan.decide") < repaired.tool_order.index("plan.generate")
+    assert repaired.tool_order.index("plan.generate") < repaired.tool_order.index("plan.verify")
+
+    route["intent_decision"] = {
+        "primary_intent": "injury_or_risk",
+        "risk": {"level": "high"},
+        "allowed_actions": {"generate_plan": False},
+    }
+    invented = PlannerDecision(
+        intent="training_plan",
+        selected_tools=["plan.generate", "coach.reply"],
+        tool_order=["plan.generate", "coach.reply"],
+    )
+    denied = PlannerVerifier().verify_and_repair(
+        invented, tool_specs(), "我也胸闷，请制定训练计划", route
+    )
+    assert denied.intent == "injury_or_risk"
+    assert denied.safety_level == "high"
+    assert denied.plan_generation_allowed is False
+    assert "plan.generate" not in denied.tool_order
+
+
 def test_planner_verifier_canonicalizes_host_tool_order_for_execution_loop():
     decision = PlannerDecision(
         intent="training_plan",
-        selected_tools=["coach.reply", "plan.generate", "memory.write", "context.build", "response.persist"],
-        tool_order=["coach.reply", "plan.generate", "memory.write", "context.build", "response.persist"],
+        selected_tools=[
+            "coach.reply",
+            "plan.generate",
+            "memory.write",
+            "context.build",
+            "response.persist",
+        ],
+        tool_order=[
+            "coach.reply",
+            "plan.generate",
+            "memory.write",
+            "context.build",
+            "response.persist",
+        ],
         plan_generation_allowed=True,
         write_intent=True,
     )

@@ -145,6 +145,43 @@ class AgentVerifier:
                         )
                         break
 
+        requested_plan = (context_packet.get("current_request_policy") or {}).get(
+            "plan_request"
+        ) or plan_json.get("request_constraints")
+        if requested_plan:
+            actual_constraints = plan_json.get("request_constraints") or {}
+            actual_day = (
+                training_days[0] if isinstance(training_days, list) and training_days else {}
+            )
+            actual_day = actual_day if isinstance(actual_day, dict) else {}
+            if actual_constraints.get("target_date") != requested_plan.get(
+                "target_date"
+            ) or actual_day.get("date") != requested_plan.get("target_date"):
+                issues.append(
+                    VerificationIssue(
+                        "requested_date_mismatch",
+                        "error",
+                        "计划日期与本轮明确请求不一致。",
+                        repairable=False,
+                    )
+                )
+            if requested_plan.get("exercise_type") == "easy_jog" and (
+                actual_constraints.get("exercise_type") != "easy_jog"
+                or actual_day.get("name") != "慢跑"
+                or not any(
+                    isinstance(item, dict) and item.get("name") == "慢跑"
+                    for item in actual_day.get("exercises") or []
+                )
+            ):
+                issues.append(
+                    VerificationIssue(
+                        "requested_exercise_mismatch",
+                        "error",
+                        "计划运动类型与本轮明确请求不一致。",
+                        repairable=False,
+                    )
+                )
+
         nutrition = plan_json.get("nutrition")
         if not isinstance(nutrition, dict):
             issues.append(
@@ -200,7 +237,11 @@ class AgentVerifier:
         if not isinstance(plan_json, dict):
             return repaired
 
-        issue_ids = {issue.get("issue_id") for issue in verification.get("issues", []) if isinstance(issue, dict)}
+        issue_ids = {
+            issue.get("issue_id")
+            for issue in verification.get("issues", [])
+            if isinstance(issue, dict)
+        }
         if "missing_pain_stop_note" in issue_ids:
             for day in plan_json.get("training_days") or []:
                 for exercise in day.get("exercises") or []:
@@ -259,7 +300,11 @@ class AgentVerifier:
         allow_plan_content = bool(policy.get("allow_plan_content"))
         should_generate_plan = bool(policy.get("should_generate_plan"))
         needs_clarification = bool(policy.get("needs_clarification"))
-        if not allow_plan_content and not should_generate_plan and self._contains_plan_content(response):
+        if (
+            not allow_plan_content
+            and not should_generate_plan
+            and self._contains_plan_content(response)
+        ):
             issues.append(
                 VerificationIssue(
                     "old_plan_carryover",
@@ -268,7 +313,11 @@ class AgentVerifier:
                     repairable=True,
                 )
             )
-        if needs_clarification and not should_generate_plan and self._contains_plan_content(response):
+        if (
+            needs_clarification
+            and not should_generate_plan
+            and self._contains_plan_content(response)
+        ):
             issues.append(
                 VerificationIssue(
                     "plan_generated_before_clarification",
@@ -282,7 +331,9 @@ class AgentVerifier:
                 )
             )
 
-        if self._has_medical_context(context_packet) and self._response_mentions_training_intensity(response):
+        if self._has_medical_context(context_packet) and self._response_mentions_training_intensity(
+            response
+        ):
             if not self._has_medical_boundary(response):
                 issues.append(
                     VerificationIssue(
@@ -306,14 +357,22 @@ class AgentVerifier:
         verification: dict[str, Any],
         context_packet: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        issue_ids = {issue.get("issue_id") for issue in verification.get("issues", []) if isinstance(issue, dict)}
+        issue_ids = {
+            issue.get("issue_id")
+            for issue in verification.get("issues", [])
+            if isinstance(issue, dict)
+        }
         additions: list[str] = []
         if "response_too_short" in issue_ids:
             additions.append("我会基于你当前这条消息重新聚焦回答，避免只给一句空泛建议。")
         if "old_plan_carryover" in issue_ids:
-            additions.append("本轮校验已阻止旧计划指令继续生效：下面只回答你当前这条消息，不自动追加训练计划。")
+            additions.append(
+                "本轮校验已阻止旧计划指令继续生效：下面只回答你当前这条消息，不自动追加训练计划。"
+            )
         if "missing_medical_boundary_in_response" in issue_ids:
-            additions.append("安全边界：涉及疾病、用药、胸闷、头晕、异常心率或明确疼痛时，我只能做训练强度和动作选择上的保守建议，不能替代医生诊断或用药建议。")
+            additions.append(
+                "安全边界：涉及疾病、用药、胸闷、头晕、异常心率或明确疼痛时，我只能做训练强度和动作选择上的保守建议，不能替代医生诊断或用药建议。"
+            )
         if "plan_generated_before_clarification" in issue_ids:
             missing_slots = []
             if context_packet:
@@ -326,7 +385,9 @@ class AgentVerifier:
                     + "."
                 )
             else:
-                additions.append("Plan generation is blocked until the current safety or profile clarification is answered.")
+                additions.append(
+                    "Plan generation is blocked until the current safety or profile clarification is answered."
+                )
         if any(
             issue_id in issue_ids
             for issue_id in {
@@ -341,7 +402,9 @@ class AgentVerifier:
 
         repair_text = ""
         if additions:
-            repair_text = "\n\n---\nAgent 自检补充：\n" + "\n".join(f"- {item}" for item in additions)
+            repair_text = "\n\n---\nAgent 自检补充：\n" + "\n".join(
+                f"- {item}" for item in additions
+            )
         return {
             "repair_text": repair_text,
             "repair_actions": sorted(issue_ids),
@@ -407,18 +470,29 @@ class AgentVerifier:
             content = f"{memory.get('summary') or ''} {memory.get('content') or ''}".lower()
             if memory_type == "medical_context" or category == "risk":
                 return True
-            if any(term in content for term in ["thyroid", "medication", "甲亢", "甲状腺", "用药", "赛治"]):
+            if any(
+                term in content
+                for term in ["thyroid", "medication", "甲亢", "甲状腺", "用药", "赛治"]
+            ):
                 return True
         return False
 
     def _plan_has_medical_boundary(self, plan_json: dict[str, Any]) -> bool:
         text = str(plan_json).lower()
-        return any(term in text for term in ["medical", "doctor", "clinician", "医生", "就医", "用药"])
+        return any(
+            term in text for term in ["medical", "doctor", "clinician", "医生", "就医", "用药"]
+        )
 
     def _response_mentions_training_intensity(self, response: str) -> bool:
         lowered = response.lower()
-        return any(term in lowered for term in ["rpe", "intensity", "heart rate", "hiit", "训练强度", "心率", "高强度"])
+        return any(
+            term in lowered
+            for term in ["rpe", "intensity", "heart rate", "hiit", "训练强度", "心率", "高强度"]
+        )
 
     def _has_medical_boundary(self, response: str) -> bool:
         lowered = response.lower()
-        return any(term in lowered for term in ["doctor", "clinician", "医生", "医师", "就医", "用药建议", "不能替代"])
+        return any(
+            term in lowered
+            for term in ["doctor", "clinician", "医生", "医师", "就医", "用药建议", "不能替代"]
+        )

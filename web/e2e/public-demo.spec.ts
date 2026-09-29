@@ -148,6 +148,18 @@ async function mockApi(page: Page) {
       });
       return;
     }
+    if (path === "/v1/workouts/logs") {
+      const payload = request.postDataJSON();
+      expect(request.headers()["idempotency-key"]).toBeTruthy();
+      expect(payload.workout_name).toBe("力量训练");
+      expect(payload.exercises[0].name).toBe("哑铃划船");
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ status: "recorded", workout_log_id: "workout-1", idempotent_replay: false }),
+      });
+      return;
+    }
     if (path === "/v1/algorithm/intent-evaluation/summary") {
       await route.fulfill({
         status: 200,
@@ -176,7 +188,7 @@ async function mockApi(page: Page) {
   });
 }
 
-test("public demo covers registration, cookie session UI, chat, plan, check-in and algorithm evidence", async ({ page }) => {
+test("public demo covers registration, chat, plan, check-in, workout and algorithm evidence", async ({ page }) => {
   await mockApi(page);
   await page.goto("/");
 
@@ -200,6 +212,11 @@ test("public demo covers registration, cookie session UI, chat, plan, check-in a
   await page.getByRole("button", { name: "打卡" }).click();
   await page.getByRole("button", { name: "提交打卡" }).click();
   await expect(page.getByRole("button", { name: "已记录" })).toBeVisible();
+
+  await page.getByRole("button", { name: "训练记录" }).click();
+  await page.getByRole("textbox", { name: "动作 1" }).fill("哑铃划船");
+  await page.getByRole("button", { name: "保存训练" }).click();
+  await expect(page.getByRole("button", { name: "已保存" })).toBeVisible();
 
   await page.getByRole("button", { name: "算法实验" }).click();
   await expect(page.getByText("20/120")).toBeVisible();

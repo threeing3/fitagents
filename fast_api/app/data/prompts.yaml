@@ -228,6 +228,15 @@ prompts:
       但不能替代医生诊断或用药建议。今天先避免冲刺、极限重量和长时间高心率训练；
       如果症状明显或正在用药，请按医生建议确认可训练强度。
 
+  fallback_acute_safety_reply:
+    version: "1.0"
+    description: "Immediate non-diagnostic response for current breathing or chest red flags"
+    last_modified: "2026-09-28"
+    content: |
+      如果你或身边的人现在呼吸困难、喘不上气，或感到胸部疼痛、发紧，请立即停止运动，
+      尽快拨打当地急救电话或寻求急诊帮助。不要等待训练计划或本应用的进一步评估；
+      我无法判断病因，也不能替代急救人员和医生。
+
   fallback_onboarding:
     version: "1.0"
     description: "Onboarding reply template asking for missing profile slots"

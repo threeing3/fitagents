@@ -1,0 +1,35 @@
+{
+  "schema_version": "intent-recorded-business-replay-result/v1",
+  "evidence_scope": "saved_real_model_predictions_injected_into_synthetic_offline_business_replay",
+  "case_count_per_source": 8,
+  "sources": {
+    "rule": {
+      "passed": 5,
+      "recorded_prediction_consumed": 0,
+      "failed_case_ids": [
+        "intent-prosp-005",
+        "intent-prosp-006",
+        "intent-prosp-011"
+      ]
+    },
+    "4b": {
+      "passed": 5,
+      "recorded_prediction_consumed": 7,
+      "failed_case_ids": [
+        "intent-prosp-005",
+        "intent-prosp-006",
+        "intent-prosp-011"
+      ]
+    },
+    "14b": {
+      "passed": 6,
+      "recorded_prediction_consumed": 7,
+      "failed_case_ids": [
+        "intent-prosp-005",
+        "intent-prosp-006"
+      ]
+    }
+  },
+  "response_review_status": "not_reviewed",
+  "output_dir": "algorithm\\evaluation\\reports\\intent_recorded_business_replay_20260928_v3"
+}

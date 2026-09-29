@@ -6,6 +6,11 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from fast_api.app.services.chat_workout_record import record_task_text
+from fast_api.app.services.plan_request import parse_plan_request
+from fast_api.app.services.risk_evidence import self_risk_evidence
+from fast_api.app.services.workout_history_query import history_query
+
 
 def _has_any(text: str, terms: list[str]) -> bool:
     for term in terms:
@@ -263,7 +268,18 @@ class IntentRouter:
         "dinner",
         "ate",
     ]
-    REVIEW_TERMS = ["周复盘", "本周", "weekly", "月复盘", "monthly", "总结"]
+    REVIEW_ACTION_TERMS = ["复盘", "总结", "回顾", "review"]
+    WEEKLY_SCOPE_TERMS = [
+        "本周",
+        "这周",
+        "最近七天",
+        "过去七天",
+        "近七天",
+        "一周",
+        "周复盘",
+        "weekly",
+    ]
+    MONTHLY_SCOPE_TERMS = ["本月", "这个月", "月度", "月复盘", "monthly"]
     MEMORY_TERMS = [
         "你记得",
         "还记得",
@@ -319,23 +335,24 @@ class IntentRouter:
             matched.append("injury_or_risk")
         if self._has_risk_signal(text, ["呼吸困难", "呼吸有点困难", "胸口闷", "手麻"]):
             matched.append("injury_or_risk")
-        if _has_any(text, self.REVIEW_TERMS):
-            matched.append(
-                "monthly_review" if "月" in text or "monthly" in text else "weekly_review"
-            )
+        review_intent = self._review_intent(text)
+        if review_intent:
+            matched.append(review_intent)
         if self.is_plan_request(message):
             matched.append("training_plan")
         if _has_any(text, self.PROGRESSION_TERMS):
             matched.append("progression_decision")
         if self._is_nutrition_log(text):
             matched.append("nutrition_log")
-        elif _has_any(text, self.NUTRITION_TERMS):
+        elif _has_any(text, self.NUTRITION_TERMS) or re.search(
+            r"\b(?:eat|meal|breakfast|lunch|dinner)\b", text
+        ):
             matched.append("nutrition_advice")
         if self._is_training_log(text):
             matched.append("training_log")
         if _has_any(text, self.RECOVERY_TERMS):
             matched.append("recovery_check")
-        if _has_any(text, self.MEMORY_TERMS):
+        if _has_any(text, self.MEMORY_TERMS) or history_query(message) is not None:
             matched.append("memory_query")
         if self._looks_like_profile_message(message):
             matched.append("profile_update")
@@ -388,12 +405,26 @@ class IntentRouter:
         )
 
     def is_plan_request(self, message: str) -> bool:
-        text = message.lower()
-        if _has_any(text, self.NEGATED_PLAN_TERMS) and _has_any(
-            text, ["计划", "training plan", "workout plan", "generate"]
-        ):
-            return False
-        return _has_any(text, self.PLAN_TERMS)
+        if parse_plan_request(message) is not None:
+            return True
+        for clause in re.split(r"[，,；;。！？!?\n]", message.lower()):
+            if not clause.strip():
+                continue
+            requests_schedule = _has_any(clause, self.PLAN_TERMS) or bool(
+                re.search(r"训练.{0,8}(?:怎么|如何)调整|(?:该|应该)?怎么训练", clause)
+            )
+            if requests_schedule and not _has_any(clause, self.NEGATED_PLAN_TERMS):
+                return True
+        return False
+
+    def _review_intent(self, text: str) -> str | None:
+        if not _has_any(text, self.REVIEW_ACTION_TERMS):
+            return None
+        if _has_any(text, self.MONTHLY_SCOPE_TERMS):
+            return "monthly_review"
+        if _has_any(text, self.WEEKLY_SCOPE_TERMS):
+            return "weekly_review"
+        return None
 
     def _is_recovery_soreness(self, text: str) -> bool:
         return "肌肉酸痛" in text and any(
@@ -408,34 +439,7 @@ class IntentRouter:
         it only suppresses a term when a short, explicit negation immediately
         precedes it; any separate positive symptom still wins.
         """
-        terms = terms or self.RISK_TERMS
-        # Remove explicitly negated symptom spans before matching. Chinese
-        # terms such as ``疼痛`` contain the shorter term ``痛``; checking only
-        # the immediate prefix would therefore incorrectly leave a positive
-        # match behind after ``没有疼痛``.
-        negated_terms = "|".join(
-            re.escape(term) for term in sorted(set(terms), key=len, reverse=True)
-        )
-        cleaned_text = re.sub(
-            rf"(?:没有|无|未|不|并不|不是|no|not|without)\s*(?:{negated_terms})",
-            "",
-            text,
-            flags=re.IGNORECASE,
-        )
-        negation_pattern = re.compile(
-            r"(?:没有|无|未|不|并不|不是|no|not|without)\s*$", re.IGNORECASE
-        )
-        for term in terms:
-            if term.isascii() and term.isalpha() and len(term) <= 12:
-                matches = re.finditer(rf"\b{re.escape(term)}\b", cleaned_text)
-            else:
-                matches = re.finditer(re.escape(term), cleaned_text)
-            for match in matches:
-                prefix = cleaned_text[max(0, match.start() - 8) : match.start()]
-                if negation_pattern.search(prefix):
-                    continue
-                return True
-        return False
+        return bool(self_risk_evidence(text, terms or self.RISK_TERMS, self.RISK_TERMS))
 
     def _choose_primary(self, intents: list[str]) -> str:
         priority = [
@@ -634,30 +638,38 @@ class IntentRouter:
         return sum(1 for term in self.PROFILE_TERMS if term in text) >= 2
 
     def _is_profile_correction(self, text: str) -> bool:
-        return _has_any(
+        return (
+            "档案" in text and "错" in text and bool(re.search(r"请?改为|改成|更正", text))
+        ) or _has_any(
             text, ["不是我的", "档案错", "纠正", "没有肩伤", "不是肩伤", "remove", "correction"]
         )
 
     def _is_nutrition_log(self, text: str) -> bool:
-        return _has_any(text, self.NUTRITION_LOG_TERMS) and _has_any(
-            text,
-            [
-                "记录",
-                "吃了",
-                "早餐",
-                "午餐",
-                "晚餐",
-                "record",
-                "ate",
-                "breakfast",
-                "lunch",
-                "dinner",
-            ],
+        # Domain, completed fact or write authorization must share a non-negated clause.
+        domain_terms = (
+            [term for term in self.NUTRITION_LOG_TERMS if term not in {"帮我记录", "record"}]
+            + self.NUTRITION_TERMS
+            + ["食物", "牛奶", "鸡蛋", "米饭", "meal", "food", "milk"]
         )
+        for clause in re.split(r"[，,。！？!?；;\n]", text):
+            if not _has_any(clause, domain_terms):
+                continue
+            if re.search(
+                r"(?:不要|不用|别|无需|不必)\s*(?:帮我)?(?:记录|记下)"
+                r"|\b(?:do not|don't|no)\s+record\b",
+                clause,
+            ):
+                continue
+            if re.search(r"吃了|喝了|已吃|刚吃|刚喝|\bate\b|\bdrank\b", clause):
+                return True
+            if re.search(r"记录|记下|\brecord\b", clause):
+                return True
+        return False
 
     def _is_training_log(self, text: str) -> bool:
         """Require an exercise/action signal; body weight alone is profile data."""
 
+        text = record_task_text(text)
         if not _has_any(text, self.TRAINING_LOG_TERMS):
             return False
         return _has_any(

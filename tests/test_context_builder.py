@@ -309,6 +309,23 @@ def test_intent_router_distinguishes_weekly_vs_monthly_review():
     assert router.classify("帮我做个月度总结") == "monthly_review"
 
 
+def test_weekly_time_scope_alone_does_not_request_a_review():
+    router = IntentRouter()
+    decision = router.analyze("请给我安排本周的训练计划")
+
+    assert decision.primary_intent == "training_plan"
+    assert "weekly_review" not in decision.secondary_intents
+    assert decision.allowed_actions["generate_plan"] is True
+
+
+def test_review_request_requires_review_action_and_time_scope():
+    router = IntentRouter()
+
+    assert router.classify("请总结我本周的训练表现") == "weekly_review"
+    assert router.classify("请总结最近七天的训练量") == "weekly_review"
+    assert router.classify("请回顾这个月的训练表现") == "monthly_review"
+
+
 def test_intent_router_recognizes_various_pain_expressions():
     router = IntentRouter()
     pain_messages = [

@@ -2,15 +2,17 @@ import json
 import re
 import time
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
 from sqlalchemy import desc, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from fast_api.app.core.config import get_settings
+from fast_api.app.core.errors import IdempotencyConflictError
 from fast_api.app.core.guardrails import Severity as GuardrailSeverity
 from fast_api.app.core.guardrails import run_guardrails
 from fast_api.app.core.metrics import track_llm_call
@@ -42,6 +44,12 @@ from fast_api.app.services.agent_tool_dispatcher import (
     ToolRuntimeState,
 )
 from fast_api.app.services.agent_verifier import AgentVerifier
+from fast_api.app.services.chat_workout_record import (
+    merge_workout_followup,
+    parse_exercise_set_record,
+    parse_workout_record,
+    record_task_text,
+)
 from fast_api.app.services.context_builder import ContextBuilder
 from fast_api.app.services.context_window_manager import (
     build_context_packet_with_budget,
@@ -62,9 +70,12 @@ from fast_api.app.services.memory_conflict_resolver import MemoryConflictResolve
 from fast_api.app.services.memory_system import MemoryManager
 from fast_api.app.services.memory_verifier import MemoryVerifier
 from fast_api.app.services.model_provider import ModelProvider
+from fast_api.app.services.plan_request import parse_plan_request
+from fast_api.app.services.risk_evidence import acute_safety_signal
 from fast_api.app.services.runtime_router import RuntimeRoute, RuntimeRouter
 from fast_api.app.services.semantic_cache import SemanticCacheService
 from fast_api.app.services.strategy_memory_policy import build_strategy_memory_response_note
+from fast_api.app.services.workout_history_query import history_query, read_workout_history
 
 REQUIRED_ONBOARDING_SLOTS = [
     "age",
@@ -83,6 +94,7 @@ class CoachAgentService:
         self.cache = SemanticCacheService(db, self.model_provider)
         self.runtime_router = RuntimeRouter()
         self.intent_decision_engine = IntentDecisionEngine(self.model_provider)
+        self._active_chat_request: models.IdempotencyRecord | None = None
 
     def create_session(
         self,
@@ -128,16 +140,85 @@ class CoachAgentService:
         session_id: uuid.UUID,
         user_id: uuid.UUID,
         message: str,
+        idempotency_key: str | None = None,
     ) -> dict[str, Any]:
+        record, cached = self._begin_chat_request(
+            session_id, user_id, message, idempotency_key, "json"
+        )
+        if cached is not None:
+            return cached["result"]
+        try:
+            result = await self._handle_chat_message_once(session_id, user_id, message)
+            result["session_id"] = session_id
+            self._complete_chat_request(record, {"result": result})
+            return result
+        finally:
+            self._active_chat_request = None
+
+    def _begin_chat_request(self, session_id, user_id, message, key, transport):
+        self._active_chat_request = None
+        if key is None:
+            return None, None
+        session = self.db.get(models.ConversationSession, session_id)
+        if session is None or session.user_id != user_id:
+            raise ValueError("Conversation session not found for current user")
+        record, cached = self._begin_idempotent_operation(
+            user_id,
+            operation="chat",
+            idempotency_key=key,
+            request_json={
+                "session_id": str(session_id),
+                "message": message,
+                "transport": transport,
+            },
+        )
+        # Reserve before any model/tool activity. An interrupted request stays locked,
+        # because writes may already have committed even if its response was lost.
+        if record is not None:
+            self.db.commit()
+            self._active_chat_request = record
+        return record, cached
+
+    def _complete_chat_request(self, record, payload):
+        if record is None:
+            return
+        record.response_json = {
+            **(record.response_json or {}),
+            **json.loads(json.dumps(payload, default=str)),
+        }
+        record.status = "completed"
+        record.completed_at = datetime.utcnow()
+        self.db.commit()
+
+    async def _handle_chat_message_once(self, session_id, user_id, message):
         """Dispatch each turn through the lightweight RuntimeRouter."""
         profile = self._get_or_create_profile(user_id)
-        route = await self._route_runtime(message, profile=profile)
+        route = await self._route_chat_request(session_id, user_id, message, profile)
         if route.mode == "llm_driven":
             result = await self._handle_chat_llm_agent(session_id, user_id, message, route)
         else:
             result = await self._handle_chat_code_driven(session_id, user_id, message, route)
         result["runtime_route"] = route.to_dict()
         return result
+
+    async def _route_chat_request(self, session_id, user_id, message, profile):
+        pending = FollowupResolver(self.db).get_active_question(user_id, session_id)
+        is_workout_followup = pending is not None and pending.question_type == "workout_record"
+        normalized = (
+            merge_workout_followup(
+                pending.prompt_text, pending.answer_json.get("missing", []), message
+            )
+            if is_workout_followup
+            else None
+        )
+        route = await self._route_runtime(normalized or message, profile=profile)
+        if is_workout_followup:
+            route.mode = "code_driven"
+            route.reason = "Pending workout record requires deterministic field resolution."
+        elif history_query(message) is not None:
+            route.mode = "code_driven"
+            route.reason = "Explicit workout history requires user-scoped persisted evidence."
+        return route
 
     async def _route_runtime(self, message: str, profile: Any | None = None) -> RuntimeRoute:
         settings = get_settings()
@@ -220,7 +301,11 @@ class CoachAgentService:
                 debug["planner_fallback"] = True
                 debug["planner_fallback_reason"] = str(exc)
 
-        execution_plan = AgentPlanner().plan_chat_turn(message, available_tools)
+        execution_plan = AgentPlanner().plan_chat_turn(
+            message,
+            available_tools,
+            intent_decision=runtime_route.intent_decision if runtime_route else None,
+        )
         if debug["planner_fallback_reason"]:
             execution_plan.planner_mode = "rule_fallback"
             execution_plan.planner_fallback_reason = debug["planner_fallback_reason"]
@@ -262,6 +347,7 @@ class CoachAgentService:
             effective_message=effective_message,
             followup_resolution=followup_resolution.to_dict(),
             intent_decision=runtime_route.intent_decision if runtime_route else None,
+            workout_request_key=str(user_msg.id),
         )
         executor = AgentExecutor()
         execution_plan, planner_debug = await self._build_code_driven_execution_plan(
@@ -490,6 +576,12 @@ class CoachAgentService:
                             },
                         )
                     )
+                elif tool_name == "training.log.read":
+                    state_updates["workout_history"] = await execute_tool(tool_name, {}, step)
+                elif tool_name == "training.log.write":
+                    state_updates["workout_record"] = await execute_tool(
+                        tool_name, {"request_key": str(user_msg.id)}, step
+                    )
                 elif tool_name == "context.build":
                     node_start_ctx = time.perf_counter()
                     context_packet = await execute_tool(tool_name, tool_input.payload, step)
@@ -568,7 +660,7 @@ class CoachAgentService:
                     node_start_reply = time.perf_counter()
                     timeline.start(step)
                     if self._requires_immediate_safety_reply(message):
-                        assistant_message = self._safety_reply()
+                        assistant_message = self._safety_reply(message)
                         coach_payload = {"safety": True, "mode": "static_safety"}
                     elif not onboarding_complete:
                         assistant_message = await self._live_onboarding_reply(
@@ -588,6 +680,12 @@ class CoachAgentService:
                             "live_model": self.model_provider.has_live_model(),
                             "response_chars": len(assistant_message),
                         }
+                    workout_record = state_updates.get("workout_record", {})
+                    history_reply = state_updates.get("workout_history", {}).get("reply")
+                    if history_reply:
+                        assistant_message = history_reply + "\n\n" + assistant_message
+                    if workout_record.get("reply"):
+                        assistant_message = workout_record["reply"] + "\n\n" + assistant_message
                     chunks = [assistant_message]
                     timeline.complete(
                         step,
@@ -850,7 +948,7 @@ class CoachAgentService:
         try:
             if self._requires_immediate_safety_reply(effective_message):
                 node_start = time.perf_counter()
-                async for chunk in self._stream_static_text(self._safety_reply()):
+                async for chunk in self._stream_static_text(self._safety_reply(effective_message)):
                     chunks.append(chunk)
                     yield chunk
                 nodes.append(
@@ -1084,6 +1182,38 @@ class CoachAgentService:
         session_id: uuid.UUID,
         user_id: uuid.UUID,
         message: str,
+        idempotency_key: str | None = None,
+    ):
+        try:
+            record, cached = self._begin_chat_request(
+                session_id, user_id, message, idempotency_key, "stream"
+            )
+        except IdempotencyConflictError as exc:
+            yield (
+                json.dumps({"type": "error", "message": str(exc), "code": "idempotency_conflict"})
+                + "\n"
+            )
+            return
+        if cached is not None:
+            for raw in cached["events"]:
+                yield raw
+            return
+        events = []
+        try:
+            async for raw in self._stream_chat_events_once(session_id, user_id, message):
+                if record is not None:
+                    events.append(raw)
+                    if json.loads(raw).get("type") == "done":
+                        self._complete_chat_request(record, {"events": events})
+                yield raw
+        finally:
+            self._active_chat_request = None
+
+    async def _stream_chat_events_once(
+        self,
+        session_id: uuid.UUID,
+        user_id: uuid.UUID,
+        message: str,
     ):
         """Dispatch streaming to LLM-driven or code-driven pipeline per turn."""
 
@@ -1093,7 +1223,7 @@ class CoachAgentService:
             )
 
         profile = self._get_or_create_profile(user_id)
-        route = await self._route_runtime(message, profile=profile)
+        route = await self._route_chat_request(session_id, user_id, message, profile)
         yield event("runtime_route", **route.to_dict())
         if route.mode == "llm_driven":
             async for chunk in self._stream_chat_llm_agent(session_id, user_id, message, route):
@@ -1317,6 +1447,7 @@ class CoachAgentService:
             effective_message=effective_message,
             followup_resolution=followup_resolution.to_dict(),
             intent_decision=runtime_route.intent_decision if runtime_route else None,
+            workout_request_key=str(user_msg.id),
         )
         executor = AgentExecutor()
         execution_plan, planner_debug = await self._build_code_driven_execution_plan(
@@ -1503,6 +1634,18 @@ class CoachAgentService:
                     intent_node = run_logger.event("IntentRouter", intent_payload)
                     nodes.append(intent_node)
                     yield step_event("IntentRouter", intent_node, intent_payload)
+                elif tool_name == "training.log.read":
+                    history_output, emitted = await execute_tool(tool_name, {}, step)
+                    state_updates["workout_history"] = history_output
+                    for item in emitted:
+                        yield item
+                elif tool_name == "training.log.write":
+                    workout_output, emitted = await execute_tool(
+                        tool_name, {"request_key": str(user_msg.id)}, step
+                    )
+                    state_updates["workout_record"] = workout_output
+                    for item in emitted:
+                        yield item
                 elif tool_name == "context.build":
                     if not onboarding_complete or self._requires_immediate_safety_reply(message):
                         skip_node = run_logger.event(
@@ -1570,7 +1713,10 @@ class CoachAgentService:
                     yield step_event("PlanGenerationDecision", plan_node, plan_decision)
                 elif tool_name == "plan.generate":
                     active_plan = self.get_active_plan(user.id)
-                    if active_plan is not None or not bool(
+                    scoped_request = (context_packet.get("current_request_policy") or {}).get(
+                        "plan_request"
+                    )
+                    if (active_plan is not None and not scoped_request) or not bool(
                         plan_decision.get("should_generate_plan")
                     ):
                         skip_node = run_logger.event(
@@ -1585,7 +1731,12 @@ class CoachAgentService:
                         continue
                     yield event("status", text="当前消息明确请求计划，正在生成训练计划")
                     plan_output, emitted = await execute_tool(
-                        tool_name, {"reason": plan_decision.get("reason")}, step
+                        tool_name,
+                        {
+                            "reason": plan_decision.get("reason"),
+                            "context_packet": context_packet,
+                        },
+                        step,
                     )
                     for item in emitted:
                         yield item
@@ -1658,8 +1809,18 @@ class CoachAgentService:
                     yield event("status", text="正在按 Planner 顺序生成最终教练回复")
                     timeline.start(step)
                     yield timeline_event(step)
+                    workout_reply = state_updates.get("workout_record", {}).get("reply")
+                    if workout_reply:
+                        chunk = workout_reply + "\n\n"
+                        chunks.append(chunk)
+                        yield event("answer_delta", text=chunk)
+                    history_reply = state_updates.get("workout_history", {}).get("reply")
+                    if history_reply:
+                        chunk = history_reply + "\n\n"
+                        chunks.append(chunk)
+                        yield event("answer_delta", text=chunk)
                     if self._requires_immediate_safety_reply(message):
-                        async for chunk in self._stream_static_text(self._safety_reply()):
+                        async for chunk in self._stream_static_text(self._safety_reply(message)):
                             chunks.append(chunk)
                             yield event("answer_delta", text=chunk)
                         coach_payload = {"safety": True, "mode": "static_safety"}
@@ -1836,6 +1997,32 @@ class CoachAgentService:
         )
         self.db.add(run)
         self.db.flush()
+        AgentTaskStateService(self.db).record_replay_snapshot(
+            agent_run=run,
+            request_json={
+                "session_id": str(session.id),
+                "message": message,
+                "runtime_route": runtime_route.to_dict() if runtime_route else None,
+            },
+            state_snapshot={
+                "profile": self._profile_snapshot(profile),
+                "context_packet": self._truncate_trace_payload(context_packet),
+                "state_updates": self._truncate_trace_payload(state_updates),
+            },
+            tool_plan_json=ReplayRunner.tool_plan_json(
+                execution_plan=execution_plan,
+                timeline=timeline,
+                tool_contracts=tool_registry.list_specs(),
+                contract_issues=contract_issues,
+                planner_debug=planner_debug,
+            ),
+            response_snapshot={"assistant_message": assistant_message, "tool_calls": tool_calls},
+            config_snapshot={
+                "llm_provider": self.model_provider.settings.llm_provider,
+                "embedding_mode": self.model_provider.embedding_mode(),
+                "code_driven_planner": get_settings().code_driven_planner,
+            },
+        )
         for call in tool_calls:
             self.db.add(
                 models.ToolCall(
@@ -1861,6 +2048,9 @@ class CoachAgentService:
 
     def record_daily_checkin(self, request: DailyCheckinRequest) -> dict[str, Any]:
         user = self.ensure_user(request.user_id)
+        idempotency_record, replayed_response = self._begin_checkin_idempotency(user.id, request)
+        if replayed_response is not None:
+            return replayed_response
         checkin_date = request.checkin_date or date.today()
         existing = self.db.scalar(
             select(models.DailyCheckin).where(
@@ -1869,7 +2059,11 @@ class CoachAgentService:
             )
         )
         checkin = existing or models.DailyCheckin(user_id=user.id, checkin_date=checkin_date)
-        for key, value in request.model_dump(exclude={"user_id", "checkin_date"}).items():
+        # Omitted fields mean "keep"; an explicitly supplied None means "clear".
+        for key, value in request.model_dump(
+            exclude={"user_id", "idempotency_key", "checkin_date"},
+            exclude_unset=True,
+        ).items():
             setattr(checkin, key, value)
         self.db.add(checkin)
         recovery_log = self.db.scalar(
@@ -1881,20 +2075,54 @@ class CoachAgentService:
         if recovery_log is None:
             recovery_log = models.RecoveryLog(user_id=user.id, log_date=checkin_date)
             self.db.add(recovery_log)
-        recovery_log.sleep_hours = request.sleep_hours
-        recovery_log.fatigue_score = request.fatigue
-        recovery_log.soreness_score = request.soreness
-        recovery_log.stress_score = request.stress
-        recovery_log.notes = request.notes
+        recovery_log.sleep_hours = checkin.sleep_hours
+        recovery_log.fatigue_score = checkin.fatigue
+        recovery_log.soreness_score = checkin.soreness
+        recovery_log.stress_score = checkin.stress
+        recovery_log.notes = checkin.notes
 
+        memory_scope = {
+            "scope_type": "daily_checkin",
+            "checkin_date": checkin_date.isoformat(),
+        }
+        conflict_resolver = MemoryConflictResolver(self.db)
+        superseded_memory_ids = conflict_resolver.supersede_scoped_memories(
+            user.id,
+            memory_type="recent_state",
+            source="daily_checkin",
+            scope=memory_scope,
+            reason=f"Daily check-in updated for {checkin_date.isoformat()}",
+        )
         memory_content = self._checkin_memory(checkin)
         if memory_content:
-            self._write_memory(user.id, "recent_state", memory_content, "daily_checkin", 0.7)
+            memory_id = self._write_memory(
+                user.id,
+                "recent_state",
+                memory_content,
+                "daily_checkin",
+                0.7,
+                memory_metadata=memory_scope,
+            )
+            conflict_resolver.link_memory_revision(
+                user.id,
+                memory_id,
+                superseded_memory_ids,
+                link_type="updates",
+                reason=f"New daily state for {checkin_date.isoformat()}",
+                link_metadata={"scope": memory_scope},
+            )
+        elif superseded_memory_ids:
+            manager = MemoryManager(self.db, self.model_provider)
+            manager.update_memory_catalog(user.id, "recovery")
+            manager.update_memory_blocks(user.id)
 
         auto_adjusted = False
         if self._should_adjust_from_checkin(checkin):
             self.db.flush()
-            self.adjust_plan(PlanAdjustRequest(user_id=user.id, reason="daily check-in signals"))
+            self.adjust_plan(
+                PlanAdjustRequest(user_id=user.id, reason="daily check-in signals"),
+                commit=False,
+            )
             auto_adjusted = True
 
         task_update = AgentTaskStateService(self.db).update_from_checkin(
@@ -1906,19 +2134,136 @@ class CoachAgentService:
             user.id,
             "daily_checkin_submitted",
         )
-        self.db.commit()
-        return {
+        response = {
             "checkin_id": str(checkin.id),
             "auto_adjusted": auto_adjusted,
             "long_term_task": task_update,
             "decision_evaluations": evaluation_updates,
+            "idempotent_replay": False,
         }
+        if idempotency_record is not None:
+            idempotency_record.status = "completed"
+            idempotency_record.response_json = response
+            idempotency_record.completed_at = datetime.utcnow()
+        self.db.commit()
+        return response
+
+    def _begin_checkin_idempotency(
+        self,
+        user_id: uuid.UUID,
+        request: DailyCheckinRequest,
+    ) -> tuple[models.IdempotencyRecord | None, dict[str, Any] | None]:
+        request_json = request.model_dump(
+            exclude={"user_id", "idempotency_key"},
+            exclude_unset=True,
+            mode="json",
+        )
+        return self._begin_idempotent_operation(
+            user_id,
+            operation="daily_checkin",
+            idempotency_key=request.idempotency_key,
+            request_json=request_json,
+        )
+
+    def _begin_idempotent_operation(
+        self,
+        user_id: uuid.UUID,
+        *,
+        operation: str,
+        idempotency_key: str | None,
+        request_json: dict[str, Any],
+    ) -> tuple[models.IdempotencyRecord | None, dict[str, Any] | None]:
+        raw_key = idempotency_key
+        if raw_key is None:
+            return None, None
+        key = raw_key.strip()
+        if not key:
+            raise IdempotencyConflictError("The idempotency key cannot be blank.")
+        existing = self.db.scalar(
+            select(models.IdempotencyRecord).where(
+                models.IdempotencyRecord.user_id == user_id,
+                models.IdempotencyRecord.operation == operation,
+                models.IdempotencyRecord.idempotency_key == key,
+            )
+        )
+        if existing is not None:
+            return None, self._replay_idempotent_response(existing, request_json)
+
+        record = models.IdempotencyRecord(
+            user_id=user_id,
+            operation=operation,
+            idempotency_key=key,
+            request_json=request_json,
+            status="processing",
+        )
+        self.db.add(record)
+        try:
+            self.db.flush()
+        except IntegrityError:
+            self.db.rollback()
+            existing = self.db.scalar(
+                select(models.IdempotencyRecord).where(
+                    models.IdempotencyRecord.user_id == user_id,
+                    models.IdempotencyRecord.operation == operation,
+                    models.IdempotencyRecord.idempotency_key == key,
+                )
+            )
+            if existing is None:
+                raise
+            return None, self._replay_idempotent_response(existing, request_json)
+        return record, None
+
+    def _replay_idempotent_response(
+        self,
+        record: models.IdempotencyRecord,
+        request_json: dict[str, Any],
+    ) -> dict[str, Any]:
+        if record.request_json != request_json:
+            raise IdempotencyConflictError()
+        if record.status != "completed" or not record.response_json:
+            raise IdempotencyConflictError(
+                "The matching request is still processing; retry after it completes."
+            )
+        return {**record.response_json, "idempotent_replay": True}
 
     def record_workout_log(self, request: WorkoutLogRequest) -> models.WorkoutLog:
         user = self.ensure_user(request.user_id)
+        request_json = request.model_dump(
+            exclude={"user_id", "idempotency_key"},
+            exclude_unset=True,
+            mode="json",
+        )
+        idempotency_record, replayed_response = self._begin_idempotent_operation(
+            user.id,
+            operation="workout_log",
+            idempotency_key=request.idempotency_key,
+            request_json=request_json,
+        )
+        if replayed_response is not None:
+            workout_log_id = replayed_response.get("workout_log_id")
+            try:
+                parsed_log_id = uuid.UUID(str(workout_log_id))
+            except (TypeError, ValueError, AttributeError) as exc:
+                raise IdempotencyConflictError(
+                    "The completed request has an invalid workout log reference."
+                ) from exc
+            replayed_log = self.db.scalar(
+                select(models.WorkoutLog).where(
+                    models.WorkoutLog.id == parsed_log_id,
+                    models.WorkoutLog.user_id == user.id,
+                )
+            )
+            if replayed_log is None:
+                raise IdempotencyConflictError(
+                    "The completed request refers to a workout log that is unavailable."
+                )
+            setattr(replayed_log, "_idempotent_replay", True)
+            return replayed_log
+
+        performed_at = request.performed_at or datetime.now(timezone.utc)
         log = models.WorkoutLog(
             user_id=user.id,
-            performed_at=request.performed_at or datetime.utcnow(),
+            performed_at=performed_at,
             workout_name=request.workout_name,
             exercises=request.exercises,
             duration_minutes=request.duration_minutes,
@@ -1930,9 +2275,9 @@ class CoachAgentService:
         self.db.flush()
         session = models.WorkoutSession(
             user_id=user.id,
-            session_date=(request.performed_at or datetime.utcnow()).date(),
+            session_date=performed_at.date(),
             session_name=request.workout_name,
-            started_at=request.performed_at,
+            started_at=performed_at,
             completion_score=request.completion_rate,
             fatigue_score=request.rpe,
             notes=request.notes,
@@ -1951,9 +2296,65 @@ class CoachAgentService:
         from fast_api.app.services.decision_evaluation import DecisionEvaluationService
 
         DecisionEvaluationService(self.db).on_user_event(user.id, "workout_logged")
+        if idempotency_record is not None:
+            idempotency_record.status = "completed"
+            idempotency_record.response_json = {
+                "status": "recorded",
+                "workout_log_id": str(log.id),
+                "idempotent_replay": False,
+            }
+            idempotency_record.completed_at = datetime.utcnow()
         self.db.commit()
         self.db.refresh(log)
+        setattr(log, "_idempotent_replay", False)
         return log
+
+    def _record_chat_workout(
+        self,
+        user_id: uuid.UUID,
+        message: str,
+        request_key: str,
+        session_id: uuid.UUID | None = None,
+    ) -> dict:
+        parsed = parse_exercise_set_record(message)
+        set_record = parsed["status"] != "not_requested"
+        if not set_record:
+            parsed = parse_workout_record(message)
+        if parsed["status"] == "needs_clarification" and session_id is not None and not set_record:
+            resolver = FollowupResolver(self.db)
+            resolver.expire_open_questions(user_id, session_id)
+            self.db.add(
+                models.PendingQuestion(
+                    user_id=user_id,
+                    session_id=session_id,
+                    question_type="workout_record",
+                    prompt_text=record_task_text(message),
+                    options_json=[],
+                    status="pending",
+                    answer_json={"missing": parsed["missing"], "request_key": request_key},
+                    expires_at=datetime.utcnow() + timedelta(minutes=45),
+                )
+            )
+            self.db.flush()
+        if parsed["status"] != "ready":
+            return parsed
+        record = self.record_workout_log(
+            WorkoutLogRequest(
+                user_id=user_id,
+                idempotency_key="chat-workout:" + request_key,
+                **parsed["fields"],
+            )
+        )
+        return {
+            "status": "recorded",
+            "workout_log_id": str(record.id),
+            "idempotent_replay": bool(getattr(record, "_idempotent_replay", False)),
+            "reply": (
+                f"已记录：{parsed['exercise_name']}，{parsed['completed_sets']}组。"
+                if set_record
+                else f"已记录：{record.workout_name}，{record.duration_minutes}分钟。"
+            ),
+        }
 
     def _write_exercise_logs_from_payload(
         self,
@@ -1999,45 +2400,140 @@ class CoachAgentService:
                 )
             )
 
-    def generate_plan(self, request: PlanGenerateRequest) -> models.TrainingPlan:
+    def generate_plan(
+        self,
+        request: PlanGenerateRequest,
+        *,
+        context_packet: dict[str, Any] | None = None,
+    ) -> models.TrainingPlan:
         user = self.ensure_user(request.user_id)
+        if (request.target_date is None) != (request.exercise_type is None):
+            raise ValueError("target_date and exercise_type must be supplied together")
+        if request.exercise_type not in {None, "easy_jog"}:
+            raise ValueError("unsupported exercise_type for a dated plan")
+        if request.target_date is not None and request.target_date < date.today():
+            raise ValueError("target_date must not be in the past")
+        requested_constraints = (
+            {
+                "target_date": request.target_date.isoformat(),
+                "exercise_type": request.exercise_type,
+            }
+            if request.target_date is not None
+            else None
+        )
+        active_plan = self.get_active_plan(user.id)
+        if not request.force and active_plan is not None:
+            if requested_constraints is None:
+                return active_plan
+            if (active_plan.plan_json or {}).get("request_constraints") == requested_constraints:
+                validation_context = dict(context_packet or {})
+                validation_policy = dict(validation_context.get("current_request_policy") or {})
+                validation_policy["plan_request"] = requested_constraints
+                validation_context["current_request_policy"] = validation_policy
+                verification = AgentVerifier().verify_plan(
+                    active_plan.plan_json,
+                    self._profile_payload(self._get_or_create_profile(user.id)),
+                    validation_context,
+                )
+                if not verification.passed:
+                    raise ValueError("Existing plan does not satisfy the requested constraints")
+                return active_plan
         profile = self._get_or_create_profile(user.id)
-        self._refresh_macro_targets(profile)
+        candidate_profile = SimpleNamespace(**self._profile_payload(profile))
+        self._refresh_macro_targets(candidate_profile)
+        plan_json = self._build_plan_json(
+            candidate_profile,
+            request.plan_days,
+            target_date=request.target_date,
+            exercise_type=request.exercise_type,
+        )
+        verification_context = dict(context_packet or {})
+        request_policy = dict(verification_context.get("current_request_policy") or {})
+        if requested_constraints is not None:
+            request_policy["plan_request"] = requested_constraints
+        verification_context["current_request_policy"] = request_policy
+        if "active_risk_notes" not in verification_context:
+            verification_context["active_risk_notes"] = list(
+                self.db.scalars(
+                    select(models.RiskNote).where(
+                        models.RiskNote.user_id == user.id,
+                        models.RiskNote.status == "active",
+                    )
+                )
+            )
+        verifier = AgentVerifier()
+        profile_payload = self._profile_payload(candidate_profile)
+        candidate_check = verifier.verify_plan(plan_json, profile_payload, verification_context)
+        if candidate_check.repair_actions:
+            plan_json = verifier.repair_plan(
+                plan_json,
+                candidate_check.to_dict(),
+                profile_payload,
+                verification_context,
+            )
+            candidate_check = verifier.verify_plan(plan_json, profile_payload, verification_context)
+        if not candidate_check.passed:
+            issue_ids = ", ".join(
+                issue.issue_id for issue in candidate_check.issues if issue.severity == "error"
+            )
+            raise ValueError(f"Plan precommit validation failed: {issue_ids}")
 
-        if request.force:
-            for plan in self._active_plans(user.id):
-                plan.status = "archived"
-
-        plan_json = self._build_plan_json(profile, request.plan_days)
-        rationale = self._plan_rationale(profile)
+        rationale = self._plan_rationale(candidate_profile)
         plan = models.TrainingPlan(
             user_id=user.id,
             status="active",
-            week_start=date.today(),
+            week_start=request.target_date or date.today(),
             plan_json=plan_json,
             rationale=rationale,
         )
-        self.db.add(plan)
-        self._write_memory(user.id, "plan_preference", rationale, "plan_generation", 0.6)
-        DecisionLogger(self.db).log_decision(
-            user.id,
-            {
-                "decision_type": "plan_generation",
-                "input_summary": f"Generate {request.plan_days}-day plan",
-                "context_used": {"profile": self._profile_payload(profile)},
-                "decision_result": "created_active_training_plan",
-                "reason": rationale,
-                "confidence_score": 0.75,
-            },
-        )
-        self.db.commit()
+        try:
+            if request.force or (active_plan is not None and requested_constraints is not None):
+                for old_plan in self._active_plans(user.id):
+                    old_plan.status = "archived"
+            for field in (
+                "target_calories",
+                "target_protein_g",
+                "target_carbs_g",
+                "target_fat_g",
+            ):
+                setattr(profile, field, getattr(candidate_profile, field))
+            self.db.add(plan)
+            self._write_memory(user.id, "plan_preference", rationale, "plan_generation", 0.6)
+            DecisionLogger(self.db).log_decision(
+                user.id,
+                {
+                    "decision_type": "plan_generation",
+                    "input_summary": f"Generate {request.plan_days}-day plan",
+                    "context_used": {
+                        "profile": self._profile_payload(profile),
+                        "precommit_verification": candidate_check.to_dict(),
+                    },
+                    "decision_result": "created_active_training_plan",
+                    "reason": rationale,
+                    "confidence_score": 0.75,
+                },
+            )
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            raise
         self.db.refresh(plan)
         return plan
 
-    def adjust_plan(self, request: PlanAdjustRequest) -> models.TrainingPlan:
+    def adjust_plan(
+        self, request: PlanAdjustRequest, *, commit: bool = True
+    ) -> models.TrainingPlan:
         user = self.ensure_user(request.user_id)
         profile = self._get_or_create_profile(user.id)
         latest_checkin = self.latest_checkin(user.id)
+        baseline_recovery = None
+        if latest_checkin is not None:
+            baseline_recovery = self.db.scalar(
+                select(models.RecoveryLog).where(
+                    models.RecoveryLog.user_id == user.id,
+                    models.RecoveryLog.log_date == latest_checkin.checkin_date,
+                )
+            )
         active_plan = self.get_active_plan(user.id)
         if active_plan:
             active_plan.status = "archived"
@@ -2067,6 +2563,9 @@ class CoachAgentService:
                 "input_summary": reason_text,
                 "context_used": {
                     "latest_checkin": self._model_dict(latest_checkin) if latest_checkin else None,
+                    "baseline_recovery_log_id": (
+                        str(baseline_recovery.id) if baseline_recovery is not None else None
+                    ),
                     "volume_multiplier": multiplier,
                 },
                 "decision_result": "created_adjusted_active_training_plan",
@@ -2074,7 +2573,11 @@ class CoachAgentService:
                 "confidence_score": 0.78,
             },
         )
-        self.db.commit()
+        # A check-in owns the outer transaction, including its automatic adjustment.
+        if commit:
+            self.db.commit()
+        else:
+            self.db.flush()
         self.db.refresh(plan)
         return plan
 
@@ -2271,17 +2774,17 @@ class CoachAgentService:
                 return number if 1 <= number <= 7 else None
             return number if 5 <= number <= 300 else None
         if key in {"height_cm", "weight_kg"}:
-            number = self._coerce_float(value)
-            if number is None:
+            float_number = self._coerce_float(value)
+            if float_number is None:
                 return None
             if key == "height_cm":
                 # Auto-convert meter input (e.g. "1.75" → 175 cm)
-                if 0.5 < number < 3.5:
-                    number = round(number * 100)
-                return number if 90 <= number <= 240 else None
-            if not self._source_text_supports_body_weight(source_text, number):
+                if 0.5 < float_number < 3.5:
+                    float_number = round(float_number * 100)
+                return float_number if 90 <= float_number <= 240 else None
+            if not self._source_text_supports_body_weight(source_text, float_number):
                 return None
-            return number if 25 <= number <= 300 else None
+            return float_number if 25 <= float_number <= 300 else None
         if key in {"dietary_preferences", "equipment_available", "injuries"}:
             items = value if isinstance(value, list) else [value]
             normalized = []
@@ -2404,7 +2907,24 @@ class CoachAgentService:
             "squat",
             "deadlift",
         ]
-        if any(token in lowered for token in training_terms):
+        training_fact = bool(
+            re.search(r"(?:做了|做完|练了|练完|完成了|\bdid\b|\btrained\b)", lowered)
+            or re.search(r"\d+(?:\.\d+)?\s*(?:kg|公斤|组|次|reps?)", lowered)
+        )
+        training_query = any(
+            token in lowered
+            for token in ["上次", "之前", "查一下", "告诉我", "多少", "几组", "?", "？"]
+        )
+        training_write_denied = any(
+            token in lowered
+            for token in ["不要记录", "别记录", "不用记录", "不要新增", "别记", "不用记"]
+        )
+        if (
+            any(token in lowered for token in training_terms)
+            and training_fact
+            and not training_query
+            and not training_write_denied
+        ):
             candidates.append(
                 {
                     "memory_type": "training_performance",
@@ -2599,9 +3119,55 @@ class CoachAgentService:
         effective_message: str | None = None,
         followup_resolution: dict[str, Any] | None = None,
         intent_decision: dict[str, Any] | None = None,
+        workout_request_key: str | None = None,
     ) -> ToolRegistry:
         registry = ToolRegistry()
         effective_message = effective_message or message
+        scoped_plan_request = parse_plan_request(effective_message)
+
+        query = history_query(effective_message)
+        if query is not None:
+            registry.register(
+                ToolSpec(
+                    name="training.log.read",
+                    description="Read this user's prior workout before current-turn writes.",
+                    input_schema={"type": "object", "properties": {}},
+                    output_schema={
+                        "type": "object",
+                        "required": ["status", "reply"],
+                        "properties": {"status": {"type": "string"}, "reply": {"type": "string"}},
+                    },
+                    permission_level="read",
+                    side_effects=False,
+                ),
+                lambda payload: read_workout_history(self.db, user_id, query),
+            )
+
+        if workout_request_key is not None and (
+            parse_workout_record(effective_message)["status"] != "not_requested"
+            or parse_exercise_set_record(effective_message)["status"] != "not_requested"
+        ):
+            registry.register(
+                ToolSpec(
+                    name="training.log.write",
+                    description="Record explicit completed workout facts or request clarification.",
+                    input_schema={
+                        "type": "object",
+                        "properties": {"request_key": {"type": "string"}},
+                    },
+                    output_schema={
+                        "type": "object",
+                        "required": ["status", "reply"],
+                        "properties": {"status": {"type": "string"}, "reply": {"type": "string"}},
+                    },
+                    permission_level="write",
+                    side_effects=True,
+                    idempotency_key_fields=["request_key"],
+                ),
+                lambda payload: self._record_chat_workout(
+                    user_id, effective_message, workout_request_key, session_id
+                ),
+            )
 
         registry.register(
             ToolSpec(
@@ -2772,7 +3338,10 @@ class CoachAgentService:
                 description="Generate and persist the first active plan when the current request explicitly asks for it.",
                 input_schema={
                     "type": "object",
-                    "properties": {"reason": {"type": ["string", "null"]}},
+                    "properties": {
+                        "reason": {"type": ["string", "null"]},
+                        "context_packet": {"type": "object"},
+                    },
                 },
                 output_schema={
                     "type": "object",
@@ -2788,7 +3357,19 @@ class CoachAgentService:
                 idempotency_key_fields=["reason"],
                 tags=["plan", "write"],
             ),
-            lambda _: self._generate_plan_tool(user_id),
+            lambda payload: (
+                self._generate_plan_tool(
+                    user_id,
+                    effective_message,
+                    context_packet=payload.get("context_packet"),
+                )
+                if scoped_plan_request
+                else (
+                    self._generate_plan_tool(user_id, context_packet=payload["context_packet"])
+                    if payload.get("context_packet")
+                    else self._generate_plan_tool(user_id)
+                )
+            ),
         )
         registry.register(
             ToolSpec(
@@ -2984,8 +3565,25 @@ class CoachAgentService:
             ),
         }
 
-    def _generate_plan_tool(self, user_id: uuid.UUID) -> dict[str, Any]:
-        plan = self.generate_plan(PlanGenerateRequest(user_id=user_id))
+    def _generate_plan_tool(
+        self,
+        user_id: uuid.UUID,
+        message: str | None = None,
+        *,
+        context_packet: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        scoped_request = parse_plan_request(message or "")
+        plan = self.generate_plan(
+            PlanGenerateRequest(
+                user_id=user_id,
+                plan_days=1 if scoped_request else 7,
+                target_date=(
+                    date.fromisoformat(scoped_request["target_date"]) if scoped_request else None
+                ),
+                exercise_type=(scoped_request["exercise_type"] if scoped_request else None),
+            ),
+            context_packet=context_packet,
+        )
         return {
             "plan_id": str(plan.id),
             "active_plan": self._plan_context_payload(plan),
@@ -3205,7 +3803,40 @@ class CoachAgentService:
         profile: models.UserProfile,
         plan_days: int,
         volume_multiplier: float = 1.0,
+        target_date: date | None = None,
+        exercise_type: str | None = None,
     ) -> dict[str, Any]:
+        if target_date is not None and exercise_type == "easy_jog":
+            return {
+                "goal": profile.goal or "maintenance",
+                "plan_days": 1,
+                "request_constraints": {
+                    "target_date": target_date.isoformat(),
+                    "exercise_type": exercise_type,
+                },
+                "training_days": [
+                    {
+                        "day": 1,
+                        "date": target_date.isoformat(),
+                        "name": "慢跑",
+                        "focus": "低强度有氧",
+                        "exercises": [
+                            {
+                                "name": "慢跑",
+                                "duration_minutes": 20,
+                                "notes": "以舒适配速进行；如有疼痛或明显不适则停止。",
+                            }
+                        ],
+                    }
+                ],
+                "nutrition": {
+                    "target_calories": profile.target_calories,
+                    "protein_g": profile.target_protein_g,
+                    "carbs_g": profile.target_carbs_g,
+                    "fat_g": profile.target_fat_g,
+                },
+                "review_cadence": "after_session",
+            }
         frequency = profile.workout_frequency or 3
         frequency = max(2, min(6, frequency))
         equipment = profile.equipment_available or ["bodyweight", "dumbbells"]
@@ -3337,6 +3968,16 @@ class CoachAgentService:
         if session is not None:
             session.updated_at = saved_at
         self.db.flush()
+        request = self._active_chat_request if role == "user" else None
+        if role == "user" and request is not None:
+            if request.user_id != user_id or request.request_json.get("session_id") != str(
+                session_id
+            ):
+                raise ValueError("Chat request identity does not match its user message")
+            if not (request.response_json or {}).get("execution"):
+                request.response_json = {"execution": {"user_message_id": str(msg.id)}}
+                # Persist the exact identity before a downstream tool can commit a side effect.
+                self.db.commit()
         return msg
 
     def _remember_pending_question_from_reply(
@@ -3723,7 +4364,35 @@ class CoachAgentService:
             updates["weight_kg"] = float(weight)
         ignored_candidates.extend(ignored_weight_candidates)
 
-        if any(keyword in lowered for keyword in ["muscle", "bulk", "\u589e\u808c"]):
+        explicit_goal_values = re.findall(
+            r"(?:请)?(?:改为|改成|更正为)\s*(增肌|减脂|降脂|维持)", lowered
+        )
+        replacement_requested = bool(re.search(r"改为|改成|更正为", lowered))
+        goal_map = {
+            "增肌": "muscle_gain",
+            "减脂": "fat_loss",
+            "降脂": "fat_loss",
+            "维持": "maintenance",
+        }
+        if len({goal_map[value] for value in explicit_goal_values}) > 1:
+            ignored_candidates.append(
+                {
+                    "field": "goal",
+                    "reason": "conflicting_explicit_replacements",
+                    "evidence": text[:240],
+                }
+            )
+        elif explicit_goal_values:
+            updates["goal"] = goal_map[explicit_goal_values[-1]]
+        elif replacement_requested:
+            ignored_candidates.append(
+                {
+                    "field": "goal",
+                    "reason": "replacement_target_not_resolved",
+                    "evidence": text[:240],
+                }
+            )
+        elif any(keyword in lowered for keyword in ["muscle", "bulk", "\u589e\u808c"]):
             updates["goal"] = "muscle_gain"
         elif any(
             keyword in lowered
@@ -3740,6 +4409,24 @@ class CoachAgentService:
             updates["goal"] = "fat_loss"
         elif any(keyword in lowered for keyword in ["maintenance", "\u7ef4\u6301"]):
             updates["goal"] = "maintenance"
+
+        correction_signals = ["不对", "更正", "纠正", "改了", "现在不是", "not anymore"]
+        explicit_goal_correction = (
+            bool(explicit_goal_values)
+            and ("档案" in lowered or "目标" in lowered)
+            and ("错" in lowered or "写成" in lowered)
+        )
+        if updates.get("goal") and (
+            explicit_goal_correction or any(signal in lowered for signal in correction_signals)
+        ):
+            corrections.append(
+                {
+                    "field": "goal",
+                    "action": "set",
+                    "value": updates["goal"],
+                    "evidence": text[:240],
+                }
+            )
 
         frequency = self._first_number(
             text,
@@ -4136,35 +4823,41 @@ class CoachAgentService:
                 allergies=[],
             )
         )
-        verification = verification or self._verify_memory_tool(
-            user_id, message, extraction, profile
-        )
-        corrections_to_write = verification.get("accepted_corrections") or extraction.get(
-            "corrections", []
-        )
-        candidates_to_write = verification.get("accepted_candidates")
-        if candidates_to_write is None:
-            candidates_to_write = self._memory_candidates_from_message(message, extraction)
+        if verification is None:
+            verification = self._verify_memory_tool(user_id, message, extraction, profile)
+        # An empty accepted list is a decision, not permission to bypass verification.
+        corrections_to_write = verification.get("accepted_corrections") or []
+        candidates_to_write = verification.get("accepted_candidates") or []
 
-        conflict_resolution = MemoryConflictResolver(self.db).apply_corrections(
+        conflict_resolver = MemoryConflictResolver(self.db)
+        conflict_resolution = conflict_resolver.apply_corrections(
             user_id,
             corrections_to_write,
             message,
         )
-        for correction in corrections_to_write:
-            written.append(
-                self._write_memory(
-                    user_id=user_id,
-                    memory_type="correction",
-                    content=(
-                        f"用户纠正档案：{correction.get('field')} "
-                        f"{correction.get('action')} {correction.get('value')}. 原文：{message}"
-                    ),
-                    source="chat_correction",
-                    importance=0.92,
-                    memory_metadata={**correction, "conflict_resolution": conflict_resolution},
-                    confidence=0.95,
-                )
+        correction_results = {
+            item["index"]: item for item in conflict_resolution.get("correction_results", [])
+        }
+        for index, correction in enumerate(corrections_to_write):
+            correction_result = correction_results.get(index, {})
+            correction_memory_id = self._write_memory(
+                user_id=user_id,
+                memory_type="correction",
+                content=(
+                    f"用户纠正档案：{correction.get('field')} "
+                    f"{correction.get('action')} {correction.get('value')}. 原文：{message}"
+                ),
+                source="chat_correction",
+                importance=0.92,
+                memory_metadata={**correction, "conflict_resolution": correction_result},
+                confidence=0.95,
+            )
+            written.append(correction_memory_id)
+            conflict_resolver.link_correction_memory(
+                user_id,
+                correction_memory_id,
+                correction_result.get("superseded_memory_ids") or [],
+                message,
             )
 
         for candidate in candidates_to_write:
@@ -4179,6 +4872,11 @@ class CoachAgentService:
                     confidence=candidate["confidence"],
                 )
             )
+        if conflict_resolution.get("affected_categories"):
+            manager = MemoryManager(self.db, self.model_provider)
+            for category in conflict_resolution["affected_categories"]:
+                manager.update_memory_catalog(user_id, category)
+            manager.update_memory_blocks(user_id)
         return [str(item) for item in written if item]
 
     def _verify_memory_tool(
@@ -4793,6 +5491,16 @@ class CoachAgentService:
 
         training_days = plan.plan_json.get("training_days") or []
         today_plan = training_days[0] if training_days else {}
+        constraints = plan.plan_json.get("request_constraints") or {}
+        if constraints.get("exercise_type") == "easy_jog" and today_plan.get("date"):
+            target_date = date.fromisoformat(today_plan["date"])
+            date_label = {0: "今天", 1: "明天", 2: "后天"}.get(
+                (target_date - date.today()).days, target_date.isoformat()
+            )
+            return (
+                f"已为你安排{date_label}慢跑：先热身，随后以舒适配速慢跑约20分钟，"
+                "最后放慢速度整理。若出现疼痛或明显不适，请停止运动。"
+            )
         exercises = today_plan.get("exercises") or []
         exercise_lines = []
         for item in exercises[:5]:
@@ -4881,7 +5589,9 @@ class CoachAgentService:
         known_text = f" ({'; '.join(known)})" if known else ""
         return registry.get("fallback_onboarding").format(known_text=known_text, needed=needed)
 
-    def _safety_reply(self) -> str:
+    def _safety_reply(self, message: str = "") -> str:
+        if acute_safety_signal(message):
+            return registry.get("fallback_acute_safety_reply")
         return registry.get("fallback_safety_reply")
 
     def _build_plan_reflection_prompt(
@@ -4941,6 +5651,8 @@ class CoachAgentService:
         )
 
     def _requires_immediate_safety_reply(self, message: str) -> bool:
+        if acute_safety_signal(message):
+            return True
         lowered = message.lower()
         medical_question_terms = [
             "\u8981\u4e0d\u8981\u7ee7\u7eed\u7ec3",

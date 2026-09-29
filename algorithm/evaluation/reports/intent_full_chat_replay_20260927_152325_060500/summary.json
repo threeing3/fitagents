@@ -1,0 +1,11 @@
+{
+  "schema_version": "intent-full-chat-replay-result/v1",
+  "evidence_scope": "synthetic_offline_isolated_sqlite_full_handle_chat_message",
+  "case_count": 3,
+  "passed_count": 2,
+  "failed_case_ids": [
+    "record_then_query"
+  ],
+  "dataset": "C:\\Users\\Lenovo\\Documents\\New project 4\\ai-fitness-planner\\algorithm\\datasets\\fixtures\\intent_full_chat_replay_v1.json",
+  "output_dir": "C:\\Users\\Lenovo\\Documents\\New project 4\\ai-fitness-planner\\algorithm\\evaluation\\reports\\intent_full_chat_replay_20260927_152325_060500"
+}

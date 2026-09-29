@@ -49,6 +49,7 @@ class ChatMessageRequest(BaseModel):
     session_id: UUID
     user_id: UUID | None = None
     message: str
+    idempotency_key: str | None = Field(default=None, min_length=1, max_length=128)
 
 
 class ChatMessageResponse(BaseModel):
@@ -65,6 +66,7 @@ class ChatMessageResponse(BaseModel):
 
 class DailyCheckinRequest(BaseModel):
     user_id: UUID | None = None
+    idempotency_key: str | None = Field(default=None, min_length=1, max_length=128)
     checkin_date: date | None = None
     sleep_hours: float | None = None
     fatigue: int | None = Field(default=None, ge=1, le=10)
@@ -78,6 +80,7 @@ class DailyCheckinRequest(BaseModel):
 
 class WorkoutLogRequest(BaseModel):
     user_id: UUID | None = None
+    idempotency_key: str | None = Field(default=None, min_length=1, max_length=128)
     performed_at: datetime | None = None
     workout_name: str = "Workout"
     exercises: list[dict[str, Any]] = Field(default_factory=list)
@@ -91,6 +94,8 @@ class PlanGenerateRequest(BaseModel):
     user_id: UUID | None = None
     force: bool = False
     plan_days: int = Field(default=7, ge=1, le=14)
+    target_date: date | None = None
+    exercise_type: str | None = None
 
 
 class PlanAdjustRequest(BaseModel):
@@ -284,6 +289,7 @@ class DecisionFollowupAnswerRequest(BaseModel):
 
 
 # ---- User Feedback ----
+
 
 class FeedbackSubmitRequest(BaseModel):
     message_id: UUID

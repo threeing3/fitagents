@@ -112,6 +112,37 @@ def test_agent_planner_adds_plan_tools_only_for_plan_intent():
     assert "plan_verify" not in non_plan_keys
 
 
+def test_rule_planner_uses_verified_risk_and_plan_permission_not_raw_symptom_words():
+    registry = ToolRegistry()
+    for name in ["profile.extract", "context.build", "plan.decide", "plan.generate", "coach.reply"]:
+        registry.register(ToolSpec(name=name, description=name), lambda _: {})
+    message = "朋友胸闷，不是我；我没有胸闷。请制定训练计划"
+    allowed = AgentPlanner().plan_chat_turn(
+        message,
+        registry.list_specs(),
+        intent_decision={
+            "primary_intent": "training_plan",
+            "risk": {"level": "low"},
+            "allowed_actions": {"generate_plan": True},
+        },
+    )
+    assert allowed.safety_level == "low"
+    assert allowed.plan_generation_allowed
+    assert "plan.generate" in allowed.selected_tools
+    blocked = AgentPlanner().plan_chat_turn(
+        "朋友胸闷，我也胸闷。请制定训练计划",
+        registry.list_specs(),
+        intent_decision={
+            "primary_intent": "injury_or_risk",
+            "risk": {"level": "high"},
+            "allowed_actions": {"generate_plan": False},
+        },
+    )
+    assert blocked.safety_level == "high"
+    assert not blocked.plan_generation_allowed
+    assert "plan.generate" not in blocked.selected_tools
+
+
 def test_tool_registry_rejects_invalid_input_schema():
     registry = ToolRegistry()
     registry.register(
@@ -167,7 +198,9 @@ def test_tool_registry_repairs_invalid_output_schema():
             },
         ),
         lambda _payload: {"message": "missing ok"},
-        repair_handler=lambda payload: {"output_json": {**payload.get("output_json", {}), "ok": True}},
+        repair_handler=lambda payload: {
+            "output_json": {**payload.get("output_json", {}), "ok": True}
+        },
     )
 
     result = asyncio.run(registry.execute("repairable.tool", {}))
@@ -180,11 +213,16 @@ def test_tool_registry_repairs_invalid_output_schema():
 
 def test_agent_executor_runs_tool_and_updates_timeline():
     registry = ToolRegistry()
-    registry.register(ToolSpec(name="context.build", description="Build context"), lambda _: {"intent": "training_plan"})
+    registry.register(
+        ToolSpec(name="context.build", description="Build context"),
+        lambda _: {"intent": "training_plan"},
+    )
     timeline = AgentTaskTimeline("build context", request_id="req-executor")
     step = timeline.add_step("Build context", "context.build", "Need intent context")
 
-    execution = asyncio.run(AgentExecutor().execute(registry, timeline, step, {"message_chars": 12}))
+    execution = asyncio.run(
+        AgentExecutor().execute(registry, timeline, step, {"message_chars": 12})
+    )
 
     assert execution.result.status == "success"
     assert execution.result.output_json["intent"] == "training_plan"

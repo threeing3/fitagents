@@ -1,0 +1,23 @@
+{
+  "schema_version": "intent-full-chat-replay/v1",
+  "source": "synthetic_self_authored",
+  "human_review_status": "not_reviewed",
+  "training_eligible": false,
+  "cases": [
+    {
+      "case_id": "record_then_query",
+      "message": "我刚完成30分钟哑铃训练，主观强度7分，帮我记录下来，再告诉我明天怎么安排？",
+      "expected": {"workout_log_delta": 1, "plan_delta": 0}
+    },
+    {
+      "case_id": "explicit_plan_negation",
+      "message": "不要给我生成训练计划，我只是想了解力量训练后应该休息多久？",
+      "expected": {"workout_log_delta": 0, "plan_delta": 0}
+    },
+    {
+      "case_id": "third_person_symptom",
+      "message": "我朋友跑步后胸口疼，他该怎么办？不要把这记成我的健康状况。",
+      "expected": {"workout_log_delta": 0, "plan_delta": 0, "user_risk_note_delta": 0}
+    }
+  ]
+}

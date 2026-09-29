@@ -244,6 +244,30 @@ class DailyCheckin(Base, TimestampMixin):
     notes: Mapped[str | None] = mapped_column(Text)
 
 
+class IdempotencyRecord(Base, TimestampMixin):
+    __tablename__ = "idempotency_records"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id",
+            "operation",
+            "idempotency_key",
+            name="uq_idempotency_user_operation_key",
+        ),
+        Index("ix_idempotency_records_user_operation", "user_id", "operation"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    operation: Mapped[str] = mapped_column(String(80))
+    idempotency_key: Mapped[str] = mapped_column(String(128))
+    request_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    response_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    status: Mapped[str] = mapped_column(String(32), default="processing", index=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class LongTermMemory(Base, TimestampMixin):
     __tablename__ = "long_term_memories"
 

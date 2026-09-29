@@ -1,0 +1,15 @@
+{
+  "schema_version": "fitagent-intent-action-boundary-audit/v1",
+  "partition": "development_diagnostic",
+  "source": "assistant_authored_synthetic",
+  "human_review_status": "not_reviewed",
+  "cases": 12,
+  "signal_counts": {
+    "plan_policy_matches_expectation": 11,
+    "planner_disagrees_with_rule_primary": 3,
+    "plan_tool_candidate_while_blocked": 2,
+    "write_tool_candidate_on_query": 2,
+    "blocked_action_in_requested_actions": 2
+  },
+  "claim_boundary": "Static decision and candidate-tool audit only. No tool was executed; a candidate is not evidence of a persisted write or policy bypass."
+}

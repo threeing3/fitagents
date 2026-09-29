@@ -116,9 +116,11 @@ export async function generatePlan(userId: string): Promise<PlanResponse> {
 export async function submitCheckin(
   userId: string,
   data: Record<string, any>,
+  idempotencyKey: string,
 ): Promise<CheckinResult> {
   return api("/v1/checkins/daily", {
     method: "POST",
+    headers: { "Idempotency-Key": idempotencyKey },
     body: JSON.stringify({ user_id: userId, ...data }),
   });
 }
@@ -126,10 +128,27 @@ export async function submitCheckin(
 export async function logWorkout(
   userId: string,
   data: Record<string, any>,
-): Promise<{ status: string; workout_log_id: string }> {
+  idempotencyKey: string,
+): Promise<{ status: string; workout_log_id: string; idempotent_replay: boolean }> {
   return api("/v1/workouts/logs", {
     method: "POST",
+    headers: { "Idempotency-Key": idempotencyKey },
     body: JSON.stringify({ user_id: userId, ...data }),
+  });
+}
+
+export type ChatRequestStatus = {
+  status: "not_found" | "unconfirmed" | "failed" | "completed";
+  confirmed_writes: { kind: string; record_id: string; workout_name: string; duration_minutes: number | null }[];
+  assistant_message?: string;
+  agent_run_id?: string;
+  may_repeat_writes: boolean;
+};
+
+export function fetchChatRequestStatus(sessionId: string, key: string): Promise<ChatRequestStatus> {
+  return api(`/v1/chat/requests/status?session_id=${encodeURIComponent(sessionId)}`, {
+    headers: { "Idempotency-Key": key },
+    signal: AbortSignal.timeout(10000),
   });
 }
 
@@ -137,11 +156,12 @@ export function streamChat(
   sessionId: string,
   userId: string,
   message: string,
+  idempotencyKey: string,
 ): Promise<Response> {
   return fetch(`${API_BASE_URL}/v1/chat/messages/stream`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ session_id: sessionId, user_id: userId, message }),
+    body: JSON.stringify({ session_id: sessionId, user_id: userId, message, idempotency_key: idempotencyKey }),
   });
 }

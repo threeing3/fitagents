@@ -1,17 +1,35 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
 from fast_api.app.db import models
-from fast_api.app.services.outcome_reflection_service import OutcomeReflectionService
-
+from fast_api.app.services.outcome_reflection_service import (
+    OutcomeReflectionService,
+    baseline_recovery_log_id,
+)
 
 ACTIVE_STATUSES = {"scheduled", "collecting", "waiting_user", "ready"}
+
+
+def _aligned_now(
+    reference: datetime | None = None,
+    provided: datetime | None = None,
+) -> datetime:
+    """Return a UTC clock value with awareness matching a persisted timestamp."""
+
+    current = provided or datetime.now(timezone.utc)
+    if reference is None:
+        return current
+    if reference.tzinfo is None:
+        return current.replace(tzinfo=None) if current.tzinfo is not None else current
+    if current.tzinfo is None:
+        return current.replace(tzinfo=timezone.utc)
+    return current.astimezone(reference.tzinfo)
 
 
 class DecisionEvaluationService:
@@ -29,7 +47,7 @@ class DecisionEvaluationService:
         if existing is not None:
             return existing
         spec = self._plan_spec(decision)
-        start = decision.created_at or datetime.utcnow()
+        start = decision.created_at or _aligned_now()
         plan = models.DecisionEvaluationPlan(
             user_id=decision.user_id,
             decision_id=decision.id,
@@ -61,8 +79,10 @@ class DecisionEvaluationService:
         )
         return [self.refresh_plan(plan, trigger_type=event_type) for plan in plans]
 
-    def scan_due(self, user_id: uuid.UUID | None = None, now: datetime | None = None) -> dict[str, Any]:
-        now = now or datetime.utcnow()
+    def scan_due(
+        self, user_id: uuid.UUID | None = None, now: datetime | None = None
+    ) -> dict[str, Any]:
+        now = _aligned_now(provided=now)
         filters = [
             models.DecisionEvaluationPlan.status.in_(ACTIVE_STATUSES),
             models.DecisionEvaluationPlan.next_check_at <= now,
@@ -77,7 +97,9 @@ class DecisionEvaluationService:
                 .limit(100)
             )
         )
-        results = [self.refresh_plan(plan, trigger_type="scheduled_scan", now=now) for plan in plans]
+        results = [
+            self.refresh_plan(plan, trigger_type="scheduled_scan", now=now) for plan in plans
+        ]
         return {"processed": len(results), "results": results}
 
     def refresh_plan(
@@ -86,7 +108,7 @@ class DecisionEvaluationService:
         trigger_type: str,
         now: datetime | None = None,
     ) -> dict[str, Any]:
-        now = now or datetime.utcnow()
+        now = _aligned_now(plan.window_end, now)
         decision = self.db.get(models.AgentDecision, plan.decision_id)
         if decision is None:
             plan.status = "cancelled"
@@ -100,27 +122,30 @@ class DecisionEvaluationService:
 
         if evidence["safety_escalation"]:
             plan.status = "escalated"
+            plan.outcome_status = "safety_escalated"
             self._ensure_followup(plan, "safety_check", trigger_type, urgent=True)
             return self._plan_payload(plan, reason="safety_escalation")
 
         enough_objective = self._has_minimum_evidence(plan, evidence)
         needs_confirmation = bool((plan.expected_action or {}).get("requires_user_confirmation"))
-        if enough_objective and (not needs_confirmation or implementation in {"implemented", "partially_implemented"}):
+        if enough_objective and (
+            not needs_confirmation or implementation in {"implemented", "partially_implemented"}
+        ):
             plan.status = "ready"
             return self._finalize(plan, decision)
 
         expired = now >= plan.window_end
-        if needs_confirmation and plan.followup_count < 2:
-            self._ensure_followup(plan, "strategy_execution", trigger_type)
-            plan.status = "waiting_user"
-            plan.next_check_at = min(plan.window_end, now + timedelta(days=2))
-            return self._plan_payload(plan, reason="waiting_for_user_confirmation")
-
         if expired:
             plan.status = "insufficient_evidence"
             plan.outcome_status = "insufficient_evidence"
             plan.completed_at = now
             return self._plan_payload(plan, reason="evaluation_window_expired")
+
+        if needs_confirmation and plan.followup_count < 2:
+            self._ensure_followup(plan, "strategy_execution", trigger_type)
+            plan.status = "waiting_user"
+            plan.next_check_at = min(plan.window_end, now + timedelta(days=2))
+            return self._plan_payload(plan, reason="waiting_for_user_confirmation")
 
         plan.status = "collecting"
         plan.next_check_at = min(plan.window_end, now + timedelta(days=1))
@@ -139,17 +164,25 @@ class DecisionEvaluationService:
             return self._followup_payload(followup)
         followup.answer_json = answer
         followup.status = "answered"
-        followup.answered_at = datetime.utcnow()
+        followup.answered_at = _aligned_now(followup.scheduled_at)
         self.db.flush()
         plan = self.db.get(models.DecisionEvaluationPlan, followup.evaluation_plan_id)
         if plan is None:
             raise ValueError("Decision evaluation plan not found")
         implementation = str(answer.get("implementation_status") or "unknown")
+        if followup.question_type == "safety_check":
+            if implementation in {"implemented", "partially_implemented"}:
+                plan.implementation_status = implementation
+            plan.status = "escalated"
+            plan.outcome_status = "safety_escalated"
+            plan.completed_at = _aligned_now(plan.window_end)
+            self.db.flush()
+            return self._followup_payload(followup)
         if implementation in {"not_started", "abandoned"}:
             plan.implementation_status = implementation
             plan.status = "insufficient_evidence"
             plan.outcome_status = "not_applicable"
-            plan.completed_at = datetime.utcnow()
+            plan.completed_at = _aligned_now(plan.window_end)
         else:
             if implementation in {"implemented", "partially_implemented"}:
                 plan.implementation_status = implementation
@@ -189,14 +222,14 @@ class DecisionEvaluationService:
                 models.DecisionFollowup.user_id == user_id,
                 models.DecisionFollowup.status == "pending",
                 models.DecisionFollowup.attempt_count < 2,
-                models.DecisionFollowup.scheduled_at <= datetime.utcnow(),
+                models.DecisionFollowup.scheduled_at <= _aligned_now(),
             )
             .order_by(models.DecisionFollowup.scheduled_at)
         )
         if followup is None:
             return None
         followup.attempt_count = (followup.attempt_count or 0) + 1
-        followup.sent_at = datetime.utcnow()
+        followup.sent_at = _aligned_now(followup.scheduled_at)
         self.db.flush()
         return self._followup_payload(followup)
 
@@ -219,18 +252,23 @@ class DecisionEvaluationService:
             reason = result["reason"]
             if reason == "outcome_already_exists":
                 existing = self.db.scalar(
-                    select(models.DecisionOutcome).where(models.DecisionOutcome.decision_id == decision.id)
+                    select(models.DecisionOutcome).where(
+                        models.DecisionOutcome.decision_id == decision.id
+                    )
                 )
                 plan.status = "completed"
                 plan.outcome_status = existing.outcome_status if existing else "completed"
-                plan.completed_at = datetime.utcnow()
+                plan.completed_at = _aligned_now(plan.window_end)
             elif reason == "insufficient_followup_evidence":
                 plan.status = "collecting"
-                plan.next_check_at = min(plan.window_end, datetime.utcnow() + timedelta(days=1))
+                plan.next_check_at = min(
+                    plan.window_end,
+                    _aligned_now(plan.window_end) + timedelta(days=1),
+                )
             return self._plan_payload(plan, reason=reason)
         plan.status = "completed"
         plan.outcome_status = result["outcome"].outcome_status
-        plan.completed_at = datetime.utcnow()
+        plan.completed_at = _aligned_now(plan.window_end)
         return self._plan_payload(plan, reason="outcome_reflected")
 
     def _collect_evidence(
@@ -239,34 +277,42 @@ class DecisionEvaluationService:
         decision: models.AgentDecision,
     ) -> dict[str, Any]:
         start, end = plan.window_start, plan.window_end
-        workouts = list(self.db.scalars(
-            select(models.WorkoutLog).where(
-                models.WorkoutLog.user_id == plan.user_id,
-                models.WorkoutLog.performed_at >= start,
-                models.WorkoutLog.performed_at <= end,
+        workouts = list(
+            self.db.scalars(
+                select(models.WorkoutLog).where(
+                    models.WorkoutLog.user_id == plan.user_id,
+                    models.WorkoutLog.performed_at >= start,
+                    models.WorkoutLog.performed_at <= end,
+                )
             )
-        ))
-        recovery = list(self.db.scalars(
-            select(models.RecoveryLog).where(
-                models.RecoveryLog.user_id == plan.user_id,
-                models.RecoveryLog.log_date >= start.date(),
-                models.RecoveryLog.log_date <= end.date(),
+        )
+        recovery_filters = [
+            models.RecoveryLog.user_id == plan.user_id,
+            models.RecoveryLog.log_date >= start.date(),
+            models.RecoveryLog.log_date <= end.date(),
+        ]
+        baseline_recovery_id = baseline_recovery_log_id(decision.context_used)
+        if baseline_recovery_id is not None:
+            recovery_filters.append(models.RecoveryLog.id != baseline_recovery_id)
+        recovery = list(self.db.scalars(select(models.RecoveryLog).where(*recovery_filters)))
+        symptoms = list(
+            self.db.scalars(
+                select(models.SymptomLog).where(
+                    models.SymptomLog.user_id == plan.user_id,
+                    models.SymptomLog.symptom_date >= start.date(),
+                    models.SymptomLog.symptom_date <= end.date(),
+                )
             )
-        ))
-        symptoms = list(self.db.scalars(
-            select(models.SymptomLog).where(
-                models.SymptomLog.user_id == plan.user_id,
-                models.SymptomLog.symptom_date >= start.date(),
-                models.SymptomLog.symptom_date <= end.date(),
+        )
+        nutrition = list(
+            self.db.scalars(
+                select(models.NutritionDailySummary).where(
+                    models.NutritionDailySummary.user_id == plan.user_id,
+                    models.NutritionDailySummary.summary_date >= start.date(),
+                    models.NutritionDailySummary.summary_date <= end.date(),
+                )
             )
-        ))
-        nutrition = list(self.db.scalars(
-            select(models.NutritionDailySummary).where(
-                models.NutritionDailySummary.user_id == plan.user_id,
-                models.NutritionDailySummary.summary_date >= start.date(),
-                models.NutritionDailySummary.summary_date <= end.date(),
-            )
-        ))
+        )
         max_symptom = max(
             [float(item.severity_score) for item in symptoms if item.severity_score is not None],
             default=None,
@@ -313,8 +359,7 @@ class DecisionEvaluationService:
     ) -> bool:
         requirements = plan.minimum_evidence or {}
         return all(
-            int(evidence.get(key, 0) or 0) >= int(value)
-            for key, value in requirements.items()
+            int(evidence.get(key, 0) or 0) >= int(value) for key, value in requirements.items()
         )
 
     def _ensure_followup(
@@ -357,7 +402,7 @@ class DecisionEvaluationService:
             question_payload=payload,
             trigger_type=trigger_type,
             status="pending",
-            scheduled_at=datetime.utcnow(),
+            scheduled_at=_aligned_now(plan.window_end),
         )
         self.db.add(followup)
         plan.followup_count = (plan.followup_count or 0) + 1
@@ -367,9 +412,11 @@ class DecisionEvaluationService:
     def _latest_implementation_answer(self, plan_id: uuid.UUID) -> str | None:
         answer = self._latest_followup_answer(plan_id)
         value = str(answer.get("implementation_status") or "")
-        return value if value in {
-            "implemented", "partially_implemented", "not_started", "abandoned"
-        } else None
+        return (
+            value
+            if value in {"implemented", "partially_implemented", "not_started", "abandoned"}
+            else None
+        )
 
     def _latest_followup_answer(self, plan_id: uuid.UUID) -> dict[str, Any]:
         followup = self.db.scalar(
@@ -385,18 +432,22 @@ class DecisionEvaluationService:
         return followup.answer_json or {}
 
     def _answered_followup_evidence(self, plan_id: uuid.UUID) -> list[dict[str, Any]]:
-        followups = list(self.db.scalars(
-            select(models.DecisionFollowup).where(
-                models.DecisionFollowup.evaluation_plan_id == plan_id,
-                models.DecisionFollowup.status == "answered",
+        followups = list(
+            self.db.scalars(
+                select(models.DecisionFollowup).where(
+                    models.DecisionFollowup.evaluation_plan_id == plan_id,
+                    models.DecisionFollowup.status == "answered",
+                )
             )
-        ))
+        )
         return [
             {
                 "table": "decision_followups",
                 "id": str(item.id),
                 "summary": str(item.answer_json or {})[:180],
-                "time": item.answered_at.isoformat() if item.answered_at else datetime.utcnow().isoformat(),
+                "time": item.answered_at.isoformat()
+                if item.answered_at
+                else _aligned_now().isoformat(),
             }
             for item in followups
         ]
@@ -409,20 +460,36 @@ class DecisionEvaluationService:
                 "window_days": 10,
                 "first_check_days": 3,
                 "expected_action": {"requires_user_confirmation": True},
-                "objective_metrics": ["nutrition_days", "avg_adherence_score", "protein_target_ratio"],
+                "objective_metrics": [
+                    "nutrition_days",
+                    "avg_adherence_score",
+                    "protein_target_ratio",
+                ],
                 "minimum_evidence": {"nutrition_days": 3},
-                "subjective_questions": [self._execution_question("这个饮食建议是否实际执行，执行起来是否方便？")],
+                "subjective_questions": [
+                    self._execution_question("这个饮食建议是否实际执行，执行起来是否方便？")
+                ],
             }
-        if any(term in decision_type for term in ["risk", "pain", "injury", "adjustment", "progression"]):
+        if any(
+            term in decision_type
+            for term in ["risk", "pain", "injury", "adjustment", "progression"]
+        ):
             return {
                 "evaluation_type": "training_adjustment",
                 "window_days": 7,
                 "first_check_days": 1,
                 "expected_action": {"requires_user_confirmation": True},
-                "objective_metrics": ["workout_count", "avg_completion_rate", "avg_fatigue_score", "max_symptom_severity"],
+                "objective_metrics": [
+                    "workout_count",
+                    "avg_completion_rate",
+                    "avg_fatigue_score",
+                    "max_symptom_severity",
+                ],
                 "minimum_evidence": {"workout_count": 1, "recovery_count": 1},
                 "subjective_questions": [
-                    self._execution_question("你是否按建议调整了训练？调整后症状是改善、无变化还是加重？"),
+                    self._execution_question(
+                        "你是否按建议调整了训练？调整后症状是改善、无变化还是加重？"
+                    ),
                     {
                         "question_type": "safety_check",
                         "prompt": "执行建议后，是否出现疼痛、头晕、胸闷或明显恢复恶化？",

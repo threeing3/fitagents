@@ -1,9 +1,9 @@
 """Coach platform API — all endpoints require authentication via JWT Bearer token."""
 
-from typing import Any
+from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
@@ -34,6 +34,7 @@ from fast_api.app.schemas.agent import (
 )
 from fast_api.app.services.agent_task_state import AgentTaskStateService
 from fast_api.app.services.background_tasks import BackgroundTaskQueue
+from fast_api.app.services.chat_request_status import get_chat_request_status
 from fast_api.app.services.coach_agent import CoachAgentService
 from fast_api.app.services.model_provider import ModelProvider
 from fast_api.app.services.plan_reviewer import PlanReviewer
@@ -133,6 +134,19 @@ def list_chat_messages(
     ]
 
 
+@coach_router.get("/chat/requests/status", response_model=dict[str, Any])
+def chat_request_status(
+    session_id: UUID,
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1, max_length=128)],
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    try:
+        return get_chat_request_status(db, current_user.id, session_id, idempotency_key)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 @coach_router.post("/chat/messages", response_model=ChatMessageResponse)
 @limiter.limit(settings.rate_limit_chat)
 async def send_chat_message(
@@ -146,6 +160,7 @@ async def send_chat_message(
             payload.session_id,
             current_user.id,
             payload.message,
+            idempotency_key=payload.idempotency_key,
         )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -164,6 +179,7 @@ async def stream_chat_message(
             payload.session_id,
             current_user.id,
             payload.message,
+            idempotency_key=payload.idempotency_key,
         ),
         media_type="application/x-ndjson; charset=utf-8",
     )
@@ -191,8 +207,18 @@ def record_daily_checkin(
     request: DailyCheckinRequest,
     service: CoachAgentService = Depends(get_service),
     current_user: models.User = Depends(get_current_user),
+    idempotency_key: Annotated[
+        str | None,
+        Header(alias="Idempotency-Key", min_length=1, max_length=128),
+    ] = None,
 ):
+    if idempotency_key and request.idempotency_key and idempotency_key != request.idempotency_key:
+        raise HTTPException(
+            status_code=409,
+            detail="Body and header idempotency keys do not match.",
+        )
     request.user_id = current_user.id
+    request.idempotency_key = idempotency_key or request.idempotency_key
     return service.record_daily_checkin(request)
 
 
@@ -201,10 +227,24 @@ def record_workout_log(
     request: WorkoutLogRequest,
     service: CoachAgentService = Depends(get_service),
     current_user: models.User = Depends(get_current_user),
+    idempotency_key: Annotated[
+        str | None,
+        Header(alias="Idempotency-Key", min_length=1, max_length=128),
+    ] = None,
 ):
+    if idempotency_key and request.idempotency_key and idempotency_key != request.idempotency_key:
+        raise HTTPException(
+            status_code=409,
+            detail="Body and header idempotency keys do not match.",
+        )
     request.user_id = current_user.id
+    request.idempotency_key = idempotency_key or request.idempotency_key
     log = service.record_workout_log(request)
-    return {"status": "recorded", "workout_log_id": str(log.id)}
+    return {
+        "status": "recorded",
+        "workout_log_id": str(log.id),
+        "idempotent_replay": bool(getattr(log, "_idempotent_replay", False)),
+    }
 
 
 @coach_router.post("/plans/generate", response_model=PlanResponse)

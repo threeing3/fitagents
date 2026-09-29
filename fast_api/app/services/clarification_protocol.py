@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from fast_api.app.services.intent_decision import IntentDecision, IntentRouter
+from fast_api.app.services.risk_evidence import self_risk_evidence
 
 
 @dataclass
@@ -40,7 +41,7 @@ class ClarificationProtocolValidator:
             reasons.append("AMBIGUOUS_REFERENCE")
 
         intents = {decision.primary_intent, *decision.secondary_intents}
-        red_flag = any(term in text for term in self.RED_FLAGS)
+        red_flag = bool(self_risk_evidence(text, list(self.RED_FLAGS), IntentRouter.RISK_TERMS))
         if "injury_or_risk" in intents:
             blocked.append("generate_plan")
             if red_flag:

@@ -1,0 +1,11 @@
+{
+  "schema_version": "fitagent-intent-augmentation-curation/v1",
+  "reviewer_type": "automated_assistant_review",
+  "excluded_request_ids": [
+    "augment-primary-injury_or_risk-validation"
+  ],
+  "reasons": {
+    "augment-primary-injury_or_risk-validation": "All four candidates negate numbness and weakness, reversing the requested injury_or_risk semantics."
+  },
+  "human_review_completed": false
+}

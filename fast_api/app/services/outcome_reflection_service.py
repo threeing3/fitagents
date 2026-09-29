@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, datetime, time, timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy import select
@@ -7,6 +7,16 @@ from sqlalchemy.orm import Session
 
 from fast_api.app.db import models
 from fast_api.app.services.memory_system import MemoryManager
+
+
+def baseline_recovery_log_id(context: dict[str, Any] | None) -> uuid.UUID | None:
+    raw_value = (context or {}).get("baseline_recovery_log_id")
+    if not raw_value:
+        return None
+    try:
+        return uuid.UUID(str(raw_value))
+    except (TypeError, ValueError, AttributeError):
+        return None
 
 
 class OutcomeReflectionService:
@@ -27,7 +37,10 @@ class OutcomeReflectionService:
         decisions = list(
             self.db.scalars(
                 select(models.AgentDecision)
-                .where(models.AgentDecision.user_id == user_id, models.AgentDecision.created_at >= since)
+                .where(
+                    models.AgentDecision.user_id == user_id,
+                    models.AgentDecision.created_at >= since,
+                )
                 .order_by(models.AgentDecision.created_at)
                 .limit(limit)
             )
@@ -70,13 +83,19 @@ class OutcomeReflectionService:
         if self._existing_outcome(decision.id):
             return {"outcome": None, "memory": None, "reason": "outcome_already_exists"}
         if implementation_status not in {"implemented", "partially_implemented"}:
-            return {"outcome": None, "memory": None, "reason": "strategy_not_confirmed_as_implemented"}
+            return {
+                "outcome": None,
+                "memory": None,
+                "reason": "strategy_not_confirmed_as_implemented",
+            }
         spec = self._build_outcome_spec(decision, outcome_window_days)
         if spec is None:
             return {"outcome": None, "memory": None, "reason": "insufficient_followup_evidence"}
         if implementation_status == "partially_implemented" and spec["outcome_status"] == "worse":
             spec["outcome_status"] = "mixed"
-            spec["outcome_summary"] += " Strategy execution was partial, so the result is not treated as a failed strategy."
+            spec["outcome_summary"] += (
+                " Strategy execution was partial, so the result is not treated as a failed strategy."
+            )
             spec["confidence_score"] = min(float(spec["confidence_score"]), 0.62)
         spec = self._merge_subjective_outcome(
             spec,
@@ -175,21 +194,37 @@ class OutcomeReflectionService:
         workouts = list(
             self.db.scalars(
                 select(models.WorkoutLog)
-                .where(models.WorkoutLog.user_id == decision.user_id, models.WorkoutLog.performed_at >= start, models.WorkoutLog.performed_at <= end)
+                .where(
+                    models.WorkoutLog.user_id == decision.user_id,
+                    models.WorkoutLog.performed_at >= start,
+                    models.WorkoutLog.performed_at <= end,
+                )
                 .order_by(models.WorkoutLog.performed_at)
             )
         )
+        recovery_filters = [
+            models.RecoveryLog.user_id == decision.user_id,
+            models.RecoveryLog.log_date >= start.date(),
+            models.RecoveryLog.log_date <= end.date(),
+        ]
+        baseline_recovery_id = baseline_recovery_log_id(decision.context_used)
+        if baseline_recovery_id is not None:
+            recovery_filters.append(models.RecoveryLog.id != baseline_recovery_id)
         recovery = list(
             self.db.scalars(
                 select(models.RecoveryLog)
-                .where(models.RecoveryLog.user_id == decision.user_id, models.RecoveryLog.log_date >= start.date(), models.RecoveryLog.log_date <= end.date())
+                .where(*recovery_filters)
                 .order_by(models.RecoveryLog.log_date)
             )
         )
         symptoms = list(
             self.db.scalars(
                 select(models.SymptomLog)
-                .where(models.SymptomLog.user_id == decision.user_id, models.SymptomLog.symptom_date >= start.date(), models.SymptomLog.symptom_date <= end.date())
+                .where(
+                    models.SymptomLog.user_id == decision.user_id,
+                    models.SymptomLog.symptom_date >= start.date(),
+                    models.SymptomLog.symptom_date <= end.date(),
+                )
                 .order_by(models.SymptomLog.symptom_date)
             )
         )
@@ -201,10 +236,16 @@ class OutcomeReflectionService:
         )
         if len(evidence) <= 1:
             return None
-        avg_completion = self._average([log.completion_rate for log in workouts if log.completion_rate is not None])
+        avg_completion = self._average(
+            [log.completion_rate for log in workouts if log.completion_rate is not None]
+        )
         avg_rpe = self._average([log.rpe for log in workouts if log.rpe is not None])
-        avg_fatigue = self._average([log.fatigue_score for log in recovery if log.fatigue_score is not None])
-        max_symptom = self._max_value([log.severity_score for log in symptoms if log.severity_score is not None])
+        avg_fatigue = self._average(
+            [log.fatigue_score for log in recovery if log.fatigue_score is not None]
+        )
+        max_symptom = self._max_value(
+            [log.severity_score for log in symptoms if log.severity_score is not None]
+        )
         metrics = {
             "workout_count": len(workouts),
             "symptom_count": len(symptoms),
@@ -230,16 +271,28 @@ class OutcomeReflectionService:
         summaries = list(
             self.db.scalars(
                 select(models.NutritionDailySummary)
-                .where(models.NutritionDailySummary.user_id == decision.user_id, models.NutritionDailySummary.summary_date >= start.date(), models.NutritionDailySummary.summary_date <= end.date())
+                .where(
+                    models.NutritionDailySummary.user_id == decision.user_id,
+                    models.NutritionDailySummary.summary_date >= start.date(),
+                    models.NutritionDailySummary.summary_date <= end.date(),
+                )
                 .order_by(models.NutritionDailySummary.summary_date)
             )
         )
-        evidence = self._evidence_for([decision], "agent_decisions") + self._evidence_for(summaries, "nutrition_daily_summaries")
+        evidence = self._evidence_for([decision], "agent_decisions") + self._evidence_for(
+            summaries, "nutrition_daily_summaries"
+        )
         if len(evidence) <= 1:
             return None
-        avg_adherence = self._average([item.adherence_score for item in summaries if item.adherence_score is not None])
-        avg_protein = self._average([item.total_protein_g for item in summaries if item.total_protein_g is not None])
-        avg_target_protein = self._average([item.target_protein_g for item in summaries if item.target_protein_g is not None])
+        avg_adherence = self._average(
+            [item.adherence_score for item in summaries if item.adherence_score is not None]
+        )
+        avg_protein = self._average(
+            [item.total_protein_g for item in summaries if item.total_protein_g is not None]
+        )
+        avg_target_protein = self._average(
+            [item.target_protein_g for item in summaries if item.target_protein_g is not None]
+        )
         protein_target_ratio = None
         if avg_protein is not None and avg_target_protein:
             protein_target_ratio = round(avg_protein / avg_target_protein, 3)
@@ -278,7 +331,12 @@ class OutcomeReflectionService:
             f"outcome_summary={outcome.outcome_summary}"
         )
         evidence = [
-            {"table": "decision_outcomes", "id": str(outcome.id), "summary": outcome.outcome_summary, "time": datetime.utcnow().isoformat()},
+            {
+                "table": "decision_outcomes",
+                "id": str(outcome.id),
+                "summary": outcome.outcome_summary,
+                "time": datetime.utcnow().isoformat(),
+            },
             *spec["evidence"],
         ]
         metadata = self._strategy_memory_metadata(decision, outcome, spec, failed)
@@ -306,14 +364,12 @@ class OutcomeReflectionService:
     ) -> dict[str, Any]:
         context = decision.context_used or {}
         profile = self.db.get(models.UserProfile, decision.user_id)
-        goal = (
-            self._find_context_value(context, "goal")
-            or (profile.goal if profile is not None else None)
+        goal = self._find_context_value(context, "goal") or (
+            profile.goal if profile is not None else None
         )
-        training_phase = (
-            self._find_context_value(context, "training_phase")
-            or self._find_context_value(context, "phase")
-        )
+        training_phase = self._find_context_value(
+            context, "training_phase"
+        ) or self._find_context_value(context, "phase")
         baseline_state = self._baseline_state(context)
         safety_status = spec.get("metrics", {}).get("safety_status")
         safety_relevant = bool(
@@ -393,11 +449,17 @@ class OutcomeReflectionService:
             return "worse"
         if avg_completion is not None and avg_completion < 0.5:
             return "worse"
-        if (avg_completion is not None and avg_completion >= 0.75) and (max_symptom is None or max_symptom <= 3) and (avg_fatigue is None or avg_fatigue <= 6.5):
+        if (
+            (avg_completion is not None and avg_completion >= 0.75)
+            and (max_symptom is None or max_symptom <= 3)
+            and (avg_fatigue is None or avg_fatigue <= 6.5)
+        ):
             return "improved"
         return "neutral"
 
-    def _nutrition_status(self, avg_adherence: float | None, protein_target_ratio: float | None) -> str:
+    def _nutrition_status(
+        self, avg_adherence: float | None, protein_target_ratio: float | None
+    ) -> str:
         if avg_adherence is not None and avg_adherence < 0.45:
             return "worse"
         if avg_adherence is not None and avg_adherence >= 0.75:
@@ -441,14 +503,30 @@ class OutcomeReflectionService:
         ]
 
     def _evidence_summary(self, row: Any) -> str:
-        for attr in ("outcome_summary", "summary_text", "notes", "description", "reason", "decision_result", "workout_name", "symptom_type"):
+        for attr in (
+            "outcome_summary",
+            "summary_text",
+            "notes",
+            "description",
+            "reason",
+            "decision_result",
+            "workout_name",
+            "symptom_type",
+        ):
             value = getattr(row, attr, None)
             if value:
                 return str(value)[:180]
         return row.__class__.__name__
 
     def _evidence_time(self, row: Any) -> str:
-        for attr in ("performed_at", "summary_date", "log_date", "symptom_date", "created_at", "updated_at"):
+        for attr in (
+            "performed_at",
+            "summary_date",
+            "log_date",
+            "symptom_date",
+            "created_at",
+            "updated_at",
+        ):
             value = getattr(row, attr, None)
             if value:
                 return value.isoformat() if hasattr(value, "isoformat") else str(value)
@@ -473,7 +551,9 @@ class OutcomeReflectionService:
             "outcome_summary": outcome.outcome_summary,
             "metrics": outcome.metrics or {},
             "evidence": outcome.evidence or [],
-            "reflected_memory_id": str(outcome.reflected_memory_id) if outcome.reflected_memory_id else None,
+            "reflected_memory_id": str(outcome.reflected_memory_id)
+            if outcome.reflected_memory_id
+            else None,
         }
 
     def _memory_summary(self, memory: models.LongTermMemory) -> dict[str, Any]:

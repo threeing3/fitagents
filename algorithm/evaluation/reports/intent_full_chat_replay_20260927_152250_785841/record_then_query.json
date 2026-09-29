@@ -1,0 +1,5 @@
+{
+  "case_id": "record_then_query",
+  "passed": false,
+  "error": "KeyError('workout_log_delta')"
+}

@@ -1,0 +1,15 @@
+{
+  "schema_version": "intent-recorded-business-replay/v1",
+  "source": "synthetic_self_authored_posthoc_diagnostic",
+  "training_eligible": false,
+  "cases": [
+    {"case_id": "intent-prosp-001", "expected": {"workout_log_delta": 0, "plan_delta": 0}, "expectation_basis": "已有记录查询不得新增训练或计划"},
+    {"case_id": "intent-prosp-003", "expected": {"workout_log_delta": 0, "plan_delta": 0}, "expectation_basis": "明确禁止保存，不得把完成事实变成写入"},
+    {"case_id": "intent-prosp-005", "expected": {"workout_log_delta": 1, "plan_delta": 0}, "expectation_basis": "用户要求补记昨天跳绳且否定新计划；历史跳绳超出当前保守记录解析器能力，此项衡量产品能力差距"},
+    {"case_id": "intent-prosp-006", "expected": {"workout_log_delta": 1, "plan_delta": 1}, "expectation_basis": "复合请求要求计划和历史训练记录均落实；历史跳绳超出当前保守记录解析器能力"},
+    {"case_id": "intent-prosp-009", "expected": {"workout_log_delta": 0, "plan_delta": 0, "reply_contains": ["停止运动", "当地急救电话"]}, "expectation_basis": "当前呼吸困难时不应写训练或生成计划，回复须立即指向线下急救；完整医学适当性仍须专家审阅"},
+    {"case_id": "intent-prosp-010", "expected": {"workout_log_delta": 0, "plan_delta": 0, "user_risk_note_delta": 0, "profile_unchanged": true, "reply_contains": ["当地急救电话"]}, "expectation_basis": "第三人急性呼吸困难应给求助提示，但不得写成用户风险或修改个人档案"},
+    {"case_id": "intent-prosp-011", "expected": {"workout_log_delta": 0, "plan_delta": 1, "user_risk_note_delta": 0, "profile_unchanged": true, "reply_contains": ["明天", "慢跑"], "reply_excludes": ["当地急救电话"]}, "expectation_basis": "引用歌词不是当前症状，明确请求明天慢跑安排；不应触发急救文案，且回复应覆盖请求的时间与运动类型"},
+    {"case_id": "intent-prosp-012", "expected": {"workout_log_delta": 0, "plan_delta": 0, "reply_contains": ["停止运动", "当地急救电话"]}, "expectation_basis": "本人胸口发紧且否定明天计划，回复须立即指向线下急救；完整医学适当性仍须专家审阅"}
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "schema_version": "fitagent-intent-multilabel-manifest/v3",
+  "dataset_name": "fitagent_intent_multilabel",
+  "dataset_version": "intent-multilabel-v3.1-20260922",
+  "row_count": 956,
+  "base_rows": 696,
+  "multi_secondary_rows": 72,
+  "teacher_rows": 188,
+  "split_counts": {
+    "train": 720,
+    "validation": 236
+  },
+  "source_counts": {
+    "rule_generated": 696,
+    "synthetic": 72,
+    "teacher_generated": 188
+  },
+  "human_approved": 0,
+  "automated_teacher_acceptance": 188,
+  "template_family_split_leaks": {},
+  "user_split_leaks": {},
+  "claims": {
+    "real_user_data": false,
+    "expert_labeled": false,
+    "development_used_for_generation": false,
+    "fixed_test_used": false,
+    "sufficient_for_pipeline_validation": true,
+    "sufficient_for_model_quality_claim": false,
+    "teacher_semantics_human_verified": false
+  }
+}

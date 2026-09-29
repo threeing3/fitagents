@@ -231,7 +231,19 @@ class LLMIntentClassifier:
             "stalled",
             "plateau",
         ]
-        return any(term in text for term in decision_terms)
+        if any(term in text for term in decision_terms):
+            return True
+        has_clause_boundary = bool(re.search(r"[，,；;。]|并|再|另外|顺便", text))
+        has_record_request = bool(re.search(r"记录|记下|保存|补录", text))
+        has_second_task = any(
+            term in text for term in ("计划", "安排", "查询", "查", "告诉我", "建议", "回顾")
+        )
+        if has_clause_boundary and has_record_request and has_second_task:
+            return True
+        quoted_symptom = any(term in text for term in ("引用", "歌词", "引号")) and any(
+            term in text for term in ("胸", "疼", "痛", "呼吸", "头晕")
+        )
+        return quoted_symptom
 
     def _system_prompt(self) -> str:
         return (

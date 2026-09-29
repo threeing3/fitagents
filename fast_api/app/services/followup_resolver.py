@@ -12,6 +12,7 @@ from sqlalchemy import desc, or_, select
 from sqlalchemy.orm import Session
 
 from fast_api.app.db import models
+from fast_api.app.services.chat_workout_record import merge_workout_followup
 
 
 @dataclass
@@ -29,7 +30,9 @@ class FollowupResolution:
         return {
             "resolved": self.resolved,
             "normalized_message": self.normalized_message,
-            "pending_question_id": str(self.pending_question_id) if self.pending_question_id else None,
+            "pending_question_id": str(self.pending_question_id)
+            if self.pending_question_id
+            else None,
             "question_type": self.question_type,
             "selected_option": self.selected_option,
             "reason": self.reason,
@@ -41,9 +44,7 @@ class FollowupResolver:
 
     DEFAULT_TTL_MINUTES = 45
 
-    OPTION_PATTERN = re.compile(
-        r"(?:^|\n|\s)([A-Da-d])[\.\)、:：\-]\s*([^A-D\n]{1,120})"
-    )
+    OPTION_PATTERN = re.compile(r"(?:^|\n|\s)([A-Da-d])[\.\)、:：\-]\s*([^A-D\n]{1,120})")
     YES_VALUES = {"是", "对", "可以", "好", "要", "需要", "继续", "yes", "y", "ok", "okay"}
     NO_VALUES = {"不", "不是", "不要", "不用", "不需要", "先不", "no", "n"}
     ORDINAL_VALUES = {
@@ -75,9 +76,35 @@ class FollowupResolver:
         if pending is None:
             return FollowupResolution(False, message, reason="no_pending_question")
 
+        if pending.question_type == "workout_record":
+            normalized = merge_workout_followup(
+                pending.prompt_text, pending.answer_json.get("missing", []), message
+            )
+            if normalized is None:
+                pending.status = (
+                    "cancelled" if re.search(r"取消|不要|不用|算了", message) else "expired"
+                )
+                self.db.flush()
+                return FollowupResolution(
+                    False, message, pending.id, pending.question_type, reason=pending.status
+                )
+            pending.status = "answered"
+            pending.answer_json = {
+                **pending.answer_json,
+                "raw_message": message,
+                "normalized_message": normalized,
+            }
+            pending.resolved_message_id = resolved_message_id
+            self.db.flush()
+            return FollowupResolution(
+                True, normalized, pending.id, pending.question_type, reason="matched_workout_field"
+            )
+
         option = self._match_option(message, pending.options_json or [])
         if option is None:
-            return FollowupResolution(False, message, pending.id, pending.question_type, reason="no_option_match")
+            return FollowupResolution(
+                False, message, pending.id, pending.question_type, reason="no_option_match"
+            )
 
         normalized = self._normalized_message(pending, option, message)
         pending.status = "answered"
@@ -127,6 +154,9 @@ class FollowupResolver:
         assistant_message_id: uuid.UUID,
         assistant_text: str,
     ) -> models.PendingQuestion | None:
+        active = self.get_active_question(user_id, session_id)
+        if active is not None and active.question_type == "workout_record":
+            return active
         options = self.extract_options(assistant_text)
         question_type = self._infer_question_type(assistant_text, options)
         if not options and question_type != "yes_no":
@@ -139,7 +169,8 @@ class FollowupResolver:
             assistant_message_id=assistant_message_id,
             question_type=question_type,
             prompt_text=assistant_text[-1200:],
-            options_json=options or [
+            options_json=options
+            or [
                 {"key": "yes", "label": "yes", "meaning": "用户确认"},
                 {"key": "no", "label": "no", "meaning": "用户否定"},
             ],

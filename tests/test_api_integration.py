@@ -10,8 +10,9 @@ import uuid
 from datetime import date, datetime, timedelta
 from unittest.mock import patch
 
+import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -432,6 +433,141 @@ def test_coach_endpoints_reject_unauthenticated():
         else:
             resp = client.get(path)
         assert resp.status_code == 401, f"{method} {path} should return 401, got {resp.status_code}"
+
+
+def test_daily_checkin_idempotency_header_replays_and_rejects_payload_conflict():
+    client, session_factory = _create_client_and_db()
+    registered = client.post(
+        "/v1/auth/register",
+        json={
+            "email": "checkin-idempotency@example.com",
+            "password": "secure1234",
+        },
+    ).json()
+    headers = {
+        "Authorization": f"Bearer {registered['access_token']}",
+        "Idempotency-Key": "api-checkin-001",
+    }
+    payload = {
+        "checkin_date": "2026-09-20",
+        "sleep_hours": 7,
+        "fatigue": 3,
+    }
+    first = client.post("/v1/checkins/daily", json=payload, headers=headers)
+    second = client.post("/v1/checkins/daily", json=payload, headers=headers)
+    conflict = client.post(
+        "/v1/checkins/daily",
+        json={**payload, "sleep_hours": 8},
+        headers=headers,
+    )
+
+    assert first.status_code == second.status_code == 200
+    assert first.json()["idempotent_replay"] is False
+    assert second.json() == {**first.json(), "idempotent_replay": True}
+    assert conflict.status_code == 409
+    assert conflict.json()["error"]["code"] == "idempotency_conflict"
+    with session_factory() as db:
+        assert len(db.scalars(select(models.DailyCheckin)).all()) == 1
+        assert len(db.scalars(select(models.IdempotencyRecord)).all()) == 1
+        assert len(db.scalars(select(models.LongTermMemory)).all()) == 1
+
+
+def test_workout_idempotency_header_replays_and_rejects_payload_conflict():
+    client, session_factory = _create_client_and_db()
+    registered = client.post(
+        "/v1/auth/register",
+        json={
+            "email": "workout-idempotency@example.com",
+            "password": "secure1234",
+        },
+    ).json()
+    headers = {
+        "Authorization": f"Bearer {registered['access_token']}",
+        "Idempotency-Key": "api-workout-001",
+    }
+    payload = {
+        "performed_at": "2026-09-20T10:00:00",
+        "workout_name": "synthetic dumbbell session",
+        "rpe": 5,
+        "exercises": [{"name": "dumbbell row", "sets": [{"reps": 10, "weight": 12}]}],
+    }
+    first = client.post("/v1/workouts/logs", json=payload, headers=headers)
+    second = client.post("/v1/workouts/logs", json=payload, headers=headers)
+    conflict = client.post(
+        "/v1/workouts/logs",
+        json={**payload, "rpe": 8},
+        headers=headers,
+    )
+
+    assert first.status_code == second.status_code == 200
+    assert first.json()["idempotent_replay"] is False
+    assert second.json() == {**first.json(), "idempotent_replay": True}
+    assert conflict.status_code == 409
+    assert conflict.json()["error"]["code"] == "idempotency_conflict"
+    with session_factory() as db:
+        assert len(db.scalars(select(models.WorkoutLog)).all()) == 1
+        assert len(db.scalars(select(models.WorkoutSession)).all()) == 1
+        assert len(db.scalars(select(models.ExerciseLog)).all()) == 1
+        assert len(db.scalars(select(models.IdempotencyRecord)).all()) == 1
+        assert len(db.scalars(select(models.LongTermMemory)).all()) == 1
+
+
+def test_workout_response_drop_after_commit_recovers_through_same_http_contract():
+    client, session_factory = _create_client_and_db()
+    registered = client.post(
+        "/v1/auth/register",
+        json={
+            "email": "workout-response-drop@example.com",
+            "password": "secure1234",
+        },
+    ).json()
+    headers = {
+        "Authorization": f"Bearer {registered['access_token']}",
+        "Idempotency-Key": "api-workout-response-drop-001",
+    }
+    payload = {
+        "performed_at": "2026-09-21T10:00:00",
+        "workout_name": "response drop synthetic session",
+        "rpe": 6,
+        "exercises": [{"name": "squat", "sets": [{"reps": 8, "weight": 40}]}],
+    }
+
+    class DropCompletedWorkoutResponse:
+        def __init__(self, app):
+            self.app = app
+            self.dropped = False
+
+        async def __call__(self, scope, receive, send):
+            should_drop = (
+                scope["type"] == "http"
+                and scope["path"] == "/v1/workouts/logs"
+                and not self.dropped
+            )
+            if not should_drop:
+                await self.app(scope, receive, send)
+                return
+            self.dropped = True
+
+            async def drop_send(message):
+                if message["type"] == "http.response.body" and not message.get("more_body", False):
+                    raise ConnectionError("injected response drop after endpoint commit")
+
+            await self.app(scope, receive, drop_send)
+
+    interrupted_client = TestClient(DropCompletedWorkoutResponse(client.app))
+    with pytest.raises(ConnectionError, match="after endpoint commit"):
+        interrupted_client.post("/v1/workouts/logs", json=payload, headers=headers)
+
+    recovered = client.post("/v1/workouts/logs", json=payload, headers=headers)
+
+    assert recovered.status_code == 200
+    assert recovered.json()["idempotent_replay"] is True
+    with session_factory() as db:
+        assert len(db.scalars(select(models.WorkoutLog)).all()) == 1
+        assert len(db.scalars(select(models.WorkoutSession)).all()) == 1
+        assert len(db.scalars(select(models.ExerciseLog)).all()) == 1
+        assert len(db.scalars(select(models.IdempotencyRecord)).all()) == 1
+        assert len(db.scalars(select(models.LongTermMemory)).all()) == 1
 
 
 def test_create_chat_session_with_valid_token():

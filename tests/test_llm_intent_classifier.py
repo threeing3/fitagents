@@ -1,9 +1,27 @@
 import asyncio
 from types import SimpleNamespace
 
+import pytest
+
 from fast_api.app.services.agent_pipeline_router import AgentPipelineRouter
 from fast_api.app.services.intent_decision import IntentRouter
 from fast_api.app.services.llm_intent_classifier import LLMIntentClassifier
+
+
+@pytest.mark.parametrize(
+    "message,expected",
+    [
+        ("给我新训练计划，并把昨天跳绳十五分钟记下来。", True),
+        ("我刚做完俯卧撑，请保存；再查上次做了多少个。", True),
+        ("我说‘胸口发紧’是在引用歌词，并不是我的症状；请安排明天慢跑。", True),
+        ("我刚完成30分钟跑步，请记下来。", False),
+        ("给我一份训练计划。", False),
+    ],
+)
+def test_chinese_multitask_or_quoted_symptom_requests_refinement(message, expected):
+    classifier = LLMIntentClassifier(FakeModelProvider("{}"), IntentRouter())
+    rule = IntentRouter().analyze(message)
+    assert classifier.should_refine(rule, message) is expected
 
 
 class FakeMessage:

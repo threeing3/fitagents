@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Moon, Battery, Gauge, Heart, Utensils, Dumbbell, Send, CheckCircle } from "lucide-react";
 import type { SessionState } from "./types";
 import { submitCheckin } from "./api";
@@ -40,22 +40,33 @@ export function CheckinView({ session, busy, setBusy, setNotice, onRefresh }: Pr
   const [workoutCompletion, setWorkoutCompletion] = useState(80);
   const [notes, setNotes] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const pendingRequest = useRef<{ payload: string; key: string } | null>(null);
 
   async function handleSubmit() {
     if (!session) return;
     setBusy(true);
     setSubmitted(false);
+    const checkin = {
+      sleep_hours: sleep,
+      fatigue,
+      soreness,
+      stress,
+      mood: mood || undefined,
+      nutrition_adherence: nutrition,
+      workout_completion: workoutCompletion,
+      notes: notes || undefined,
+    };
+    const serialized = JSON.stringify(checkin);
+    if (!pendingRequest.current || pendingRequest.current.payload !== serialized) {
+      pendingRequest.current = { payload: serialized, key: crypto.randomUUID() };
+    }
     try {
-      const result = await submitCheckin(session.user_id, {
-        sleep_hours: sleep,
-        fatigue,
-        soreness,
-        stress,
-        mood: mood || undefined,
-        nutrition_adherence: nutrition,
-        workout_completion: workoutCompletion,
-        notes: notes || undefined,
-      });
+      const result = await submitCheckin(
+        session.user_id,
+        checkin,
+        pendingRequest.current.key,
+      );
+      pendingRequest.current = null;
       setNotice(result.auto_adjusted
         ? (isZh ? "打卡已记录，计划已自动调整。" : "Check-in recorded & plan auto-adjusted.")
         : (isZh ? "打卡已记录。" : "Check-in recorded."));

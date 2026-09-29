@@ -1,0 +1,56 @@
+{
+  "schema_version": "fitagent-intent-semantic-probe-report/v1",
+  "partition": "development_diagnostic",
+  "source": "assistant_authored_synthetic",
+  "human_review_status": "not_reviewed",
+  "training_eligible": false,
+  "cases": 12,
+  "paths": {
+    "rule_only": {
+      "all_checks_passed": 8,
+      "all_checks_rate": 0.6667,
+      "check_passed": {
+        "required_intents": 9,
+        "forbidden_intents": 10,
+        "risk_bounds": 11,
+        "plan_permission": 11
+      },
+      "failure_case_ids": [
+        "v2-dizzy-other-02",
+        "v2-log-query-05",
+        "v2-query-and-write-08",
+        "v2-profile-correct-11"
+      ],
+      "failure_families": {
+        "symptom_experiencer": 1,
+        "read_vs_write_log": 1,
+        "query_vs_compound_log": 1,
+        "new_fact_vs_correction": 1
+      }
+    },
+    "rule_with_protocol": {
+      "all_checks_passed": 8,
+      "all_checks_rate": 0.6667,
+      "check_passed": {
+        "required_intents": 9,
+        "forbidden_intents": 10,
+        "risk_bounds": 11,
+        "plan_permission": 11
+      },
+      "failure_case_ids": [
+        "v2-dizzy-other-02",
+        "v2-log-query-05",
+        "v2-query-and-write-08",
+        "v2-profile-correct-11"
+      ],
+      "failure_families": {
+        "symptom_experiencer": 1,
+        "read_vs_write_log": 1,
+        "query_vs_compound_log": 1,
+        "new_fact_vs_correction": 1
+      }
+    }
+  },
+  "claim_boundary": "Unreviewed synthetic diagnostic; not a final test or production result.",
+  "dataset_schema_version": "fitagent-intent-semantic-probe/v2"
+}

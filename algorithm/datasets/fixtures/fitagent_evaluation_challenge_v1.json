@@ -1,0 +1,68 @@
+{
+  "schema_version": "fitagent-evaluation-challenge/v1",
+  "source": "synthetic_fixed_evaluation_challenge_v1",
+  "training_eligible": false,
+  "frozen_at": "2026-09-22",
+  "cases": [
+    {
+      "case_id": "no-feedback-01",
+      "scenario": "no_feedback_expiry",
+      "decision_age_days": 8
+    },
+    {
+      "case_id": "no-feedback-02",
+      "scenario": "no_feedback_expiry",
+      "decision_age_days": 14
+    },
+    {
+      "case_id": "safety-escalation-01",
+      "scenario": "dangerous_symptom",
+      "decision_age_days": 2,
+      "symptom_type": "knee pain",
+      "severity": 7
+    },
+    {
+      "case_id": "safety-escalation-02",
+      "scenario": "dangerous_symptom",
+      "decision_age_days": 2,
+      "symptom_type": "chest tightness",
+      "severity": 9
+    },
+    {
+      "case_id": "delayed-evidence-01",
+      "scenario": "delayed_evidence",
+      "decision_age_days": 6,
+      "evidence_day": 5,
+      "completion_rate": 0.82,
+      "fatigue": 5,
+      "expected_outcome": "improved"
+    },
+    {
+      "case_id": "delayed-evidence-02",
+      "scenario": "delayed_evidence",
+      "decision_age_days": 6,
+      "evidence_day": 6,
+      "completion_rate": 0.7,
+      "fatigue": 5,
+      "expected_outcome": "neutral"
+    },
+    {
+      "case_id": "service-restart-01",
+      "scenario": "service_reinstantiation",
+      "decision_age_days": 3,
+      "evidence_day": 1,
+      "completion_rate": 0.9,
+      "fatigue": 4,
+      "expected_outcome": "improved"
+    },
+    {
+      "case_id": "service-restart-02",
+      "scenario": "service_reinstantiation",
+      "decision_age_days": 3,
+      "evidence_day": 2,
+      "completion_rate": 0.65,
+      "fatigue": 6,
+      "expected_outcome": "neutral"
+    }
+  ]
+}

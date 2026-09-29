@@ -1,0 +1,19 @@
+# Private local data must not be exposed to the ChatGPT planning connection.
+.learning/
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.log
+logs/
+research_state/
+research_state.json
+tmp-*.json
+algorithm/research_state/learning_progress.json
+algorithm/research_state/experiments/
+algorithm/datasets/manifests/*.jsonl
+algorithm/datasets/manifests/*.manifest.json
+algorithm/datasets/manifests/validation.json
+DEVELOPMENT_LOG.md

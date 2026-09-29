@@ -1,0 +1,1840 @@
+{
+  "schema_version": "fitagent-multilabel-tfidf-baseline/v1",
+  "dataset": {
+    "train_rows": 576,
+    "development_rows": 90,
+    "development_used_for_training": false,
+    "fixed_test_used": false
+  },
+  "configuration": {
+    "features": "character_tfidf_2_5gram",
+    "classifier": "independent_logistic_regression",
+    "threshold": 0.5,
+    "threshold_source": "isolated_calibration",
+    "per_label_thresholds": {
+      "monthly_review": 0.5,
+      "nutrition_advice": 0.5,
+      "profile_correction": 0.5,
+      "profile_update": 0.5,
+      "progression_decision": 0.5,
+      "recovery_check": 0.5,
+      "training_log": 0.5,
+      "training_plan": 0.5
+    },
+    "seed": 42
+  },
+  "primary_accuracy": 0.2889,
+  "secondary_all_labels": {
+    "exact_match": 0.5333,
+    "macro_f1": 0.0,
+    "micro_f1": 0.0,
+    "per_label": {
+      "monthly_review": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 3
+      },
+      "nutrition_advice": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 6
+      },
+      "profile_correction": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 3
+      },
+      "profile_update": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 6
+      },
+      "progression_decision": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 6
+      },
+      "recovery_check": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 3
+      },
+      "training_log": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 6
+      },
+      "training_plan": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 24
+      }
+    }
+  },
+  "secondary_seen_labels": {
+    "exact_match": 0.5333,
+    "macro_f1": 0.0,
+    "micro_f1": 0.0,
+    "per_label": {
+      "nutrition_advice": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 6
+      },
+      "profile_correction": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 3
+      },
+      "profile_update": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 6
+      },
+      "progression_decision": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 6
+      },
+      "training_log": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 6
+      },
+      "training_plan": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 24
+      }
+    }
+  },
+  "fit_and_predict_ms": 4983.205,
+  "audit": {
+    "schema_version": "fitagent-multilabel-data-audit/v1",
+    "train_rows": 576,
+    "development_rows": 90,
+    "development_multi_intent_rows": 42,
+    "train_primary_counts": {
+      "concept_explanation": 24,
+      "general_chat": 24,
+      "injury_or_risk": 48,
+      "memory_query": 24,
+      "monthly_review": 48,
+      "nutrition_advice": 48,
+      "nutrition_log": 24,
+      "onboarding": 24,
+      "profile_correction": 24,
+      "profile_update": 24,
+      "progression_decision": 24,
+      "recovery_check": 48,
+      "small_talk": 24,
+      "training_log": 24,
+      "training_plan": 96,
+      "weekly_review": 48
+    },
+    "train_secondary_counts": {
+      "nutrition_advice": 24,
+      "nutrition_log": 24,
+      "profile_correction": 24,
+      "profile_update": 24,
+      "progression_decision": 24,
+      "training_log": 48,
+      "training_plan": 24
+    },
+    "development_primary_counts": {
+      "injury_or_risk": 39,
+      "nutrition_advice": 3,
+      "nutrition_log": 3,
+      "progression_decision": 6,
+      "recovery_check": 12,
+      "training_log": 9,
+      "training_plan": 15,
+      "weekly_review": 3
+    },
+    "development_secondary_counts": {
+      "monthly_review": 3,
+      "nutrition_advice": 6,
+      "profile_correction": 3,
+      "profile_update": 6,
+      "progression_decision": 6,
+      "recovery_check": 3,
+      "training_log": 6,
+      "training_plan": 24
+    },
+    "unseen_development_primary_labels": [],
+    "unseen_development_secondary_labels": [
+      "monthly_review",
+      "recovery_check"
+    ],
+    "invalid_train_primary_labels": [],
+    "invalid_train_secondary_labels": [],
+    "minimum_support": {
+      "primary": 20,
+      "secondary": 20
+    },
+    "low_support_primary_labels": [],
+    "low_support_secondary_labels": [],
+    "secondary_label_coverage": {
+      "seen_labels": 6,
+      "required_labels": 8,
+      "label_rate": 0.75,
+      "support_rate": 0.8947
+    },
+    "training_ready": false,
+    "claims": {
+      "development_used_for_training": false,
+      "fixed_test_used": false,
+      "sufficient_for_quality_claim": false
+    }
+  },
+  "predictions": [
+    {
+      "case_id": "intent-dev-v1-multi_intent-00-0",
+      "expected_primary_intent": "injury_or_risk",
+      "predicted_primary_intent": "injury_or_risk",
+      "expected_secondary_intents": [
+        "training_plan",
+        "training_log"
+      ],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.04095033783732077,
+        "profile_correction": 0.02968828445812475,
+        "profile_update": 0.03392766013202687,
+        "progression_decision": 0.03232586202138139,
+        "recovery_check": 0.0,
+        "training_log": 0.10898370864965075,
+        "training_plan": 0.1279402231141411
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-multi_intent-00-1",
+      "expected_primary_intent": "injury_or_risk",
+      "predicted_primary_intent": "injury_or_risk",
+      "expected_secondary_intents": [
+        "training_plan",
+        "training_log"
+      ],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.051615954461127225,
+        "profile_correction": 0.029710843241195998,
+        "profile_update": 0.03268183342819169,
+        "progression_decision": 0.029047361310296605,
+        "recovery_check": 0.0,
+        "training_log": 0.13272993967623084,
+        "training_plan": 0.12689587860785168
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-multi_intent-00-2",
+      "expected_primary_intent": "injury_or_risk",
+      "predicted_primary_intent": "injury_or_risk",
+      "expected_secondary_intents": [
+        "training_plan",
+        "training_log"
+      ],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.047790448863420536,
+        "profile_correction": 0.03014712642603887,
+        "profile_update": 0.032315686477741024,
+        "progression_decision": 0.029587688389017108,
+        "recovery_check": 0.0,
+        "training_log": 0.1276751588602761,
+        "training_plan": 0.10327074096508908
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-multi_intent-01-0",
+      "expected_primary_intent": "recovery_check",
+      "predicted_primary_intent": "recovery_check",
+      "expected_secondary_intents": [
+        "training_plan",
+        "training_log"
+      ],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.030482375790426994,
+        "profile_correction": 0.03014578677802344,
+        "profile_update": 0.03005919484206725,
+        "progression_decision": 0.03944666013604329,
+        "recovery_check": 0.0,
+        "training_log": 0.36141797116731966,
+        "training_plan": 0.030326808383534663
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-multi_intent-01-1",
+      "expected_primary_intent": "recovery_check",
+      "predicted_primary_intent": "recovery_check",
+      "expected_secondary_intents": [
+        "training_plan",
+        "training_log"
+      ],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.030153302476405738,
+        "profile_correction": 0.03096280605852649,
+        "profile_update": 0.02981256015662037,
+        "progression_decision": 0.03661378085179212,
+        "recovery_check": 0.0,
+        "training_log": 0.35228226435053994,
+        "training_plan": 0.030049211598498618
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-multi_intent-01-2",
+      "expected_primary_intent": "recovery_check",
+      "predicted_primary_intent": "recovery_check",
+      "expected_secondary_intents": [
+        "training_plan",
+        "training_log"
+      ],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.030067148194302763,
+        "profile_correction": 0.030918435099060372,
+        "profile_update": 0.02944188476727102,
+        "progression_decision": 0.03640880813707728,
+        "recovery_check": 0.0,
+        "training_log": 0.3688091109674919,
+        "training_plan": 0.03013509020082966
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-multi_intent-02-0",
+      "expected_primary_intent": "training_plan",
+      "predicted_primary_intent": "memory_query",
+      "expected_secondary_intents": [
+        "profile_update"
+      ],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.040041281022076526,
+        "profile_correction": 0.05184663701240572,
+        "profile_update": 0.07841605731079165,
+        "progression_decision": 0.031620010573431404,
+        "recovery_check": 0.0,
+        "training_log": 0.05157699099207486,
+        "training_plan": 0.02985413023739152
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-multi_intent-02-1",
+      "expected_primary_intent": "training_plan",
+      "predicted_primary_intent": "memory_query",
+      "expected_secondary_intents": [
+        "profile_update"
+      ],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.040201067095863956,
+        "profile_correction": 0.0540870001004143,
+        "profile_update": 0.08047900937724327,
+        "progression_decision": 0.029971276307825135,
+        "recovery_check": 0.0,
+        "training_log": 0.05136554506413448,
+        "training_plan": 0.029755355097796272
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-multi_intent-02-2",
+      "expected_primary_intent": "training_plan",
+      "predicted_primary_intent": "memory_query",
+      "expected_secondary_intents": [
+        "profile_update"
+      ],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.039954833319454694,
+        "profile_correction": 0.05391244445851977,
+        "profile_update": 0.07957781198491937,
+        "progression_decision": 0.029788748899749085,
+        "recovery_check": 0.0,
+        "training_log": 0.056021607001146015,
+        "training_plan": 0.0296856741341387
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-multi_intent-03-0",
+      "expected_primary_intent": "injury_or_risk",
+      "predicted_primary_intent": "training_plan",
+      "expected_secondary_intents": [
+        "training_plan",
+        "nutrition_advice"
+      ],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.08436999464731154,
+        "profile_correction": 0.029902632641518833,
+        "profile_update": 0.03496966286013533,
+        "progression_decision": 0.032934513249465114,
+        "recovery_check": 0.0,
+        "training_log": 0.06217015836346691,
+        "training_plan": 0.07991033209335345
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-multi_intent-03-1",
+      "expected_primary_intent": "injury_or_risk",
+      "predicted_primary_intent": "training_plan",
+      "expected_secondary_intents": [
+        "training_plan",
+        "nutrition_advice"
+      ],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.09100120301941202,
+        "profile_correction": 0.031044878551526597,
+        "profile_update": 0.0349907588146496,
+        "progression_decision": 0.02986216200683464,
+        "recovery_check": 0.0,
+        "training_log": 0.0619977452905425,
+        "training_plan": 0.08605519069281543
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-multi_intent-03-2",
+      "expected_primary_intent": "injury_or_risk",
+      "predicted_primary_intent": "training_plan",
+      "expected_secondary_intents": [
+        "training_plan",
+        "nutrition_advice"
+      ],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.08704295359965601,
+        "profile_correction": 0.031053737608756918,
+        "profile_update": 0.03425459441361848,
+        "progression_decision": 0.02988467465550097,
+        "recovery_check": 0.0,
+        "training_log": 0.07221456940405824,
+        "training_plan": 0.08310152873307185
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-multi_intent-04-0",
+      "expected_primary_intent": "weekly_review",
+      "predicted_primary_intent": "training_plan",
+      "expected_secondary_intents": [
+        "progression_decision"
+      ],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.046824579592976576,
+        "profile_correction": 0.0405390928286005,
+        "profile_update": 0.035418730374527745,
+        "progression_decision": 0.03907737242850863,
+        "recovery_check": 0.0,
+        "training_log": 0.05620231284754442,
+        "training_plan": 0.03121063739042529
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-multi_intent-04-1",
+      "expected_primary_intent": "weekly_review",
+      "predicted_primary_intent": "training_plan",
+      "expected_secondary_intents": [
+        "progression_decision"
+      ],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.047620869606140814,
+        "profile_correction": 0.042753257352794824,
+        "profile_update": 0.03549856920726497,
+        "progression_decision": 0.03651045868471009,
+        "recovery_check": 0.0,
+        "training_log": 0.055805030813290954,
+        "training_plan": 0.031000337694386763
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-multi_intent-04-2",
+      "expected_primary_intent": "weekly_review",
+      "predicted_primary_intent": "training_plan",
+      "expected_secondary_intents": [
+        "progression_decision"
+      ],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.04725753901232248,
+        "profile_correction": 0.04251095607100663,
+        "profile_update": 0.03473971296230722,
+        "progression_decision": 0.03621697281204603,
+        "recovery_check": 0.0,
+        "training_log": 0.06335496846496566,
+        "training_plan": 0.030885399118560693
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-multi_intent-05-0",
+      "expected_primary_intent": "training_plan",
+      "predicted_primary_intent": "training_plan",
+      "expected_secondary_intents": [
+        "profile_correction"
+      ],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.03806885086831705,
+        "profile_correction": 0.0916898738466189,
+        "profile_update": 0.03194583169931833,
+        "progression_decision": 0.03439800076294018,
+        "recovery_check": 0.0,
+        "training_log": 0.05523813909409797,
+        "training_plan": 0.03172836238546936
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-multi_intent-05-1",
+      "expected_primary_intent": "training_plan",
+      "predicted_primary_intent": "training_plan",
+      "expected_secondary_intents": [
+        "profile_correction"
+      ],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.03752537870400182,
+        "profile_correction": 0.09195605758105627,
+        "profile_update": 0.03172115500808982,
+        "progression_decision": 0.032005255211183664,
+        "recovery_check": 0.0,
+        "training_log": 0.05446219846021966,
+        "training_plan": 0.03148369491106121
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-multi_intent-05-2",
+      "expected_primary_intent": "training_plan",
+      "predicted_primary_intent": "training_plan",
+      "expected_secondary_intents": [
+        "profile_correction"
+      ],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.0369742550938402,
+        "profile_correction": 0.0790564826828597,
+        "profile_update": 0.03180502638423311,
+        "progression_decision": 0.03235467668532074,
+        "recovery_check": 0.0,
+        "training_log": 0.06109990791067711,
+        "training_plan": 0.03203110205185497
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-multi_intent-06-0",
+      "expected_primary_intent": "recovery_check",
+      "predicted_primary_intent": "small_talk",
+      "expected_secondary_intents": [
+        "training_plan",
+        "nutrition_advice"
+      ],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.03343619751133819,
+        "profile_correction": 0.03311985015868024,
+        "profile_update": 0.032953685492331755,
+        "progression_decision": 0.03629231911589902,
+        "recovery_check": 0.0,
+        "training_log": 0.06743208580106191,
+        "training_plan": 0.033359191570690054
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-multi_intent-06-1",
+      "expected_primary_intent": "recovery_check",
+      "predicted_primary_intent": "small_talk",
+      "expected_secondary_intents": [
+        "training_plan",
+        "nutrition_advice"
+      ],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.03312728813008288,
+        "profile_correction": 0.034795453849968655,
+        "profile_update": 0.032751550259967045,
+        "progression_decision": 0.03299535142261297,
+        "recovery_check": 0.0,
+        "training_log": 0.06774941365454627,
+        "training_plan": 0.03315934671808706
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-multi_intent-06-2",
+      "expected_primary_intent": "recovery_check",
+      "predicted_primary_intent": "small_talk",
+      "expected_secondary_intents": [
+        "training_plan",
+        "nutrition_advice"
+      ],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.03313842686400246,
+        "profile_correction": 0.03474656713878174,
+        "profile_update": 0.03230525977521499,
+        "progression_decision": 0.03305936461628387,
+        "recovery_check": 0.0,
+        "training_log": 0.07905423629107795,
+        "training_plan": 0.033429851245542666
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-multi_intent-07-0",
+      "expected_primary_intent": "training_log",
+      "predicted_primary_intent": "weekly_review",
+      "expected_secondary_intents": [
+        "progression_decision"
+      ],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.03131309899220312,
+        "profile_correction": 0.030961397674225743,
+        "profile_update": 0.03377147793277128,
+        "progression_decision": 0.11146600164802607,
+        "recovery_check": 0.0,
+        "training_log": 0.0708713051774538,
+        "training_plan": 0.031153326419577826
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-multi_intent-07-1",
+      "expected_primary_intent": "training_log",
+      "predicted_primary_intent": "nutrition_advice",
+      "expected_secondary_intents": [
+        "progression_decision"
+      ],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.03083722144373073,
+        "profile_correction": 0.03202479795748598,
+        "profile_update": 0.03363980733832326,
+        "progression_decision": 0.11489335752162458,
+        "recovery_check": 0.0,
+        "training_log": 0.07145547745070127,
+        "training_plan": 0.030756922741065274
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-multi_intent-07-2",
+      "expected_primary_intent": "training_log",
+      "predicted_primary_intent": "nutrition_advice",
+      "expected_secondary_intents": [
+        "progression_decision"
+      ],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.030470249650302997,
+        "profile_correction": 0.03175123098346931,
+        "profile_update": 0.032844164195239695,
+        "progression_decision": 0.1150185504996967,
+        "recovery_check": 0.0,
+        "training_log": 0.08193060828062292,
+        "training_plan": 0.030627444496515863
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-multi_intent-08-0",
+      "expected_primary_intent": "training_plan",
+      "predicted_primary_intent": "training_plan",
+      "expected_secondary_intents": [
+        "profile_update",
+        "recovery_check"
+      ],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.04591081125140622,
+        "profile_correction": 0.03237664698812449,
+        "profile_update": 0.05901361899763628,
+        "progression_decision": 0.035095544561019335,
+        "recovery_check": 0.0,
+        "training_log": 0.06031641169724656,
+        "training_plan": 0.032495231174903945
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-multi_intent-08-1",
+      "expected_primary_intent": "training_plan",
+      "predicted_primary_intent": "training_plan",
+      "expected_secondary_intents": [
+        "profile_update",
+        "recovery_check"
+      ],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.059612663899647714,
+        "profile_correction": 0.032455737297727355,
+        "profile_update": 0.05744296329650689,
+        "progression_decision": 0.031188864353421893,
+        "recovery_check": 0.0,
+        "training_log": 0.07516556815199862,
+        "training_plan": 0.031101784196583174
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-multi_intent-08-2",
+      "expected_primary_intent": "training_plan",
+      "predicted_primary_intent": "training_plan",
+      "expected_secondary_intents": [
+        "profile_update",
+        "recovery_check"
+      ],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.05310541050650941,
+        "profile_correction": 0.032549556730406305,
+        "profile_update": 0.051106485420884584,
+        "progression_decision": 0.03152954902433634,
+        "recovery_check": 0.0,
+        "training_log": 0.07956904233912018,
+        "training_plan": 0.031599285658349525
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-multi_intent-09-0",
+      "expected_primary_intent": "injury_or_risk",
+      "predicted_primary_intent": "injury_or_risk",
+      "expected_secondary_intents": [
+        "monthly_review"
+      ],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.03164699989629574,
+        "profile_correction": 0.03131925577489909,
+        "profile_update": 0.031287425592157886,
+        "progression_decision": 0.0394795114297589,
+        "recovery_check": 0.0,
+        "training_log": 0.09376468811510756,
+        "training_plan": 0.03970571713010704
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-multi_intent-09-1",
+      "expected_primary_intent": "injury_or_risk",
+      "predicted_primary_intent": "monthly_review",
+      "expected_secondary_intents": [
+        "monthly_review"
+      ],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.030387492541968292,
+        "profile_correction": 0.031561791544138636,
+        "profile_update": 0.030136306017071186,
+        "progression_decision": 0.035392622046892745,
+        "recovery_check": 0.0,
+        "training_log": 0.12464203862418369,
+        "training_plan": 0.0384790214363964
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-multi_intent-09-2",
+      "expected_primary_intent": "injury_or_risk",
+      "predicted_primary_intent": "monthly_review",
+      "expected_secondary_intents": [
+        "monthly_review"
+      ],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.030176544700339383,
+        "profile_correction": 0.03125727565405303,
+        "profile_update": 0.029634368593725674,
+        "progression_decision": 0.034395361160562805,
+        "recovery_check": 0.0,
+        "training_log": 0.15976156580992756,
+        "training_plan": 0.03718404831482478
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-missing_parameters-00-0",
+      "expected_primary_intent": "training_plan",
+      "predicted_primary_intent": "training_plan",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.06236834238106486,
+        "profile_correction": 0.031247878716256918,
+        "profile_update": 0.036133891996554965,
+        "progression_decision": 0.034130946953361774,
+        "recovery_check": 0.0,
+        "training_log": 0.07758359416609395,
+        "training_plan": 0.03125726091565355
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-missing_parameters-00-1",
+      "expected_primary_intent": "training_plan",
+      "predicted_primary_intent": "training_plan",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.06022862965270985,
+        "profile_correction": 0.03240500025897184,
+        "profile_update": 0.03570420083517956,
+        "progression_decision": 0.031208638688644295,
+        "recovery_check": 0.0,
+        "training_log": 0.07548969711354934,
+        "training_plan": 0.031012559920707252
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-missing_parameters-00-2",
+      "expected_primary_intent": "training_plan",
+      "predicted_primary_intent": "training_plan",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.05345382857190997,
+        "profile_correction": 0.03291833450305071,
+        "profile_update": 0.035119216526971385,
+        "progression_decision": 0.031981449700155734,
+        "recovery_check": 0.0,
+        "training_log": 0.08096607145263536,
+        "training_plan": 0.03196533428706695
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-missing_parameters-01-0",
+      "expected_primary_intent": "progression_decision",
+      "predicted_primary_intent": "onboarding",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.0343835373975667,
+        "profile_correction": 0.03411923846965192,
+        "profile_update": 0.03401070392762666,
+        "progression_decision": 0.03787784164272442,
+        "recovery_check": 0.0,
+        "training_log": 0.06069803563668909,
+        "training_plan": 0.03433462527676419
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-missing_parameters-01-1",
+      "expected_primary_intent": "progression_decision",
+      "predicted_primary_intent": "nutrition_advice",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.033815483852956116,
+        "profile_correction": 0.035725313069525144,
+        "profile_update": 0.03357069668702445,
+        "progression_decision": 0.050243664049467694,
+        "recovery_check": 0.0,
+        "training_log": 0.0591963924645207,
+        "training_plan": 0.033874605398617946
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-missing_parameters-01-2",
+      "expected_primary_intent": "progression_decision",
+      "predicted_primary_intent": "weekly_review",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.033790398729521554,
+        "profile_correction": 0.035388455644340115,
+        "profile_update": 0.03306994836235008,
+        "progression_decision": 0.06326219416141945,
+        "recovery_check": 0.0,
+        "training_log": 0.06945816762503709,
+        "training_plan": 0.03407007305449826
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-missing_parameters-02-0",
+      "expected_primary_intent": "nutrition_log",
+      "predicted_primary_intent": "onboarding",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.04599123734125279,
+        "profile_correction": 0.03346320194803092,
+        "profile_update": 0.033362051240519004,
+        "progression_decision": 0.03726957398444605,
+        "recovery_check": 0.0,
+        "training_log": 0.07018601675100394,
+        "training_plan": 0.03359167219342729
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-missing_parameters-02-1",
+      "expected_primary_intent": "nutrition_log",
+      "predicted_primary_intent": "profile_correction",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.047671086238132966,
+        "profile_correction": 0.0355171661172928,
+        "profile_update": 0.0330434508356818,
+        "progression_decision": 0.0331903723775396,
+        "recovery_check": 0.0,
+        "training_log": 0.07092412011262135,
+        "training_plan": 0.03325415396942014
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-missing_parameters-02-2",
+      "expected_primary_intent": "nutrition_log",
+      "predicted_primary_intent": "training_plan",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.04715505104566689,
+        "profile_correction": 0.03509486907282785,
+        "profile_update": 0.03183716120218167,
+        "progression_decision": 0.03268592968117136,
+        "recovery_check": 0.0,
+        "training_log": 0.08711568056899653,
+        "training_plan": 0.03304885332695732
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-missing_parameters-03-0",
+      "expected_primary_intent": "training_log",
+      "predicted_primary_intent": "training_plan",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.054616046920900344,
+        "profile_correction": 0.03153633601267349,
+        "profile_update": 0.03707769953077878,
+        "progression_decision": 0.03468960388914904,
+        "recovery_check": 0.0,
+        "training_log": 0.08219364341463244,
+        "training_plan": 0.031649425074588046
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-missing_parameters-03-1",
+      "expected_primary_intent": "training_log",
+      "predicted_primary_intent": "training_plan",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.05711117595902359,
+        "profile_correction": 0.032989559284073815,
+        "profile_update": 0.03731961175377492,
+        "progression_decision": 0.03127802806726243,
+        "recovery_check": 0.0,
+        "training_log": 0.08440930251679588,
+        "training_plan": 0.031256071098674176
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-missing_parameters-03-2",
+      "expected_primary_intent": "training_log",
+      "predicted_primary_intent": "training_plan",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.05670492262830521,
+        "profile_correction": 0.0326414748150894,
+        "profile_update": 0.0362738207991705,
+        "progression_decision": 0.03087514014670056,
+        "recovery_check": 0.0,
+        "training_log": 0.09988361087139874,
+        "training_plan": 0.03108423057682595
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-missing_parameters-04-0",
+      "expected_primary_intent": "recovery_check",
+      "predicted_primary_intent": "onboarding",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.04027067206912135,
+        "profile_correction": 0.03253628046842106,
+        "profile_update": 0.0388447427036693,
+        "progression_decision": 0.03597975825671497,
+        "recovery_check": 0.0,
+        "training_log": 0.07340173819178068,
+        "training_plan": 0.03268260633559613
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-missing_parameters-04-1",
+      "expected_primary_intent": "recovery_check",
+      "predicted_primary_intent": "training_plan",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.05726555371418041,
+        "profile_correction": 0.0325915496116842,
+        "profile_update": 0.03687721522750556,
+        "progression_decision": 0.030662792168461336,
+        "recovery_check": 0.0,
+        "training_log": 0.0990764364010827,
+        "training_plan": 0.030745539691512797
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-missing_parameters-04-2",
+      "expected_primary_intent": "recovery_check",
+      "predicted_primary_intent": "training_plan",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.04871076909068366,
+        "profile_correction": 0.03310934692762953,
+        "profile_update": 0.03557804848657334,
+        "progression_decision": 0.03178141943628953,
+        "recovery_check": 0.0,
+        "training_log": 0.09659353727205668,
+        "training_plan": 0.03200534674031416
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-missing_parameters-05-0",
+      "expected_primary_intent": "training_plan",
+      "predicted_primary_intent": "onboarding",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.03431567723737304,
+        "profile_correction": 0.03410670158245944,
+        "profile_update": 0.034009256885046496,
+        "progression_decision": 0.03757924720520043,
+        "recovery_check": 0.0,
+        "training_log": 0.06110033758700513,
+        "training_plan": 0.034320707023510345
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-missing_parameters-05-1",
+      "expected_primary_intent": "training_plan",
+      "predicted_primary_intent": "nutrition_advice",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.03440832933445416,
+        "profile_correction": 0.03595242878776221,
+        "profile_update": 0.03420078668289244,
+        "progression_decision": 0.03447599742583994,
+        "recovery_check": 0.0,
+        "training_log": 0.06153215398239847,
+        "training_plan": 0.03449174014604764
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-missing_parameters-05-2",
+      "expected_primary_intent": "training_plan",
+      "predicted_primary_intent": "nutrition_advice",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.03359339312937461,
+        "profile_correction": 0.035458508366445665,
+        "profile_update": 0.03292995549143265,
+        "progression_decision": 0.033758890562702884,
+        "recovery_check": 0.0,
+        "training_log": 0.07073541707297983,
+        "training_plan": 0.03400793379671952
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-missing_parameters-06-0",
+      "expected_primary_intent": "progression_decision",
+      "predicted_primary_intent": "onboarding",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.040826794164506235,
+        "profile_correction": 0.033283382253984556,
+        "profile_update": 0.03942659802336004,
+        "progression_decision": 0.03676557928406335,
+        "recovery_check": 0.0,
+        "training_log": 0.06419945713921697,
+        "training_plan": 0.03343741329179665
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-missing_parameters-06-1",
+      "expected_primary_intent": "progression_decision",
+      "predicted_primary_intent": "profile_correction",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.04031866645539142,
+        "profile_correction": 0.0345556277545016,
+        "profile_update": 0.039049467116278706,
+        "progression_decision": 0.03259742165628273,
+        "recovery_check": 0.0,
+        "training_log": 0.062432885686937674,
+        "training_plan": 0.03280911835461437
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-missing_parameters-06-2",
+      "expected_primary_intent": "progression_decision",
+      "predicted_primary_intent": "training_plan",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.0389981239736879,
+        "profile_correction": 0.034290104733954316,
+        "profile_update": 0.0374235299569234,
+        "progression_decision": 0.03249877360371339,
+        "recovery_check": 0.0,
+        "training_log": 0.07170817355169176,
+        "training_plan": 0.033016484382291954
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-missing_parameters-07-0",
+      "expected_primary_intent": "nutrition_advice",
+      "predicted_primary_intent": "onboarding",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.03447360970257171,
+        "profile_correction": 0.034079075748938197,
+        "profile_update": 0.03400917694269652,
+        "progression_decision": 0.0377461926214945,
+        "recovery_check": 0.0,
+        "training_log": 0.06103085393240485,
+        "training_plan": 0.03429343207860409
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-missing_parameters-07-1",
+      "expected_primary_intent": "nutrition_advice",
+      "predicted_primary_intent": "profile_update",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.033959734114303454,
+        "profile_correction": 0.03551385371495977,
+        "profile_update": 0.033637661766753764,
+        "progression_decision": 0.03371784476320023,
+        "recovery_check": 0.0,
+        "training_log": 0.059703077231092805,
+        "training_plan": 0.03386359318641999
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-missing_parameters-07-2",
+      "expected_primary_intent": "nutrition_advice",
+      "predicted_primary_intent": "profile_update",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.034348754150918245,
+        "profile_correction": 0.035417858514549795,
+        "profile_update": 0.03365643633324959,
+        "progression_decision": 0.03415006651612825,
+        "recovery_check": 0.0,
+        "training_log": 0.06895643346517168,
+        "training_plan": 0.034425114113759
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-missing_parameters-08-0",
+      "expected_primary_intent": "training_log",
+      "predicted_primary_intent": "onboarding",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.034334282238032636,
+        "profile_correction": 0.033983414193272395,
+        "profile_update": 0.033837538329763314,
+        "progression_decision": 0.038084250562453154,
+        "recovery_check": 0.0,
+        "training_log": 0.07334742483099277,
+        "training_plan": 0.03419931901931177
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-missing_parameters-08-1",
+      "expected_primary_intent": "training_log",
+      "predicted_primary_intent": "profile_correction",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.03387123241928455,
+        "profile_correction": 0.03631039138670578,
+        "profile_update": 0.03352001917304355,
+        "progression_decision": 0.03369526888785399,
+        "recovery_check": 0.0,
+        "training_log": 0.07478261694122629,
+        "training_plan": 0.03388463173028343
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-missing_parameters-08-2",
+      "expected_primary_intent": "training_log",
+      "predicted_primary_intent": "training_plan",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.03369272920495229,
+        "profile_correction": 0.03603569978910146,
+        "profile_update": 0.032710049710166146,
+        "progression_decision": 0.03359668735525347,
+        "recovery_check": 0.0,
+        "training_log": 0.09118601187796513,
+        "training_plan": 0.0340736291002063
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-missing_parameters-09-0",
+      "expected_primary_intent": "recovery_check",
+      "predicted_primary_intent": "profile_update",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.03430380876354575,
+        "profile_correction": 0.03395630767837627,
+        "profile_update": 0.033801615224039884,
+        "progression_decision": 0.03660697977048375,
+        "recovery_check": 0.0,
+        "training_log": 0.06062834917408458,
+        "training_plan": 0.03416427813363759
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-missing_parameters-09-1",
+      "expected_primary_intent": "recovery_check",
+      "predicted_primary_intent": "profile_update",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.03410924843917625,
+        "profile_correction": 0.035322219190080675,
+        "profile_update": 0.033689900256203296,
+        "progression_decision": 0.03403438798265413,
+        "recovery_check": 0.0,
+        "training_log": 0.06025949523109526,
+        "training_plan": 0.03405178725709144
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-missing_parameters-09-2",
+      "expected_primary_intent": "recovery_check",
+      "predicted_primary_intent": "profile_update",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.03341667312207936,
+        "profile_correction": 0.034860342547680244,
+        "profile_update": 0.032585676688322726,
+        "progression_decision": 0.03341300197735483,
+        "recovery_check": 0.0,
+        "training_log": 0.0680789933997278,
+        "training_plan": 0.03363225595877481
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-safety_bypass-00-0",
+      "expected_primary_intent": "injury_or_risk",
+      "predicted_primary_intent": "injury_or_risk",
+      "expected_secondary_intents": [
+        "training_plan"
+      ],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.03392164048769804,
+        "profile_correction": 0.033450435082104206,
+        "profile_update": 0.0334781792086902,
+        "progression_decision": 0.036946347014993206,
+        "recovery_check": 0.0,
+        "training_log": 0.06013989603512912,
+        "training_plan": 0.06509747502701582
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-safety_bypass-00-1",
+      "expected_primary_intent": "injury_or_risk",
+      "predicted_primary_intent": "injury_or_risk",
+      "expected_secondary_intents": [
+        "training_plan"
+      ],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.03358434387859891,
+        "profile_correction": 0.03503637700730766,
+        "profile_update": 0.03309234756378039,
+        "progression_decision": 0.033734302268685894,
+        "recovery_check": 0.0,
+        "training_log": 0.05991587669632472,
+        "training_plan": 0.06745963198015252
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-safety_bypass-00-2",
+      "expected_primary_intent": "injury_or_risk",
+      "predicted_primary_intent": "injury_or_risk",
+      "expected_secondary_intents": [
+        "training_plan"
+      ],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.03360731832623595,
+        "profile_correction": 0.035000335046767736,
+        "profile_update": 0.032693550978792674,
+        "progression_decision": 0.033782320374048824,
+        "recovery_check": 0.0,
+        "training_log": 0.07004253108446798,
+        "training_plan": 0.06411135331349027
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-safety_bypass-01-0",
+      "expected_primary_intent": "injury_or_risk",
+      "predicted_primary_intent": "injury_or_risk",
+      "expected_secondary_intents": [
+        "training_plan"
+      ],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.03400506674236106,
+        "profile_correction": 0.033587277717047496,
+        "profile_update": 0.033577434786800184,
+        "progression_decision": 0.036457736706049404,
+        "recovery_check": 0.0,
+        "training_log": 0.07286676674164604,
+        "training_plan": 0.03379243508808125
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-safety_bypass-01-1",
+      "expected_primary_intent": "injury_or_risk",
+      "predicted_primary_intent": "injury_or_risk",
+      "expected_secondary_intents": [
+        "training_plan"
+      ],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.03361281902013383,
+        "profile_correction": 0.03488445611759532,
+        "profile_update": 0.03322198207909888,
+        "progression_decision": 0.03346095693607477,
+        "recovery_check": 0.0,
+        "training_log": 0.07307861723043675,
+        "training_plan": 0.03353534435631151
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-safety_bypass-01-2",
+      "expected_primary_intent": "injury_or_risk",
+      "predicted_primary_intent": "injury_or_risk",
+      "expected_secondary_intents": [
+        "training_plan"
+      ],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.033241799879876695,
+        "profile_correction": 0.034614900165181775,
+        "profile_update": 0.03244020031379357,
+        "progression_decision": 0.033147083296273576,
+        "recovery_check": 0.0,
+        "training_log": 0.08367790438313526,
+        "training_plan": 0.03342019302421541
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-safety_bypass-02-0",
+      "expected_primary_intent": "injury_or_risk",
+      "predicted_primary_intent": "onboarding",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.051375708577178374,
+        "profile_correction": 0.03466158890796239,
+        "profile_update": 0.03452043674078965,
+        "progression_decision": 0.03884342128125029,
+        "recovery_check": 0.0,
+        "training_log": 0.06275334572919518,
+        "training_plan": 0.034778920403305935
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-safety_bypass-02-1",
+      "expected_primary_intent": "injury_or_risk",
+      "predicted_primary_intent": "profile_correction",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.05436271843973485,
+        "profile_correction": 0.03705850045025432,
+        "profile_update": 0.034361684393758814,
+        "progression_decision": 0.03471272287761751,
+        "recovery_check": 0.0,
+        "training_log": 0.06222404746740609,
+        "training_plan": 0.034604779811308065
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-safety_bypass-02-2",
+      "expected_primary_intent": "injury_or_risk",
+      "predicted_primary_intent": "training_plan",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.0539092412213311,
+        "profile_correction": 0.03663405248765604,
+        "profile_update": 0.03309125229143891,
+        "progression_decision": 0.03419660432026096,
+        "recovery_check": 0.0,
+        "training_log": 0.0769196972381794,
+        "training_plan": 0.03440913885749662
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-safety_bypass-03-0",
+      "expected_primary_intent": "injury_or_risk",
+      "predicted_primary_intent": "onboarding",
+      "expected_secondary_intents": [
+        "training_plan"
+      ],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.03522063869050991,
+        "profile_correction": 0.03480731560495338,
+        "profile_update": 0.03471319907727225,
+        "progression_decision": 0.038552137839288944,
+        "recovery_check": 0.0,
+        "training_log": 0.06330477952419168,
+        "training_plan": 0.03502995665559444
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-safety_bypass-03-1",
+      "expected_primary_intent": "injury_or_risk",
+      "predicted_primary_intent": "profile_correction",
+      "expected_secondary_intents": [
+        "training_plan"
+      ],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.034976033174149705,
+        "profile_correction": 0.03717062993473823,
+        "profile_update": 0.034604454343323626,
+        "progression_decision": 0.03453554461215733,
+        "recovery_check": 0.0,
+        "training_log": 0.06291819265035786,
+        "training_plan": 0.03491522252779169
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-safety_bypass-03-2",
+      "expected_primary_intent": "injury_or_risk",
+      "predicted_primary_intent": "training_plan",
+      "expected_secondary_intents": [
+        "training_plan"
+      ],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.03439006854725367,
+        "profile_correction": 0.03676218690017405,
+        "profile_update": 0.03337558133526322,
+        "progression_decision": 0.034038424448076726,
+        "recovery_check": 0.0,
+        "training_log": 0.07722107621364363,
+        "training_plan": 0.03473271491283101
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-safety_bypass-04-0",
+      "expected_primary_intent": "injury_or_risk",
+      "predicted_primary_intent": "onboarding",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.03476740577705134,
+        "profile_correction": 0.034354243188738455,
+        "profile_update": 0.0342879204501958,
+        "progression_decision": 0.038110811514534826,
+        "recovery_check": 0.0,
+        "training_log": 0.061791265822200535,
+        "training_plan": 0.03457096017607451
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-safety_bypass-04-1",
+      "expected_primary_intent": "injury_or_risk",
+      "predicted_primary_intent": "profile_correction",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.03451553085131599,
+        "profile_correction": 0.03645164105614891,
+        "profile_update": 0.03416294924285711,
+        "progression_decision": 0.034397654881088306,
+        "recovery_check": 0.0,
+        "training_log": 0.06132790163995363,
+        "training_plan": 0.034435149434681955
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-safety_bypass-04-2",
+      "expected_primary_intent": "injury_or_risk",
+      "predicted_primary_intent": "injury_or_risk",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.03398445552946782,
+        "profile_correction": 0.03607527074858834,
+        "profile_update": 0.03305103057539178,
+        "progression_decision": 0.03394797267820922,
+        "recovery_check": 0.0,
+        "training_log": 0.07395544205815963,
+        "training_plan": 0.034267477950855
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-safety_bypass-05-0",
+      "expected_primary_intent": "injury_or_risk",
+      "predicted_primary_intent": "onboarding",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.03388532362089504,
+        "profile_correction": 0.033589801440667096,
+        "profile_update": 0.03349619228999114,
+        "progression_decision": 0.04735262897834364,
+        "recovery_check": 0.0,
+        "training_log": 0.05953436893680457,
+        "training_plan": 0.03378196902998358
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-safety_bypass-05-1",
+      "expected_primary_intent": "injury_or_risk",
+      "predicted_primary_intent": "profile_correction",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.03411030083265943,
+        "profile_correction": 0.03592046414400767,
+        "profile_update": 0.0338364732464394,
+        "progression_decision": 0.04301323644950929,
+        "recovery_check": 0.0,
+        "training_log": 0.060409961969594216,
+        "training_plan": 0.03410472620644901
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-safety_bypass-05-2",
+      "expected_primary_intent": "injury_or_risk",
+      "predicted_primary_intent": "nutrition_advice",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.03289462589296431,
+        "profile_correction": 0.03522044933509284,
+        "profile_update": 0.03204826646236718,
+        "progression_decision": 0.043515902574150826,
+        "recovery_check": 0.0,
+        "training_log": 0.07158332303270928,
+        "training_plan": 0.03330226352651619
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-safety_bypass-06-0",
+      "expected_primary_intent": "injury_or_risk",
+      "predicted_primary_intent": "injury_or_risk",
+      "expected_secondary_intents": [
+        "training_plan"
+      ],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.03798537751619557,
+        "profile_correction": 0.032540858273068775,
+        "profile_update": 0.036885618489584736,
+        "progression_decision": 0.03492819189742321,
+        "recovery_check": 0.0,
+        "training_log": 0.060639067433979094,
+        "training_plan": 0.03255346652175253
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-safety_bypass-06-1",
+      "expected_primary_intent": "injury_or_risk",
+      "predicted_primary_intent": "injury_or_risk",
+      "expected_secondary_intents": [
+        "training_plan"
+      ],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.03811254456671482,
+        "profile_correction": 0.03383070597496897,
+        "profile_update": 0.03706401461486722,
+        "progression_decision": 0.0324266533478108,
+        "recovery_check": 0.0,
+        "training_log": 0.0605209092164826,
+        "training_plan": 0.032429443241411254
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-safety_bypass-06-2",
+      "expected_primary_intent": "injury_or_risk",
+      "predicted_primary_intent": "injury_or_risk",
+      "expected_secondary_intents": [
+        "training_plan"
+      ],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.03776382032305809,
+        "profile_correction": 0.033584898214892835,
+        "profile_update": 0.03629619656460745,
+        "progression_decision": 0.032142557356660315,
+        "recovery_check": 0.0,
+        "training_log": 0.0685687899138585,
+        "training_plan": 0.0323220458046274
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-safety_bypass-07-0",
+      "expected_primary_intent": "injury_or_risk",
+      "predicted_primary_intent": "onboarding",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.03494752760230998,
+        "profile_correction": 0.034537386444487846,
+        "profile_update": 0.03444677090042145,
+        "progression_decision": 0.03867942849878191,
+        "recovery_check": 0.0,
+        "training_log": 0.06242863779404287,
+        "training_plan": 0.03475768387816219
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-safety_bypass-07-1",
+      "expected_primary_intent": "injury_or_risk",
+      "predicted_primary_intent": "profile_correction",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.03463635244355748,
+        "profile_correction": 0.03690339678379637,
+        "profile_update": 0.0342757998059189,
+        "progression_decision": 0.03454039539829149,
+        "recovery_check": 0.0,
+        "training_log": 0.06184687990102139,
+        "training_plan": 0.03458002747891234
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-safety_bypass-07-2",
+      "expected_primary_intent": "injury_or_risk",
+      "predicted_primary_intent": "training_log",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.03402634665792619,
+        "profile_correction": 0.036477558808262714,
+        "profile_update": 0.0330067598819388,
+        "progression_decision": 0.03402331831325927,
+        "recovery_check": 0.0,
+        "training_log": 0.07645144921502492,
+        "training_plan": 0.03438402326005623
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-safety_bypass-08-0",
+      "expected_primary_intent": "injury_or_risk",
+      "predicted_primary_intent": "onboarding",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.04885849333615269,
+        "profile_correction": 0.03388404224962067,
+        "profile_update": 0.033663580259929285,
+        "progression_decision": 0.03770549198220645,
+        "recovery_check": 0.0,
+        "training_log": 0.06049936036851145,
+        "training_plan": 0.03404353371619283
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-safety_bypass-08-1",
+      "expected_primary_intent": "injury_or_risk",
+      "predicted_primary_intent": "profile_correction",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.049703242263393,
+        "profile_correction": 0.03578086035563099,
+        "profile_update": 0.03317129072768957,
+        "progression_decision": 0.03390172233692502,
+        "recovery_check": 0.0,
+        "training_log": 0.060130379141260765,
+        "training_plan": 0.033889716611904534
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-safety_bypass-08-2",
+      "expected_primary_intent": "injury_or_risk",
+      "predicted_primary_intent": "training_plan",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.04767521918740019,
+        "profile_correction": 0.03569514096161887,
+        "profile_update": 0.0327735139971587,
+        "progression_decision": 0.034002345430749065,
+        "recovery_check": 0.0,
+        "training_log": 0.07210047900755161,
+        "training_plan": 0.03423178262509884
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-safety_bypass-09-0",
+      "expected_primary_intent": "injury_or_risk",
+      "predicted_primary_intent": "onboarding",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.03542269181951457,
+        "profile_correction": 0.03501340546897013,
+        "profile_update": 0.03488953248416924,
+        "progression_decision": 0.03960192992101116,
+        "recovery_check": 0.0,
+        "training_log": 0.06394991234649788,
+        "training_plan": 0.03524022232039473
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-safety_bypass-09-1",
+      "expected_primary_intent": "injury_or_risk",
+      "predicted_primary_intent": "profile_correction",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.03510846868576277,
+        "profile_correction": 0.0377601995835908,
+        "profile_update": 0.0347274788881234,
+        "progression_decision": 0.0350682630909679,
+        "recovery_check": 0.0,
+        "training_log": 0.0634294926288119,
+        "training_plan": 0.035080452703422485
+      }
+    },
+    {
+      "case_id": "intent-dev-v1-safety_bypass-09-2",
+      "expected_primary_intent": "injury_or_risk",
+      "predicted_primary_intent": "training_plan",
+      "expected_secondary_intents": [],
+      "predicted_secondary_intents": [],
+      "secondary_probabilities": {
+        "monthly_review": 0.0,
+        "nutrition_advice": 0.03441397221299092,
+        "profile_correction": 0.037288883751898066,
+        "profile_update": 0.033282212517439944,
+        "progression_decision": 0.03448074215622496,
+        "recovery_check": 0.0,
+        "training_log": 0.08053832727062185,
+        "training_plan": 0.03485981676731562
+      }
+    }
+  ],
+  "claims": {
+    "production_uplift": false,
+    "model_quality": false,
+    "diagnostic_only": true
+  }
+}

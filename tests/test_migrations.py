@@ -22,6 +22,19 @@ def test_initial_migration_exists():
     assert os.path.exists(mig_path), "001_initial_schema.py missing"
 
 
+def test_idempotency_migration_extends_current_head():
+    from importlib import util as import_util
+
+    mig_path = os.path.join(
+        os.path.dirname(__file__), "..", "alembic", "versions", "014_idempotency_records.py"
+    )
+    spec = import_util.spec_from_file_location("idempotency_migration", mig_path)
+    mod = import_util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assert mod.revision == "014_idempotency_records"
+    assert mod.down_revision == "013_product_safety_and_usage"
+
+
 def test_migration_script_template_exists():
     tmpl_path = os.path.join(os.path.dirname(__file__), "..", "alembic", "script.py.mako")
     assert os.path.exists(tmpl_path), "script.py.mako missing"
@@ -54,6 +67,17 @@ def test_migration_has_upgrade_and_downgrade():
     spec.loader.exec_module(mod)
     assert callable(mod.upgrade)
     assert callable(mod.downgrade)
+
+
+def test_initial_migration_respects_pgvector_feature_flag():
+    mig_path = os.path.join(
+        os.path.dirname(__file__), "..", "alembic", "versions", "001_initial_schema.py"
+    )
+    content = open(mig_path, encoding="utf-8").read()
+
+    assert "settings.use_pgvector" in content
+    assert "else postgresql.JSONB" in content
+    assert 'sa.Column("embedding", Vector(1536))' not in content
 
 
 def test_migration_creates_all_core_tables():

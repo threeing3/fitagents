@@ -1,0 +1,129 @@
+{
+  "schema_version": "fitagent-intent-semantic-probe/v1",
+  "partition": "development_diagnostic",
+  "source": "assistant_authored_synthetic",
+  "human_review_status": "not_reviewed",
+  "training_eligible": false,
+  "cases": [
+    {
+      "case_id": "risk-current-01",
+      "family": "current_vs_absent_symptom",
+      "user_message": "我今天抬右肩会刺痛，先别安排推举；能帮我看看本周训练要怎么调整吗？",
+      "required_intents": ["injury_or_risk", "training_plan"],
+      "forbidden_intents": [],
+      "minimum_risk_level": "medium",
+      "maximum_risk_level": "high",
+      "generate_plan_allowed": false
+    },
+    {
+      "case_id": "risk-absent-02",
+      "family": "current_vs_absent_symptom",
+      "user_message": "我今天右肩没有疼痛，也没有其他不适；请给我安排本周推举训练计划。",
+      "required_intents": ["training_plan"],
+      "forbidden_intents": ["injury_or_risk"],
+      "minimum_risk_level": "low",
+      "maximum_risk_level": "low",
+      "generate_plan_allowed": true
+    },
+    {
+      "case_id": "red-flag-current-03",
+      "family": "self_vs_other_red_flag",
+      "user_message": "我现在胸口闷，还呼吸困难。今天该怎么训练？",
+      "required_intents": ["injury_or_risk", "training_plan"],
+      "forbidden_intents": [],
+      "minimum_risk_level": "high",
+      "maximum_risk_level": "high",
+      "generate_plan_allowed": false
+    },
+    {
+      "case_id": "red-flag-other-04",
+      "family": "self_vs_other_red_flag",
+      "user_message": "是朋友胸口闷，不是我；我没有胸闷和呼吸困难。请给我制定本周训练计划。",
+      "required_intents": ["training_plan"],
+      "forbidden_intents": ["injury_or_risk"],
+      "minimum_risk_level": "low",
+      "maximum_risk_level": "low",
+      "generate_plan_allowed": true
+    },
+    {
+      "case_id": "plan-negated-05",
+      "family": "request_vs_negated_plan",
+      "user_message": "昨晚卧推做完三组，帮我记录；先不要生成新的训练计划。",
+      "required_intents": ["training_log"],
+      "forbidden_intents": ["training_plan"],
+      "minimum_risk_level": "low",
+      "maximum_risk_level": "low",
+      "generate_plan_allowed": false
+    },
+    {
+      "case_id": "plan-requested-06",
+      "family": "request_vs_negated_plan",
+      "user_message": "昨晚卧推做完三组，帮我记录；再给我生成下周训练计划。",
+      "required_intents": ["training_log", "training_plan"],
+      "forbidden_intents": [],
+      "minimum_risk_level": "low",
+      "maximum_risk_level": "low",
+      "generate_plan_allowed": true
+    },
+    {
+      "case_id": "profile-update-07",
+      "family": "profile_update_vs_correction",
+      "user_message": "我今年25岁，目标是增肌，请更新我的档案。",
+      "required_intents": ["profile_update"],
+      "forbidden_intents": ["profile_correction"],
+      "minimum_risk_level": "low",
+      "maximum_risk_level": "low",
+      "generate_plan_allowed": false
+    },
+    {
+      "case_id": "profile-correction-08",
+      "family": "profile_update_vs_correction",
+      "user_message": "档案里的目标写错了：不是减脂而是增肌，请纠正旧记录。",
+      "required_intents": ["profile_correction"],
+      "forbidden_intents": [],
+      "minimum_risk_level": "low",
+      "maximum_risk_level": "low",
+      "generate_plan_allowed": false
+    },
+    {
+      "case_id": "memory-query-09",
+      "family": "query_vs_new_log",
+      "user_message": "你还记得我上次深蹲做了几组吗？我只是查询，不要新增记录。",
+      "required_intents": ["memory_query"],
+      "forbidden_intents": ["training_log"],
+      "minimum_risk_level": "low",
+      "maximum_risk_level": "low",
+      "generate_plan_allowed": false
+    },
+    {
+      "case_id": "log-and-query-10",
+      "family": "query_vs_new_log",
+      "user_message": "昨晚深蹲做完三组，请记录；顺便告诉我上次深蹲做了几组。",
+      "required_intents": ["training_log", "memory_query"],
+      "forbidden_intents": [],
+      "minimum_risk_level": "low",
+      "maximum_risk_level": "low",
+      "generate_plan_allowed": false
+    },
+    {
+      "case_id": "weekly-review-11",
+      "family": "weekly_vs_monthly_review",
+      "user_message": "请总结我本周的训练记录和恢复情况，不要另开训练计划。",
+      "required_intents": ["weekly_review"],
+      "forbidden_intents": ["monthly_review", "training_plan"],
+      "minimum_risk_level": "low",
+      "maximum_risk_level": "low",
+      "generate_plan_allowed": false
+    },
+    {
+      "case_id": "monthly-review-12",
+      "family": "weekly_vs_monthly_review",
+      "user_message": "请总结我本月的训练记录和恢复情况，不要另开训练计划。",
+      "required_intents": ["monthly_review"],
+      "forbidden_intents": ["weekly_review", "training_plan"],
+      "minimum_risk_level": "low",
+      "maximum_risk_level": "low",
+      "generate_plan_allowed": false
+    }
+  ]
+}

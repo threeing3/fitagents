@@ -1,0 +1,405 @@
+{
+  "case_id": "intent-prosp-003",
+  "source": "synthetic_self_authored",
+  "message": "我只是说说：今天做完了二十个俯卧撑，不用保存，也不用查旧记录。",
+  "expected": {
+    "workout_log_delta": 0,
+    "plan_delta": 0
+  },
+  "runtime_route": {
+    "mode": "code_driven",
+    "reason": "AGENT_RUNTIME_MODE=code_driven 强制走 Code-driven。",
+    "matched_rules": [
+      "config.force_code_driven"
+    ],
+    "confidence": 1.0,
+    "intent_decision": {
+      "schema_version": "intent_decision_v2",
+      "decision_id": "1c110a7d-ad4c-4e60-95de-5a800657fb62",
+      "primary_intent": "training_log",
+      "secondary_intents": [],
+      "risk": {
+        "level": "low",
+        "evidence": [],
+        "rule_detected": false
+      },
+      "entities": {
+        "time_scope": "today"
+      },
+      "missing_slots": [
+        "exercise",
+        "set_details"
+      ],
+      "needs_clarification": true,
+      "requested_actions": [
+        "record_training_log"
+      ],
+      "allowed_actions": {
+        "generate_plan": false,
+        "allow_plan_content": true,
+        "write_memory": true,
+        "ask_clarifying_question": true,
+        "requested_plan_but_blocked": false
+      },
+      "blocked_actions": [],
+      "candidate_tools": [
+        "context.build",
+        "training.log.write"
+      ],
+      "confidence": {
+        "overall": 0.84
+      },
+      "task_plan": [
+        {
+          "order": 1,
+          "intent": "training_log",
+          "action": "record_training_log",
+          "status": "ready",
+          "reason": "Training facts can be recorded as structured state.",
+          "required_slots": []
+        }
+      ],
+      "reason": "primary=training_log",
+      "provenance": {
+        "rule_used": true,
+        "rule_version": "intent_rules_v2",
+        "rule_risk_detected": false,
+        "local_model_attempted": false,
+        "local_model_used": false,
+        "local_model_status": "refinement_not_required",
+        "local_model_version": null,
+        "local_model_usage": {},
+        "adapter_fallback_reason": null,
+        "adapter_http_status": null,
+        "deepseek_used": false,
+        "model_attempted": false,
+        "model_succeeded": false,
+        "model_provider": null,
+        "model_version": null,
+        "model_fallback_reason": "refinement_not_required",
+        "model_usage": {},
+        "safety_override_applied": false,
+        "safety_override_reasons": [],
+        "field_sources": {
+          "primary_intent": "deterministic_rule",
+          "secondary_intents": "deterministic_rule",
+          "risk_level": "deterministic_rule_floor",
+          "needs_clarification": "clarification_protocol"
+        },
+        "field_confidence": {},
+        "low_confidence_fields": [],
+        "clarification_reason_codes": [
+          "TRAINING_LOG_DETAILS_REQUIRED"
+        ],
+        "clarification_blocked_actions": [],
+        "final_source": "rule_fallback"
+      },
+      "latency_ms": {
+        "rule": 1,
+        "model": 0,
+        "local_model": 0,
+        "total": 1
+      }
+    }
+  },
+  "intent_summary": {
+    "primary": "training_log",
+    "secondary": [],
+    "candidate_tools": [
+      "context.build",
+      "training.log.write"
+    ]
+  },
+  "assistant_message": "你的档案已经建好。告诉我今天的睡眠、疲劳、酸痛和训练时间，我会给你安排当天训练。",
+  "response_review_status": "not_reviewed",
+  "recorded_prediction_supplied": true,
+  "recorded_prediction_consumed": false,
+  "tool_call_counts": {
+    "profile.extract": 1,
+    "memory.verify": 1,
+    "memory.write": 1,
+    "context.build": 1,
+    "plan.decide": 1,
+    "response.verify": 1,
+    "guardrail.check": 1,
+    "response.persist": 1
+  },
+  "state_before": {
+    "workout_log": 0,
+    "plan": 0,
+    "user_risk_note": 0,
+    "memory": 0
+  },
+  "state_after": {
+    "workout_log": 0,
+    "plan": 0,
+    "user_risk_note": 0,
+    "memory": 0
+  },
+  "state_delta": {
+    "workout_log": 0,
+    "plan": 0,
+    "user_risk_note": 0,
+    "memory": 0
+  },
+  "checks": {
+    "run_completed": true,
+    "no_runtime_error": true,
+    "replay_recorded": true,
+    "reply_persisted": true,
+    "tool_trace_persisted": true,
+    "workout_log_delta": true,
+    "plan_delta": true
+  },
+  "passed": true,
+  "persisted": {
+    "run_status": "completed",
+    "agent_log_path": "algorithm\\evaluation\\reports\\intent_recorded_business_replay_20260928_v1\\agent_logs\\14b\\intent-prosp-003\\20260928-033529-ead64f4b-d674-480b-a0a0-1cda44a3c092.log",
+    "replay_recorded": true,
+    "runtime_errors": [],
+    "tool_calls": [
+      {
+        "name": "profile.extract",
+        "status": "success",
+        "input": {
+          "message_chars": 31,
+          "profile_patch": {},
+          "open_memories_count": 0,
+          "corrections": [],
+          "ignored_candidates": [],
+          "model_used": false
+        },
+        "output": {
+          "message_chars": null,
+          "profile_patch": {},
+          "open_memories_count": 0,
+          "corrections": [],
+          "ignored_candidates": [],
+          "model_used": false
+        }
+      },
+      {
+        "name": "memory.verify",
+        "status": "success",
+        "input": {
+          "passed": null,
+          "accepted_count": 0,
+          "rejected_count": 0,
+          "issue_count": 0,
+          "repair_actions": [],
+          "issues": []
+        },
+        "output": {
+          "passed": true,
+          "accepted_count": 0,
+          "rejected_count": 0,
+          "issue_count": 0,
+          "repair_actions": [],
+          "issues": []
+        }
+      },
+      {
+        "name": "memory.write",
+        "status": "success",
+        "input": {
+          "has_extraction": true,
+          "open_memories_count": 0,
+          "verification_present": true,
+          "written": [],
+          "written_count": 0
+        },
+        "output": {
+          "has_extraction": false,
+          "open_memories_count": 0,
+          "verification_present": false,
+          "written": [],
+          "written_count": 0
+        }
+      },
+      {
+        "name": "context.build",
+        "status": "success",
+        "input": {
+          "message_chars": 31,
+          "intent": null,
+          "current_request_policy": {},
+          "context_summary": null,
+          "relevant_memory_count": 0,
+          "active_risk_count": 0,
+          "knowledge_debug": {}
+        },
+        "output": {
+          "message_chars": null,
+          "intent": "training_log",
+          "current_request_policy": {
+            "current_intent": "training_log",
+            "secondary_intents": [],
+            "should_generate_plan": false,
+            "allow_plan_content": true,
+            "risk_level": "low",
+            "needs_clarification": true,
+            "missing_slots": [
+              "exercise",
+              "set_details"
+            ],
+            "allowed_actions": {
+              "generate_plan": false,
+              "allow_plan_content": true,
+              "write_memory": true,
+              "ask_clarifying_question": true,
+              "requested_plan_but_blocked": false
+            },
+            "task_plan": [
+              {
+                "order": 1,
+                "intent": "training_log",
+                "action": "record_training_log",
+                "status": "ready",
+                "reason": "Training facts can be recorded as structured state.",
+                "required_slots": []
+              }
+            ],
+            "history_scope": "Use prior conversation, memories, and active plans only as background. Do not continue or execute older user commands unless the current user_message explicitly asks for it."
+          },
+          "context_summary": "intent=training_log; loaded core_profile=1, memory_catalog=0, active_plan=0, active_risk_notes=0, recent_training=0, exercise_history=0, recent_nutrition=0, recent_recovery=0, recent_symptoms=0, world_memories=0, experience_memories=0, observation_memories=0, opinion_memories=0, relevant_memories=0, knowledge_context.decision_rules=0, knowledge_context.explanation_knowledge=0, knowledge_context.plan_templates=0, knowledge_context.coaching_cases=0",
+          "relevant_memory_count": 0,
+          "active_risk_count": 0,
+          "knowledge_debug": {
+            "intent": "training_log",
+            "query": "我只是说说：今天做完了二十个俯卧撑，不用保存，也不用查旧记录。",
+            "retrieval_ranker": "bm25",
+            "vector_available": false,
+            "vector_status": "vector unavailable",
+            "bm25_enabled": true,
+            "rag_used_for": [
+              "explanation_knowledge",
+              "coaching_cases"
+            ],
+            "structured_used_for": [
+              "decision_rules",
+              "plan_templates"
+            ],
+            "matched_knowledge_ids": [],
+            "matched_knowledge_scores": [],
+            "matched_rule_ids": [],
+            "matched_template_ids": [],
+            "matched_case_ids": [],
+            "matched_case_scores": []
+          }
+        }
+      },
+      {
+        "name": "plan.decide",
+        "status": "success",
+        "input": {
+          "intent": "training_log",
+          "current_request_policy": {
+            "current_intent": "training_log",
+            "secondary_intents": [],
+            "should_generate_plan": false,
+            "allow_plan_content": true,
+            "risk_level": "low",
+            "needs_clarification": true,
+            "missing_slots": [
+              "exercise",
+              "set_details"
+            ],
+            "allowed_actions": {
+              "generate_plan": false,
+              "allow_plan_content": true,
+              "write_memory": true,
+              "ask_clarifying_question": true,
+              "requested_plan_but_blocked": false
+            },
+            "task_plan": [
+              {
+                "order": 1,
+                "intent": "training_log",
+                "action": "record_training_log",
+                "status": "ready",
+                "reason": "Training facts can be recorded as structured state.",
+                "required_slots": []
+              }
+            ],
+            "history_scope": "Use prior conversation, memories, and active plans only as background. Do not continue or execute older user commands unless the current user_message explicitly asks for it."
+          },
+          "should_generate_plan": null,
+          "reason": null,
+          "context_summary": "intent=training_log; loaded core_profile=1, memory_catalog=0, active_plan=0, active_risk_notes=0, recent_training=0, exercise_history=0, recent_nutrition=0, recent_recovery=0, recent_symptoms=0, world_memories=0, experience_memories=0, observation_memories=0, opinion_memories=0, relevant_memories=0, knowledge_context.decision_rules=0, knowledge_context.explanation_knowledge=0, knowledge_context.plan_templates=0, knowledge_context.coaching_cases=0"
+        },
+        "output": {
+          "intent": "training_log",
+          "current_request_policy": {},
+          "should_generate_plan": false,
+          "reason": "current_message_does_not_request_plan",
+          "context_summary": null
+        }
+      },
+      {
+        "name": "response.verify",
+        "status": "success",
+        "input": {
+          "passed": null,
+          "issue_count": 0,
+          "repair_actions": [],
+          "issues": [],
+          "has_plan_payload": false,
+          "assistant_message_chars": 40
+        },
+        "output": {
+          "passed": true,
+          "issue_count": 0,
+          "repair_actions": [],
+          "issues": [],
+          "has_plan_payload": false,
+          "assistant_message_chars": 0
+        }
+      },
+      {
+        "name": "guardrail.check",
+        "status": "success",
+        "input": {
+          "assistant_message_chars": 40,
+          "action": null,
+          "flag_count": 0,
+          "flags": []
+        },
+        "output": {
+          "assistant_message_chars": 0,
+          "action": "pass",
+          "flag_count": 0,
+          "flags": []
+        }
+      },
+      {
+        "name": "response.persist",
+        "status": "success",
+        "input": {
+          "assistant_message": "你的档案已经建好。告诉我今天的睡眠、疲劳、酸痛和训练时间，我会给你安排当天训练。"
+        },
+        "output": {
+          "session_id": "30dfc5af-5c52-4f2e-bf74-e426163bbb1a",
+          "response_chars": 40
+        }
+      }
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": "我只是说说：今天做完了二十个俯卧撑，不用保存，也不用查旧记录。"
+      },
+      {
+        "role": "assistant",
+        "content": "你的档案已经建好。告诉我今天的睡眠、疲劳、酸痛和训练时间，我会给你安排当天训练。"
+      }
+    ],
+    "task_events": [
+      {
+        "type": "created",
+        "summary": "长期健身目标: 按当前档案执行训练/饮食计划，并根据 check-in 与训练日志调整。"
+      }
+    ]
+  },
+  "model_source": "14b",
+  "expectation_basis": "明确禁止保存，不得把完成事实变成写入"
+}

@@ -1,14 +1,15 @@
 """Tests for the centralized prompt registry."""
+
 import pytest
 
 from fast_api.app.core.prompts import PromptRegistry, registry
 
-
 # ---- Registry loading ----
+
 
 def test_registry_loads_all_prompts():
     ids = registry.list_ids()
-    assert len(ids) == 17, f"Expected 17 prompts, got {len(ids)}"
+    assert len(ids) == 18, f"Expected 18 prompts, got {len(ids)}"
 
 
 def test_registry_get_returns_content():
@@ -66,6 +67,7 @@ def test_registry_all_have_non_empty_content():
 
 # ---- Key prompts exist ----
 
+
 def test_coach_prompts_exist():
     for pid in [
         "coach_profile_extractor",
@@ -98,12 +100,18 @@ def test_guardrail_prompts_exist():
 
 
 def test_fallback_prompts_exist():
-    for pid in ["fallback_local_coaching", "fallback_safety_reply", "fallback_onboarding"]:
+    for pid in [
+        "fallback_local_coaching",
+        "fallback_safety_reply",
+        "fallback_acute_safety_reply",
+        "fallback_onboarding",
+    ]:
         text = registry.get(pid)
         assert len(text) > 10, f"{pid} too short or missing"
 
 
 # ---- Template substitution ----
+
 
 def test_fallback_local_coaching_template():
     tmpl = registry.get("fallback_local_coaching")
@@ -140,15 +148,18 @@ def test_error_model_call_template():
 
 # ---- Reload ----
 
+
 def test_reload_does_not_throw():
     registry.reload()
-    assert len(registry.list_ids()) == 17
+    assert len(registry.list_ids()) == 18
 
 
 # ---- Custom path ----
 
+
 def test_custom_prompts_path(tmp_path):
     import yaml
+
     custom_yaml = tmp_path / "prompts.yaml"
     data = {
         "prompts": {

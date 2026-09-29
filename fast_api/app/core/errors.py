@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 # Custom exception classes
 # ============================================================
 
+
 class AppError(Exception):
     """Base application error with HTTP status and user-facing message."""
 
@@ -63,7 +64,9 @@ class LLMRateLimitError(AppError):
 
     status_code = 429
     error_code = "llm_rate_limited"
-    detail = "The AI service is experiencing high demand. Your request will be retried automatically."
+    detail = (
+        "The AI service is experiencing high demand. Your request will be retried automatically."
+    )
 
 
 class DatabaseError(AppError):
@@ -98,6 +101,14 @@ class ResourceNotFoundError(AppError):
     detail = "The requested resource was not found."
 
 
+class IdempotencyConflictError(AppError):
+    """An idempotency key was reused with a different request payload."""
+
+    status_code = 409
+    error_code = "idempotency_conflict"
+    detail = "The idempotency key was already used for a different request."
+
+
 class ServiceDegradedError(AppError):
     """A downstream service is degraded — the system is operating in fallback mode."""
 
@@ -109,6 +120,7 @@ class ServiceDegradedError(AppError):
 # ============================================================
 # Error response helpers
 # ============================================================
+
 
 def _error_body(
     status_code: int,
@@ -133,10 +145,13 @@ def _error_body(
 # FastAPI exception handlers
 # ============================================================
 
+
 async def _app_error_handler(request: Request, exc: AppError) -> JSONResponse:
     logger.warning(
         "AppError %s (status=%d): %s",
-        exc.error_code, exc.status_code, exc.detail,
+        exc.error_code,
+        exc.status_code,
+        exc.detail,
     )
     return JSONResponse(
         status_code=exc.status_code,
@@ -144,11 +159,11 @@ async def _app_error_handler(request: Request, exc: AppError) -> JSONResponse:
     )
 
 
-async def _http_exception_handler(
-    request: Request, exc: StarletteHTTPException
-) -> JSONResponse:
+async def _http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
     """Handle Starlette/FastAPI HTTPException with consistent format."""
-    logger.info("HTTP %d: %s — %s %s", exc.status_code, exc.detail, request.method, request.url.path)
+    logger.info(
+        "HTTP %d: %s — %s %s", exc.status_code, exc.detail, request.method, request.url.path
+    )
 
     # Map common status codes to error codes
     code_map = {
@@ -176,13 +191,17 @@ async def _validation_exception_handler(
     errors: list[dict[str, Any]] = []
     for error in exc.errors():
         field = " → ".join(str(loc) for loc in error["loc"])
-        errors.append({
-            "field": field,
-            "message": error["msg"],
-            "type": error["type"],
-        })
+        errors.append(
+            {
+                "field": field,
+                "message": error["msg"],
+                "type": error["type"],
+            }
+        )
 
-    logger.info("Validation error on %s %s: %d field(s)", request.method, request.url.path, len(errors))
+    logger.info(
+        "Validation error on %s %s: %d field(s)", request.method, request.url.path, len(errors)
+    )
 
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -197,13 +216,13 @@ async def _validation_exception_handler(
     )
 
 
-async def _unhandled_exception_handler(
-    request: Request, exc: Exception
-) -> JSONResponse:
+async def _unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Catch-all for unhandled exceptions — log full traceback, return generic 500."""
     logger.exception(
         "Unhandled exception on %s %s: %s",
-        request.method, request.url.path, exc,
+        request.method,
+        request.url.path,
+        exc,
     )
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -218,6 +237,7 @@ async def _unhandled_exception_handler(
 # ============================================================
 # Registration
 # ============================================================
+
 
 def register_exception_handlers(app: FastAPI) -> None:
     """Register all custom exception handlers on the FastAPI application.

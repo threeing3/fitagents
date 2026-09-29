@@ -1,13 +1,45 @@
 import asyncio
 from types import SimpleNamespace
 
+import httpx
+
 from fast_api.app.services.intent_decision_engine import IntentDecisionEngine
-from fast_api.app.services.intent_inference_client import IntentInferenceResult
+from fast_api.app.services.intent_inference_client import (
+    IntentInferenceClient,
+    IntentInferenceResult,
+)
 
 
 class FakeMessage:
     def __init__(self, content: str):
         self.content = content
+
+
+def test_real_client_invalid_payload_falls_back_without_losing_risk(monkeypatch):
+    async def fake_post(self, *args, **kwargs):
+        return httpx.Response(
+            200,
+            request=httpx.Request("POST", args[0]),
+            json={"decision": {"primary_intent": "training_plan"}},
+        )
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", fake_post)
+    client = IntentInferenceClient(
+        SimpleNamespace(
+            adapter_inference_url="https://intent.example/test", adapter_inference_key=None
+        )
+    )
+    provider = FakeModelProvider("not-json")
+    result = asyncio.run(
+        IntentDecisionEngine(provider, inference_client=client).decide("我胸闷但想继续冲刺训练")
+    )
+    decision = result.decision.to_dict()
+    assert decision["provenance"]["local_model_used"] is False
+    assert decision["provenance"]["adapter_fallback_reason"] == "invalid_payload"
+    assert decision["provenance"]["final_source"] == "rule_fallback"
+    assert decision["risk"]["level"] == "high"
+    assert decision["allowed_actions"]["generate_plan"] is False
+    assert provider.model.calls == 1
 
 
 class FakeChatModel:

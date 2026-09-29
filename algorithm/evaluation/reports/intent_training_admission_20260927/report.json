@@ -1,0 +1,83 @@
+{
+  "schema_version": "fitagent-intent-training-admission/v1",
+  "grain": "one candidate row per example_id; text may repeat",
+  "rows": 956,
+  "source_counts": {
+    "rule_generated": 696,
+    "synthetic": 72,
+    "teacher_generated": 188
+  },
+  "split_counts": {
+    "train": 720,
+    "validation": 236
+  },
+  "review_counts": {
+    "not_reviewed": 768,
+    "pending": 188
+  },
+  "eligible_rows": 956,
+  "eligible_review_counts": {
+    "not_reviewed": 768,
+    "pending": 188
+  },
+  "eligible_train_rows": 720,
+  "approved_eligible_train_rows": 0,
+  "unique_messages": 516,
+  "duplicate_message_groups": 184,
+  "rows_in_duplicate_message_groups": 624,
+  "duplicate_example_ids": 0,
+  "cross_split_exact_message_groups": 0,
+  "instruction_style_rows": 696,
+  "missing_required_fields": {},
+  "decision_parse_errors": 0,
+  "invalid_intent_labels": {},
+  "outer_primary_mismatches": 0,
+  "primary_counts": {
+    "concept_explanation": 37,
+    "general_chat": 37,
+    "injury_or_risk": 82,
+    "memory_query": 37,
+    "monthly_review": 37,
+    "nutrition_advice": 74,
+    "nutrition_log": 37,
+    "onboarding": 37,
+    "profile_correction": 37,
+    "profile_update": 37,
+    "progression_decision": 37,
+    "recovery_check": 86,
+    "small_talk": 37,
+    "training_log": 86,
+    "training_plan": 172,
+    "weekly_review": 86
+  },
+  "secondary_counts": {
+    "monthly_review": 49,
+    "nutrition_advice": 61,
+    "profile_correction": 49,
+    "profile_update": 49,
+    "progression_decision": 61,
+    "recovery_check": 49,
+    "training_log": 61,
+    "training_plan": 61
+  },
+  "shared_base_template_families": 53,
+  "shared_base_template_family_examples": [
+    "multi_injury_or_risk_training_plan",
+    "multi_nutrition_advice_recovery_check",
+    "multi_recovery_check_training_log",
+    "multi_secondary_log_monthly_progress",
+    "multi_secondary_plan_correction_recovery",
+    "multi_secondary_plan_profile_nutrition",
+    "multi_secondary_recovery_plan_nutrition",
+    "multi_secondary_risk_plan_log",
+    "multi_secondary_weekly_progress_log",
+    "multi_training_log_monthly_review"
+  ],
+  "scenario_group_id_present_for_eligible": false,
+  "cross_split_scenario_groups": [],
+  "structural_checks_pass": true,
+  "human_review_complete_for_train": false,
+  "scenario_split_verified": false,
+  "quality_training_admitted": false,
+  "interpretation": "Shared base template families flag possible overlap, not proven paraphrase leakage. Structural checks do not validate label semantics or action permissions."
+}

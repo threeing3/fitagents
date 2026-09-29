@@ -1,0 +1,36 @@
+{
+  "schema_version": "fitagent-intent-semantic-probe-report/v1",
+  "partition": "development_diagnostic",
+  "source": "assistant_authored_synthetic",
+  "human_review_status": "not_reviewed",
+  "training_eligible": false,
+  "cases": 16,
+  "paths": {
+    "rule_only": {
+      "all_checks_passed": 16,
+      "all_checks_rate": 1.0,
+      "check_passed": {
+        "required_intents": 16,
+        "forbidden_intents": 16,
+        "risk_bounds": 16,
+        "plan_permission": 16
+      },
+      "failure_case_ids": [],
+      "failure_families": {}
+    },
+    "rule_with_protocol": {
+      "all_checks_passed": 16,
+      "all_checks_rate": 1.0,
+      "check_passed": {
+        "required_intents": 16,
+        "forbidden_intents": 16,
+        "risk_bounds": 16,
+        "plan_permission": 16
+      },
+      "failure_case_ids": [],
+      "failure_families": {}
+    }
+  },
+  "claim_boundary": "Unreviewed synthetic diagnostic; not a final test or production result.",
+  "dataset_schema_version": "fitagent-intent-semantic-probe/v3"
+}

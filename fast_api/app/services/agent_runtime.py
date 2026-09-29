@@ -1,15 +1,17 @@
-import inspect
 import hashlib
+import inspect
 import json
-import logging
 import re
 import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Awaitable, Callable
+from typing import TYPE_CHECKING, Any, Awaitable, Callable
 
 from langchain_core.messages import HumanMessage, SystemMessage
+
+if TYPE_CHECKING:
+    from fast_api.app.services.approval_manager import ApprovalManager
 
 
 ToolHandler = Callable[[dict[str, Any]], Any | Awaitable[Any]]
@@ -123,7 +125,9 @@ class ToolRegistry:
         self._handlers: dict[str, ToolHandler] = {}
         self._repair_handlers: dict[str, ToolRepairHandler] = {}
 
-    def register(self, spec: ToolSpec, handler: ToolHandler, repair_handler: ToolRepairHandler | None = None) -> None:
+    def register(
+        self, spec: ToolSpec, handler: ToolHandler, repair_handler: ToolRepairHandler | None = None
+    ) -> None:
         self._specs[spec.name] = spec
         self._handlers[spec.name] = handler
         if repair_handler is not None:
@@ -139,19 +143,53 @@ class ToolRegistry:
         issues: list[dict[str, Any]] = []
         for spec in self._specs.values():
             if not spec.description.strip():
-                issues.append({"tool_name": spec.name, "severity": "error", "issue": "missing_description"})
+                issues.append(
+                    {"tool_name": spec.name, "severity": "error", "issue": "missing_description"}
+                )
             if spec.side_effects and not spec.idempotency_key_fields:
-                issues.append({"tool_name": spec.name, "severity": "warn", "issue": "side_effect_without_idempotency_key"})
+                issues.append(
+                    {
+                        "tool_name": spec.name,
+                        "severity": "warn",
+                        "issue": "side_effect_without_idempotency_key",
+                    }
+                )
             if spec.permission_level not in {"read", "write_candidate", "write", "admin"}:
-                issues.append({"tool_name": spec.name, "severity": "error", "issue": "invalid_permission_level"})
+                issues.append(
+                    {
+                        "tool_name": spec.name,
+                        "severity": "error",
+                        "issue": "invalid_permission_level",
+                    }
+                )
             if spec.risk_level not in {"low", "medium", "high", "critical"}:
-                issues.append({"tool_name": spec.name, "severity": "error", "issue": "invalid_risk_level"})
+                issues.append(
+                    {"tool_name": spec.name, "severity": "error", "issue": "invalid_risk_level"}
+                )
             if spec.retry_count > 0 and spec.side_effects:
-                issues.append({"tool_name": spec.name, "severity": "warn", "issue": "side_effect_tool_should_not_retry"})
+                issues.append(
+                    {
+                        "tool_name": spec.name,
+                        "severity": "warn",
+                        "issue": "side_effect_tool_should_not_retry",
+                    }
+                )
             if spec.input_schema and spec.input_schema.get("type") != "object":
-                issues.append({"tool_name": spec.name, "severity": "error", "issue": "input_schema_must_be_object"})
+                issues.append(
+                    {
+                        "tool_name": spec.name,
+                        "severity": "error",
+                        "issue": "input_schema_must_be_object",
+                    }
+                )
             if spec.output_schema and spec.output_schema.get("type") != "object":
-                issues.append({"tool_name": spec.name, "severity": "error", "issue": "output_schema_must_be_object"})
+                issues.append(
+                    {
+                        "tool_name": spec.name,
+                        "severity": "error",
+                        "issue": "output_schema_must_be_object",
+                    }
+                )
         return issues
 
     async def execute_awaiting_approval(
@@ -172,12 +210,12 @@ class ToolRegistry:
         spec = self._specs[name]
 
         # Check if approval is needed
-        needs_approval = (
-            approval_manager is not None
-            and approval_manager.requires_approval(name, spec.permission_level, spec.side_effects)
+        needs_approval = approval_manager is not None and approval_manager.requires_approval(
+            name, spec.permission_level, spec.side_effects
         )
         if needs_approval:
             from fast_api.app.services.approval_manager import summarize_tool_for_approval
+
             approval = approval_manager.create_approval(
                 user_id=approval_manager._last_user_id,
                 session_id=approval_manager._last_session_id,
@@ -201,7 +239,9 @@ class ToolRegistry:
         result = await self.execute(name, input_json)
         return result, True
 
-    async def execute(self, name: str, input_json: dict[str, Any] | None = None) -> ToolExecutionResult:
+    async def execute(
+        self, name: str, input_json: dict[str, Any] | None = None
+    ) -> ToolExecutionResult:
         if name not in self._handlers:
             raise ValueError(f"Tool not registered: {name}")
         spec = self._specs[name]
@@ -211,7 +251,9 @@ class ToolRegistry:
         validation_errors: list[str] = []
         repair_actions: list[str] = []
         repaired = False
-        max_attempts = max(1, 1 + max(0, spec.retry_count))
+        # A failed response does not prove a write failed. Trace keys alone do
+        # not enforce idempotency, so never replay a side-effecting handler.
+        max_attempts = 1 if spec.side_effects else max(1, 1 + max(0, spec.retry_count))
         contract = spec.to_contract()
         idempotency_key = self._idempotency_key(spec, payload)
 
@@ -227,7 +269,9 @@ class ToolRegistry:
                     "errors": input_errors,
                 },
             )
-            if isinstance(repaired_payload, dict) and isinstance(repaired_payload.get("input_json"), dict):
+            if isinstance(repaired_payload, dict) and isinstance(
+                repaired_payload.get("input_json"), dict
+            ):
                 payload = repaired_payload["input_json"]
                 repaired = True
                 repair_actions.append("repair_input_schema")
@@ -270,17 +314,21 @@ class ToolRegistry:
                                 "errors": output_errors,
                             },
                         )
-                        if isinstance(repaired_output, dict) and isinstance(repaired_output.get("output_json"), dict):
+                        if isinstance(repaired_output, dict) and isinstance(
+                            repaired_output.get("output_json"), dict
+                        ):
                             output_json = repaired_output["output_json"]
                             repaired = True
                             repair_actions.append("repair_output_schema")
-                            output_errors = self._validate_schema(output_json, spec.output_schema, "output")
+                            output_errors = self._validate_schema(
+                                output_json, spec.output_schema, "output"
+                            )
                     if output_errors:
                         last_error = "output schema validation failed"
                         if attempts >= max_attempts:
                             return ToolExecutionResult(
                                 tool_name=name,
-                                status="schema_error",
+                                status="outcome_unknown" if spec.side_effects else "schema_error",
                                 latency_ms=round((time.perf_counter() - start) * 1000),
                                 input_json=payload,
                                 output_json=output_json,
@@ -314,7 +362,7 @@ class ToolRegistry:
                     await self._sleep_backoff(spec)
             return ToolExecutionResult(
                 tool_name=name,
-                status="error",
+                status="outcome_unknown" if spec.side_effects else "error",
                 latency_ms=round((time.perf_counter() - start) * 1000),
                 input_json=payload,
                 output_json={},
@@ -329,7 +377,7 @@ class ToolRegistry:
         except Exception as exc:
             return ToolExecutionResult(
                 tool_name=name,
-                status="error",
+                status="outcome_unknown" if spec.side_effects else "error",
                 latency_ms=round((time.perf_counter() - start) * 1000),
                 input_json=payload,
                 output_json={},
@@ -358,7 +406,9 @@ class ToolRegistry:
 
         await asyncio.sleep(spec.retry_backoff_ms / 1000)
 
-    def _validate_schema(self, payload: dict[str, Any], schema: dict[str, Any], label: str) -> list[str]:
+    def _validate_schema(
+        self, payload: dict[str, Any], schema: dict[str, Any], label: str
+    ) -> list[str]:
         if not schema:
             return []
         errors: list[str] = []
@@ -423,9 +473,7 @@ class ToolRegistry:
         if not spec.idempotency_key_fields:
             return None
         material = {
-            field: payload.get(field)
-            for field in spec.idempotency_key_fields
-            if field in payload
+            field: payload.get(field) for field in spec.idempotency_key_fields if field in payload
         }
         if not material:
             return None
@@ -512,6 +560,16 @@ class AgentExecutionPlan:
 
 
 TOOL_STEP_META: dict[str, dict[str, str]] = {
+    "training.log.read": {
+        "key": "training_log_read",
+        "name": "Read prior workout evidence",
+        "stage": "executor",
+    },
+    "training.log.write": {
+        "key": "training_log_write",
+        "name": "Record authorized workout facts",
+        "stage": "executor",
+    },
     "profile.extract": {
         "key": "profile_extract",
         "name": "Extract profile patch and corrections",
@@ -640,7 +698,8 @@ class PlannerDecision:
                     name=meta["name"],
                     tool_name=tool_name,
                     reason=self.reasoning_summary or f"LLM planner selected {tool_name}.",
-                    required=tool_name not in {"plan.generate", "plan.verify", "plan.repair", "response.repair"},
+                    required=tool_name
+                    not in {"plan.generate", "plan.verify", "plan.repair", "response.repair"},
                     stage=meta["stage"],
                 )
             )
@@ -715,7 +774,9 @@ class LLMPlanner:
                 "selected_tools": ["tool names"],
                 "skipped_tools": [{"tool": "name", "reason": "short reason"}],
                 "tool_order": ["tool names in execution order"],
-                "required_context": ["profile|memory|training_history|active_plan|knowledge|safety_policy"],
+                "required_context": [
+                    "profile|memory|training_history|active_plan|knowledge|safety_policy"
+                ],
                 "write_intent": "boolean",
                 "safety_level": "low|medium|high",
                 "plan_generation_allowed": "boolean",
@@ -797,13 +858,37 @@ class PlannerVerifier:
     """Validate LLM planner output and enforce host-side safety invariants."""
 
     PLAN_TERMS = (
-        "计划", "制定", "生成", "周计划", "一周", "分化", "ppl", "push pull legs",
-        "training plan", "workout plan",
+        "计划",
+        "制定",
+        "生成",
+        "周计划",
+        "一周",
+        "分化",
+        "ppl",
+        "push pull legs",
+        "training plan",
+        "workout plan",
     )
     RISK_TERMS = (
-        "疼", "痛", "受伤", "拉伤", "扭伤", "胸闷", "胸口闷", "头晕", "恶心",
-        "心率", "心脏", "甲亢", "药", "用药", "pain", "injury", "dizzy",
-        "chest tightness", "medication",
+        "疼",
+        "痛",
+        "受伤",
+        "拉伤",
+        "扭伤",
+        "胸闷",
+        "胸口闷",
+        "头晕",
+        "恶心",
+        "心率",
+        "心脏",
+        "甲亢",
+        "药",
+        "用药",
+        "pain",
+        "injury",
+        "dizzy",
+        "chest tightness",
+        "medication",
     )
 
     def verify_and_repair(
@@ -814,6 +899,8 @@ class PlannerVerifier:
         runtime_route: dict[str, Any] | None = None,
     ) -> PlannerDecision:
         available = {str(tool.get("name")) for tool in available_tools if tool.get("name")}
+        # Both chat dispatchers execute this host-owned step outside ToolRegistry.
+        available.add("coach.reply")
         requested = set(decision.selected_tools) | set(decision.tool_order)
         unknown = sorted(tool for tool in requested if tool not in available)
         if unknown:
@@ -824,10 +911,22 @@ class PlannerVerifier:
             order = [tool for tool in decision.selected_tools if tool in available]
 
         repairs: list[str] = []
+        verified_intent = (runtime_route or {}).get("intent_decision") or {}
+        allowed_actions = verified_intent.get("allowed_actions") or {}
+        has_verified_policy = "generate_plan" in allowed_actions
+        is_plan_request = (
+            bool(allowed_actions["generate_plan"])
+            if has_verified_policy
+            else self._is_plan_request(message)
+        )
+        if verified_intent.get("primary_intent"):
+            decision.intent = str(verified_intent["primary_intent"])
         host_required = [
             "profile.extract",
             "memory.verify",
             "memory.write",
+            "training.log.read",
+            "training.log.write",
             "context.build",
             "plan.decide",
             "coach.reply",
@@ -837,7 +936,9 @@ class PlannerVerifier:
         ]
         for tool_name in host_required:
             if tool_name in available and tool_name not in order:
-                insert_at = order.index("response.persist") if "response.persist" in order else len(order)
+                insert_at = (
+                    order.index("response.persist") if "response.persist" in order else len(order)
+                )
                 order.insert(insert_at, tool_name)
                 repairs.append(f"insert_host_required_{tool_name}")
 
@@ -845,7 +946,9 @@ class PlannerVerifier:
             order.append("coach.reply")
             repairs.append("insert_coach_reply")
         if "guardrail.check" in available and "guardrail.check" not in order:
-            insert_at = order.index("response.persist") if "response.persist" in order else len(order)
+            insert_at = (
+                order.index("response.persist") if "response.persist" in order else len(order)
+            )
             order.insert(insert_at, "guardrail.check")
             repairs.append("insert_guardrail_check")
 
@@ -854,18 +957,43 @@ class PlannerVerifier:
         if PlannerRepair.ensure_after(order, "plan.generate", "plan.verify"):
             repairs.append("ensure_plan_verify_after_generate")
 
-        is_plan_request = self._is_plan_request(message)
-        if "plan.generate" in order and not is_plan_request:
-            order = [tool for tool in order if tool not in {"plan.generate", "plan.verify", "plan.repair"}]
+        if is_plan_request and has_verified_policy and "plan.generate" in available:
+            for tool in ("plan.generate", "plan.verify", "plan.repair"):
+                if tool in available and tool not in order:
+                    order.append(tool)
+                    repairs.append(f"insert_authorized_{tool}")
+        if not is_plan_request:
+            order = [
+                tool
+                for tool in order
+                if tool not in {"plan.generate", "plan.verify", "plan.repair"}
+            ]
             decision.plan_generation_allowed = False
-            decision.skipped_tools.append({"tool": "plan.generate", "reason": "current message did not explicitly request plan generation"})
-            repairs.append("remove_unrequested_plan_generation")
+            if "plan.generate" in requested:
+                decision.skipped_tools.append(
+                    {
+                        "tool": "plan.generate",
+                        "reason": "verified current request did not authorize plan generation",
+                    }
+                )
+                repairs.append("remove_unrequested_plan_generation")
         elif "plan.generate" in order and is_plan_request:
             decision.plan_generation_allowed = True
             if PlannerRepair.ensure_after(order, "plan.generate", "plan.verify"):
                 repairs.append("ensure_plan_verify_after_generate")
 
-        if self._is_risk_request(message):
+        risk_level = (verified_intent.get("risk") or {}).get("level")
+        is_risk_request = (
+            risk_level in {"medium", "high", "critical"}
+            if verified_intent
+            else self._is_risk_request(message)
+        )
+        if verified_intent:
+            verified_safety = "high" if is_risk_request else "low"
+            if decision.safety_level != verified_safety:
+                decision.safety_level = verified_safety
+                repairs.append("align_safety_level_with_verified_risk")
+        if is_risk_request:
             if decision.safety_level != "high":
                 decision.safety_level = "high"
                 repairs.append("upgrade_safety_level_high")
@@ -884,6 +1012,8 @@ class PlannerVerifier:
             "profile.extract",
             "memory.verify",
             "memory.write",
+            "training.log.read",
+            "training.log.write",
             "context.build",
             "plan.decide",
             "plan.generate",
@@ -896,7 +1026,11 @@ class PlannerVerifier:
             "response.persist",
         ]
         before_sort = list(order)
-        order.sort(key=lambda tool: canonical_order.index(tool) if tool in canonical_order else len(canonical_order))
+        order.sort(
+            key=lambda tool: canonical_order.index(tool)
+            if tool in canonical_order
+            else len(canonical_order)
+        )
         if order != before_sort:
             repairs.append("canonicalize_host_tool_order")
 
@@ -904,10 +1038,10 @@ class PlannerVerifier:
             repairs.append("ensure_response_persist_last")
 
         decision.tool_order = order
-        decision.selected_tools = [tool for tool in decision.selected_tools if tool in available] or [
-            tool for tool in order if tool != "response.persist"
-        ]
-        decision.repair_actions.extend(repair for repair in repairs if repair not in decision.repair_actions)
+        decision.selected_tools = [tool for tool in order if tool != "response.persist"]
+        decision.repair_actions.extend(
+            repair for repair in repairs if repair not in decision.repair_actions
+        )
         return decision
 
     def _is_plan_request(self, message: str) -> bool:
@@ -922,7 +1056,9 @@ class PlannerVerifier:
 def _string_list(value: Any) -> list[str]:
     if not isinstance(value, list):
         return []
-    return [str(item) for item in value if isinstance(item, (str, int, float)) and str(item).strip()]
+    return [
+        str(item) for item in value if isinstance(item, (str, int, float)) and str(item).strip()
+    ]
 
 
 def _skipped_tools(value: Any) -> list[dict[str, Any]]:
@@ -942,9 +1078,23 @@ def _skipped_tools(value: Any) -> list[dict[str, Any]]:
 class AgentPlanner:
     """Build an explicit execution plan for the current user turn."""
 
-    def plan_chat_turn(self, message: str, available_tools: list[dict[str, Any]]) -> AgentExecutionPlan:
+    def plan_chat_turn(
+        self,
+        message: str,
+        available_tools: list[dict[str, Any]],
+        intent_decision: dict[str, Any] | None = None,
+    ) -> AgentExecutionPlan:
         tool_names = {tool.get("name") for tool in available_tools}
-        intent = self.classify_intent(message)
+        intent = (
+            str(intent_decision["primary_intent"])
+            if intent_decision and intent_decision.get("primary_intent")
+            else self.classify_intent(message)
+        )
+        plan_allowed = (
+            bool((intent_decision.get("allowed_actions") or {}).get("generate_plan"))
+            if intent_decision
+            else intent == "training_plan"
+        )
 
         def include(tool_name: str) -> bool:
             return tool_name in tool_names
@@ -986,7 +1136,29 @@ class AgentPlanner:
                 stage="planner",
             ),
         ]
-        if intent == "training_plan":
+        if include("training.log.write"):
+            steps.insert(
+                3,
+                PlannedStep(
+                    "training_log_write",
+                    "Record current workout",
+                    "training.log.write",
+                    "Capture authorized workout facts before retrieving context.",
+                    stage="executor",
+                ),
+            )
+        if include("training.log.read"):
+            steps.insert(
+                3,
+                PlannedStep(
+                    "training_log_read",
+                    "Read prior workout",
+                    "training.log.read",
+                    "Read historical evidence before current-turn writes.",
+                    stage="executor",
+                ),
+            )
+        if plan_allowed:
             steps.extend(
                 [
                     PlannedStep(
@@ -1020,46 +1192,50 @@ class AgentPlanner:
             )
         steps.extend(
             [
-            PlannedStep(
-                "coach_reply",
-                "Generate coach response",
-                "coach.reply",
-                "Answer the current user message with retrieved context.",
-                stage="executor",
-            ),
-            PlannedStep(
-                "response_verify",
-                "Verify coach response constraints",
-                "response.verify",
-                "Check whether the final response follows current-message policy and safety context.",
-                stage="verifier",
-            ),
-            PlannedStep(
-                "response_repair",
-                "Repair coach response constraints",
-                "response.repair",
-                "Append deterministic repair text when verifier finds fixable issues.",
-                required=False,
-                stage="repair",
-                condition="response_verifier_has_repair_actions",
-            ),
-            PlannedStep(
-                "guardrail",
-                "Run safety guardrail",
-                "guardrail.check",
-                "Check medical, injury, and unsafe dieting boundaries.",
-                stage="verifier",
-            ),
-            PlannedStep(
-                "persist",
-                "Persist response and trace",
-                "response.persist",
-                "Save assistant message, agent run, tool calls, and readable logs.",
-                stage="executor",
-            ),
+                PlannedStep(
+                    "coach_reply",
+                    "Generate coach response",
+                    "coach.reply",
+                    "Answer the current user message with retrieved context.",
+                    stage="executor",
+                ),
+                PlannedStep(
+                    "response_verify",
+                    "Verify coach response constraints",
+                    "response.verify",
+                    "Check whether the final response follows current-message policy and safety context.",
+                    stage="verifier",
+                ),
+                PlannedStep(
+                    "response_repair",
+                    "Repair coach response constraints",
+                    "response.repair",
+                    "Append deterministic repair text when verifier finds fixable issues.",
+                    required=False,
+                    stage="repair",
+                    condition="response_verifier_has_repair_actions",
+                ),
+                PlannedStep(
+                    "guardrail",
+                    "Run safety guardrail",
+                    "guardrail.check",
+                    "Check medical, injury, and unsafe dieting boundaries.",
+                    stage="verifier",
+                ),
+                PlannedStep(
+                    "persist",
+                    "Persist response and trace",
+                    "response.persist",
+                    "Save assistant message, agent run, tool calls, and readable logs.",
+                    stage="executor",
+                ),
             ]
         )
-        steps = [step for step in steps if not step.tool_name or include(step.tool_name) or step.tool_name == "coach.reply"]
+        steps = [
+            step
+            for step in steps
+            if not step.tool_name or include(step.tool_name) or step.tool_name == "coach.reply"
+        ]
         return AgentExecutionPlan(
             objective=message,
             intent=intent,
@@ -1073,22 +1249,78 @@ class AgentPlanner:
             selected_tools=[step.tool_name for step in steps if step.tool_name],
             required_context=["profile", "memory", "current_message"],
             write_intent=any(step.tool_name == "memory.write" for step in steps),
-            safety_level="high" if intent == "injury_or_risk" else "low",
-            plan_generation_allowed=intent == "training_plan",
+            safety_level=(
+                "high"
+                if intent_decision
+                and (intent_decision.get("risk") or {}).get("level") in {"high", "critical"}
+                else "high"
+                if intent == "injury_or_risk" and not intent_decision
+                else "low"
+            ),
+            plan_generation_allowed=plan_allowed,
             reasoning_summary="Rule planner fallback selected a conservative current-message-first tool plan.",
         )
 
     def classify_intent(self, message: str) -> str:
         lowered = message.lower()
-        if any(term in lowered for term in ["胸闷", "头晕", "呼吸困难", "刺痛", "甲亢", "甲状腺", "受伤", "pain", "injury", "dizzy"]):
+        if any(
+            term in lowered
+            for term in [
+                "胸闷",
+                "头晕",
+                "呼吸困难",
+                "刺痛",
+                "甲亢",
+                "甲状腺",
+                "受伤",
+                "pain",
+                "injury",
+                "dizzy",
+            ]
+        ):
             return "injury_or_risk"
-        if any(term in lowered for term in ["今天练什么", "今天应该练什么", "训练计划", "健身计划", "生成计划", "制定计划", "workout plan", "training plan"]):
+        if any(
+            term in lowered
+            for term in [
+                "今天练什么",
+                "今天应该练什么",
+                "训练计划",
+                "健身计划",
+                "生成计划",
+                "制定计划",
+                "workout plan",
+                "training plan",
+            ]
+        ):
             return "training_plan"
-        if any(term in lowered for term in ["kg", "公斤", "组", "次数", "rpe", "卧推", "深蹲", "硬拉", "练了", "做完", "bench", "squat", "deadlift"]):
+        if any(
+            term in lowered
+            for term in [
+                "kg",
+                "公斤",
+                "组",
+                "次数",
+                "rpe",
+                "卧推",
+                "深蹲",
+                "硬拉",
+                "练了",
+                "做完",
+                "bench",
+                "squat",
+                "deadlift",
+            ]
+        ):
             return "training_log"
-        if any(term in lowered for term in ["吃", "热量", "蛋白", "碳水", "脂肪", "外卖", "外食", "calorie", "protein"]):
+        if any(
+            term in lowered
+            for term in ["吃", "热量", "蛋白", "碳水", "脂肪", "外卖", "外食", "calorie", "protein"]
+        ):
             return "nutrition_advice"
-        if any(term in lowered for term in ["睡", "疲劳", "酸痛", "恢复", "压力", "心率", "recovery", "sleep", "tired"]):
+        if any(
+            term in lowered
+            for term in ["睡", "疲劳", "酸痛", "恢复", "压力", "心率", "recovery", "sleep", "tired"]
+        ):
             return "recovery_check"
         if any(term in lowered for term in ["你记得", "我的档案", "记忆", "memory", "profile"]):
             return "memory_query"
@@ -1116,7 +1348,11 @@ class AgentExecutor:
         started_event = timeline.step_event(step)
         result = await registry.execute(step.tool_name or "", input_json or {})
         if result.status == "success":
-            output_summary = result.output_json if isinstance(result.output_json, dict) else {"result": result.output_json}
+            output_summary = (
+                result.output_json
+                if isinstance(result.output_json, dict)
+                else {"result": result.output_json}
+            )
             timeline.complete(step, output_summary, result.latency_ms)
         else:
             timeline.fail(step, result.error or "tool execution failed", result.latency_ms)
@@ -1138,7 +1374,9 @@ class AgentTaskTimeline:
         self.created_at = datetime.utcnow().isoformat()
         self.steps: list[TaskStep] = []
 
-    def add_step(self, name: str, tool_name: str | None = None, reason: str | None = None) -> TaskStep:
+    def add_step(
+        self, name: str, tool_name: str | None = None, reason: str | None = None
+    ) -> TaskStep:
         step = TaskStep(step_id=str(uuid.uuid4()), name=name, tool_name=tool_name, reason=reason)
         self.steps.append(step)
         return step
@@ -1147,7 +1385,12 @@ class AgentTaskTimeline:
         step.status = "running"
         step.started_at = datetime.utcnow().isoformat()
 
-    def complete(self, step: TaskStep, output_summary: dict[str, Any] | None = None, latency_ms: int | None = None) -> None:
+    def complete(
+        self,
+        step: TaskStep,
+        output_summary: dict[str, Any] | None = None,
+        latency_ms: int | None = None,
+    ) -> None:
         step.status = "completed"
         step.completed_at = datetime.utcnow().isoformat()
         if output_summary:

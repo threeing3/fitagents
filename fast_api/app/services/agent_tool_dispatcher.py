@@ -39,7 +39,9 @@ class ToolRuntimeState:
     response_verification: dict[str, Any] = field(default_factory=dict)
     response_repair: dict[str, Any] = field(default_factory=dict)
     assistant_message: str = ""
-    guardrail: dict[str, Any] = field(default_factory=lambda: {"action": "pass", "flag_count": 0, "flags": []})
+    guardrail: dict[str, Any] = field(
+        default_factory=lambda: {"action": "pass", "flag_count": 0, "flags": []}
+    )
     persisted: bool = False
     executed_tools: list[str] = field(default_factory=list)
     skipped_tools: list[dict[str, Any]] = field(default_factory=list)
@@ -59,7 +61,10 @@ class ToolInputBuilder:
         if tool_name == "memory.write":
             return ToolInput(
                 tool_name,
-                {"extraction": self.state.extraction, "verification": self.state.memory_verification},
+                {
+                    "extraction": self.state.extraction,
+                    "verification": self.state.memory_verification,
+                },
             )
         if tool_name == "context.build":
             if not self.state.onboarding_complete or self.state.requires_static_safety:
@@ -70,9 +75,22 @@ class ToolInputBuilder:
                 return ToolInput(tool_name, skip_reason="context_not_available")
             return ToolInput(tool_name, {"context_packet": self.state.context_packet})
         if tool_name == "plan.generate":
-            if self.state.active_plan_exists or not bool(self.state.plan_decision.get("should_generate_plan")):
-                return ToolInput(tool_name, skip_reason="active_plan_exists_or_generation_not_allowed")
-            return ToolInput(tool_name, {"reason": self.state.plan_decision.get("reason")})
+            scoped_request = (self.state.context_packet.get("current_request_policy") or {}).get(
+                "plan_request"
+            )
+            if (self.state.active_plan_exists and not scoped_request) or not bool(
+                self.state.plan_decision.get("should_generate_plan")
+            ):
+                return ToolInput(
+                    tool_name, skip_reason="active_plan_exists_or_generation_not_allowed"
+                )
+            return ToolInput(
+                tool_name,
+                {
+                    "reason": self.state.plan_decision.get("reason"),
+                    "context_packet": self.state.context_packet,
+                },
+            )
         if tool_name == "plan.verify":
             if not self.state.plan_output:
                 return ToolInput(tool_name, skip_reason="plan_not_generated")

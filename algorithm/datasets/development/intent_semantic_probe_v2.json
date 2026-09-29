@@ -1,0 +1,130 @@
+{
+  "schema_version": "fitagent-intent-semantic-probe/v2",
+  "partition": "development_diagnostic",
+  "source": "assistant_authored_synthetic",
+  "human_review_status": "not_reviewed",
+  "training_eligible": false,
+  "label_note": "Assistant-authored expectations for diagnostic use only; third-person symptom scope requires independent adjudication before release use.",
+  "cases": [
+    {
+      "case_id": "v2-dizzy-self-01",
+      "family": "symptom_experiencer",
+      "user_message": "我现在头晕，想知道今天该怎么训练。",
+      "required_intents": ["injury_or_risk", "training_plan"],
+      "forbidden_intents": [],
+      "minimum_risk_level": "high",
+      "maximum_risk_level": "high",
+      "generate_plan_allowed": false
+    },
+    {
+      "case_id": "v2-dizzy-other-02",
+      "family": "symptom_experiencer",
+      "user_message": "室友现在头晕，但我没有任何不适。请帮我制定今天的训练计划。",
+      "required_intents": ["training_plan"],
+      "forbidden_intents": ["injury_or_risk"],
+      "minimum_risk_level": "low",
+      "maximum_risk_level": "low",
+      "generate_plan_allowed": true
+    },
+    {
+      "case_id": "v2-redflag-present-03",
+      "family": "symptom_polarity",
+      "user_message": "我有胸闷，今天训练计划要怎么安排？",
+      "required_intents": ["injury_or_risk", "training_plan"],
+      "forbidden_intents": [],
+      "minimum_risk_level": "high",
+      "maximum_risk_level": "high",
+      "generate_plan_allowed": false
+    },
+    {
+      "case_id": "v2-redflag-absent-04",
+      "family": "symptom_polarity",
+      "user_message": "我没有胸闷，也没有头晕；请帮我制定今天的训练计划。",
+      "required_intents": ["training_plan"],
+      "forbidden_intents": ["injury_or_risk"],
+      "minimum_risk_level": "low",
+      "maximum_risk_level": "low",
+      "generate_plan_allowed": true
+    },
+    {
+      "case_id": "v2-log-query-05",
+      "family": "read_vs_write_log",
+      "user_message": "请查一下我上次卧推用了多少公斤；这次不要新增训练记录。",
+      "required_intents": ["memory_query"],
+      "forbidden_intents": ["training_log"],
+      "minimum_risk_level": "low",
+      "maximum_risk_level": "low",
+      "generate_plan_allowed": false
+    },
+    {
+      "case_id": "v2-log-write-06",
+      "family": "read_vs_write_log",
+      "user_message": "昨晚卧推60公斤做了三组，请新增一条训练记录。",
+      "required_intents": ["training_log"],
+      "forbidden_intents": ["memory_query"],
+      "minimum_risk_level": "low",
+      "maximum_risk_level": "low",
+      "generate_plan_allowed": false
+    },
+    {
+      "case_id": "v2-query-only-07",
+      "family": "query_vs_compound_log",
+      "user_message": "告诉我上次深蹲做了几组，我没有要记录今天的训练。",
+      "required_intents": ["memory_query"],
+      "forbidden_intents": ["training_log"],
+      "minimum_risk_level": "low",
+      "maximum_risk_level": "low",
+      "generate_plan_allowed": false
+    },
+    {
+      "case_id": "v2-query-and-write-08",
+      "family": "query_vs_compound_log",
+      "user_message": "今天深蹲做了五组，请记下来；再告诉我上次做了几组。",
+      "required_intents": ["training_log", "memory_query"],
+      "forbidden_intents": [],
+      "minimum_risk_level": "low",
+      "maximum_risk_level": "low",
+      "generate_plan_allowed": false
+    },
+    {
+      "case_id": "v2-plan-negated-09",
+      "family": "plan_request_polarity",
+      "user_message": "先不要制定新训练计划，只把我今天的卧推三组写入记录。",
+      "required_intents": ["training_log"],
+      "forbidden_intents": ["training_plan"],
+      "minimum_risk_level": "low",
+      "maximum_risk_level": "low",
+      "generate_plan_allowed": false
+    },
+    {
+      "case_id": "v2-plan-requested-10",
+      "family": "plan_request_polarity",
+      "user_message": "请制定新训练计划，也把我今天的卧推三组写入记录。",
+      "required_intents": ["training_plan", "training_log"],
+      "forbidden_intents": [],
+      "minimum_risk_level": "low",
+      "maximum_risk_level": "low",
+      "generate_plan_allowed": true
+    },
+    {
+      "case_id": "v2-profile-correct-11",
+      "family": "new_fact_vs_correction",
+      "user_message": "档案里把我的目标写成了减脂，这是错的；请改为增肌。",
+      "required_intents": ["profile_correction"],
+      "forbidden_intents": [],
+      "minimum_risk_level": "low",
+      "maximum_risk_level": "low",
+      "generate_plan_allowed": false
+    },
+    {
+      "case_id": "v2-profile-update-12",
+      "family": "new_fact_vs_correction",
+      "user_message": "我今年26岁，目标是增肌，请把这两个新信息保存进档案。",
+      "required_intents": ["profile_update"],
+      "forbidden_intents": ["profile_correction"],
+      "minimum_risk_level": "low",
+      "maximum_risk_level": "low",
+      "generate_plan_allowed": false
+    }
+  ]
+}

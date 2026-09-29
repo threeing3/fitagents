@@ -1,0 +1,60 @@
+{
+  "schema_version": "fitagent-intent-semantic-tfidf-probe/v1",
+  "partition": "development_diagnostic",
+  "source": "assistant_authored_synthetic",
+  "human_review_status": "not_reviewed",
+  "training_eligible": false,
+  "model_training_data": "intent-multilabel-v3.1-20260922",
+  "train_rows": 720,
+  "calibration_rows": 236,
+  "cases": 12,
+  "head_target": "secondary_only",
+  "secondary_labels": [
+    "monthly_review",
+    "nutrition_advice",
+    "profile_correction",
+    "profile_update",
+    "progression_decision",
+    "recovery_check",
+    "training_log",
+    "training_plan"
+  ],
+  "head_positive_counts": {
+    "monthly_review": 36,
+    "nutrition_advice": 44,
+    "profile_correction": 36,
+    "profile_update": 36,
+    "progression_decision": 44,
+    "recovery_check": 36,
+    "training_log": 44,
+    "training_plan": 44
+  },
+  "threshold_source": "isolated_v3.1_validation",
+  "thresholds": {
+    "monthly_review": 0.41340811204966493,
+    "nutrition_advice": 0.44210304325238353,
+    "profile_correction": 0.5221927315407588,
+    "profile_update": 0.41687704014241694,
+    "progression_decision": 0.3952932929716131,
+    "recovery_check": 0.4576593845190879,
+    "training_log": 0.46621467176211806,
+    "training_plan": 0.5347181533801584
+  },
+  "intent_checks_passed": 2,
+  "required_intents_passed": 2,
+  "forbidden_intents_passed": 9,
+  "failure_case_ids": [
+    "v2-dizzy-self-01",
+    "v2-redflag-present-03",
+    "v2-log-query-05",
+    "v2-log-write-06",
+    "v2-query-only-07",
+    "v2-query-and-write-08",
+    "v2-plan-negated-09",
+    "v2-plan-requested-10",
+    "v2-profile-correct-11",
+    "v2-profile-update-12"
+  ],
+  "fit_calibrate_predict_ms": 3202.619,
+  "claim_boundary": "Intent-only synthetic diagnostic; no risk, action, or production claim."
+}

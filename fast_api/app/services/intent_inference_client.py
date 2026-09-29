@@ -8,6 +8,7 @@ from typing import Any
 
 import httpx
 
+from algorithm.inference.intent_catalog import AgentIntentCatalog
 from fast_api.app.core.config import Settings, get_settings
 
 
@@ -80,7 +81,7 @@ class IntentInferenceClient:
             return self._failure("request_failed", started)
 
         payload = body.get("decision", body) if isinstance(body, dict) else None
-        if not isinstance(payload, dict) or not payload.get("primary_intent"):
+        if not self._valid_decision(payload):
             return self._failure("invalid_payload", started)
         return IntentInferenceResult(
             attempted=True,
@@ -90,6 +91,27 @@ class IntentInferenceClient:
             model_version=str(body.get("model_version") or "unknown"),
             latency_ms=self._elapsed(started),
             usage=body.get("usage", {}) if isinstance(body.get("usage"), dict) else {},
+        )
+
+    @staticmethod
+    def _valid_decision(payload: Any) -> bool:
+        """Reject incomplete or unknown model labels before confidence routing."""
+        if not isinstance(payload, dict):
+            return False
+        primary = payload.get("primary_intent")
+        secondary = payload.get("secondary_intents")
+        risk = payload.get("risk_level")
+        return (
+            isinstance(primary, str)
+            and primary in AgentIntentCatalog.VALID_INTENTS
+            and isinstance(secondary, list)
+            and all(
+                isinstance(label, str) and label in AgentIntentCatalog.VALID_INTENTS
+                for label in secondary
+            )
+            and isinstance(risk, str)
+            and risk in {"low", "medium", "high", "critical"}
+            and isinstance(payload.get("needs_clarification"), bool)
         )
 
     def _failure(

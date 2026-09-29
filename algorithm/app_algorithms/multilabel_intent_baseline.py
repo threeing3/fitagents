@@ -7,7 +7,7 @@ import json
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from algorithm.evaluation.multilabel_data_audit import (
     audit_label_coverage,
@@ -86,11 +86,20 @@ class _BinaryHead:
 class TfidfIntentBaseline:
     """One primary softmax model plus independent secondary binary heads."""
 
-    def __init__(self, *, threshold: float = 0.5, seed: int = 42) -> None:
+    def __init__(
+        self,
+        *,
+        threshold: float = 0.5,
+        seed: int = 42,
+        head_target: Literal["secondary_only", "any_intent"] = "secondary_only",
+    ) -> None:
         if not 0 < threshold < 1:
             raise ValueError("threshold must be between zero and one")
+        if head_target not in {"secondary_only", "any_intent"}:
+            raise ValueError("head_target must be secondary_only or any_intent")
         self.threshold = threshold
         self.seed = seed
+        self.head_target = head_target
         self.vectorizer: Any | None = None
         self.primary_model: Any | None = None
         self.secondary_heads: dict[str, _BinaryHead] = {}
@@ -107,7 +116,13 @@ class TfidfIntentBaseline:
         self.secondary_heads = {}
         decisions = [_decision(row) for row in rows]
         for label in secondary_labels:
-            target = [int(label in decision.get("secondary_intents", [])) for decision in decisions]
+            target = [
+                int(
+                    label in decision.get("secondary_intents", [])
+                    or (self.head_target == "any_intent" and label == decision["primary_intent"])
+                )
+                for decision in decisions
+            ]
             if len(set(target)) == 1:
                 self.secondary_heads[label] = _BinaryHead(constant=target[0], model=None)
             else:
@@ -132,7 +147,9 @@ class TfidfIntentBaseline:
                 scores = [float(value) for value in head.model.predict_proba(features)[:, 1]]
             for index, score in enumerate(scores):
                 probabilities[index][label] = score
-                if score >= (thresholds or {}).get(label, self.threshold):
+                if score >= (thresholds or {}).get(label, self.threshold) and (
+                    self.head_target != "any_intent" or label != primary[index]
+                ):
                     secondary_by_row[index].append(label)
         return [
             {
@@ -156,7 +173,11 @@ def calibrate_secondary_thresholds(
     if not calibration_rows:
         raise ValueError("calibration rows are required")
     predictions = model.predict(calibration_rows)
-    expected = [set(_decision(row).get("secondary_intents", [])) for row in calibration_rows]
+    expected = [
+        set(_decision(row).get("secondary_intents", []))
+        | ({str(_decision(row)["primary_intent"])} if model.head_target == "any_intent" else set())
+        for row in calibration_rows
+    ]
     calibrated: dict[str, float] = {}
     for label in labels:
         label_candidates = candidates or tuple(
