@@ -22,8 +22,8 @@ from fast_api.app.schemas.agent import (
     MemoryWeeklyReflectRequest,
 )
 from fast_api.app.services.context_builder import ContextBuilder
-from fast_api.app.services.decision_logger import DecisionLogger
 from fast_api.app.services.decision_evaluation import DecisionEvaluationService
+from fast_api.app.services.decision_logger import DecisionLogger
 from fast_api.app.services.memory_system import MemoryManager
 from fast_api.app.services.reflection_service import ReflectionService
 
@@ -82,7 +82,10 @@ def create_memory_item(
     current_user: models.User = Depends(get_current_user),
 ):
     manager = MemoryManager(db)
-    memory = manager.add_memory(current_user.id, payload.model_dump(exclude={"user_id"}))
+    try:
+        memory = manager.add_memory(current_user.id, payload.model_dump(exclude={"user_id"}))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     db.commit()
     db.refresh(memory)
     return _memory_response(memory)
@@ -204,7 +207,9 @@ def reflect_weekly_memory(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    result = ReflectionService(db).reflect_weekly(current_user.id, payload.week_start, payload.week_end)
+    result = ReflectionService(db).reflect_weekly(
+        current_user.id, payload.week_start, payload.week_end
+    )
     db.commit()
     return result
 
@@ -280,6 +285,22 @@ def list_decision_followups(
     current_user: models.User = Depends(get_current_user),
 ):
     return DecisionEvaluationService(db).list_pending_followups(current_user.id, limit=limit)
+
+
+@memory_router.post(
+    "/agent/decision-followups/{followup_id}/decline", response_model=dict[str, Any]
+)
+def decline_decision_followup(
+    followup_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    try:
+        result = DecisionEvaluationService(db).decline_followup(followup_id, current_user.id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    db.commit()
+    return result
 
 
 @memory_router.post("/agent/decision-followups/{followup_id}/answer", response_model=dict[str, Any])

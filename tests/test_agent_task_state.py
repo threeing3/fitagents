@@ -6,7 +6,11 @@ import sqlite3
 from types import SimpleNamespace
 
 import pytest
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import Session
 
+from fast_api.app.db import models
+from fast_api.app.db.database import Base
 from fast_api.app.services.agent_runtime import (
     AgentExecutor,
     AgentTaskTimeline,
@@ -14,6 +18,42 @@ from fast_api.app.services.agent_runtime import (
     ToolSpec,
 )
 from fast_api.app.services.agent_task_state import AgentTaskStateService
+
+
+def test_task_upsert_reuses_active_row_and_records_both_changes():
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    with Session(engine) as db:
+        user = models.User(email="task-upsert@example.test", password_hash="synthetic")
+        db.add(user)
+        db.flush()
+        service = AgentTaskStateService(db)
+        payload = {
+            "user_id": user.id,
+            "task_type": "fitness_cycle",
+            "title": "训练周期",
+            "objective": "合成目标",
+            "phase": "observe",
+            "current_step": "观察",
+            "success_metrics": {},
+            "constraints": {},
+            "next_actions": [],
+            "progress_patch": {"revision": 1},
+            "agent_run_id": None,
+        }
+        first = service._upsert_task(**payload)
+        second = service._upsert_task(
+            **{**payload, "current_step": "调整", "progress_patch": {"revision": 2}}
+        )
+        assert first.id == second.id
+        assert second.current_step == "调整"
+        assert second.progress_json["revision"] == 2
+        assert len(db.scalars(select(models.AgentTaskState)).all()) == 1
+        assert [row.event_type for row in db.scalars(select(models.AgentTaskEvent)).all()] == [
+            "created",
+            "updated",
+        ]
+    engine.dispose()
 
 
 def test_training_issue_message_creates_experiment_signal():

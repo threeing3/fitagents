@@ -52,6 +52,8 @@ class FieldConfidenceRouter:
         rule: IntentDecision,
         plan: FieldRoutePlan,
         intent_router: IntentRouter,
+        *,
+        authoritative_tasks: bool = False,
     ) -> tuple[IntentDecision, dict[str, str]]:
         deepseek_available = deepseek is not None
         sources: dict[str, str] = {}
@@ -71,7 +73,11 @@ class FieldConfidenceRouter:
             list(adapter.secondary_intents),
             list(deepseek.secondary_intents) if deepseek else [],
         )
-        secondary = intent_router._dedupe(list(secondary) + list(rule.secondary_intents))
+        secondary = intent_router._dedupe(
+            list(secondary)
+            if authoritative_tasks
+            else list(secondary) + list(rule.secondary_intents)
+        )
         secondary = [intent for intent in secondary if intent != primary]
         merged = IntentDecision(
             primary_intent=str(primary),

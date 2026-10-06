@@ -1,297 +1,146 @@
-# AI Fitness Coach Agent
+# FitAgent · 面向健身需求的 Personal Agent
 
-面向普通健身用户的 AI 私教 Agent 项目。当前版本已经从原始一次性计划 Demo 瘦身为主线清晰的 Web 产品原型：用户通过对话建档，Agent 将身体数据、训练目标、器械条件、饮食习惯、健康边界和每日反馈写入 PostgreSQL，并基于长期记忆、结构化规则和训练模板生成或调整建议。
+![FitAgent：对话、有效记忆、受限协作与执行验收](docs/assets/fitagent-overview.svg)
 
-## 当前能力
+**通过对话记录训练、查询历史、复盘近期状态，并在你的确认下调整计划。**
 
-- 对话式建档：抽取年龄、性别、身高、体重、目标、训练经验、训练频率和器械条件。
-- 长期记忆：记录健康/用药背景、饮食习惯、训练表现、纠错信息和近期状态。
-- 健身知识系统：区分解释知识、结构化决策规则、训练/饮食模板和教练案例。
-- ContextBuilder：按用户意图组合用户档案、长期记忆、知识召回、规则和模板。
-- 动态计划：生成训练与营养目标，并根据疲劳、睡眠、酸痛和完成度调整训练量。
-- 可观测日志：每次 Agent run 写入可读日志，记录节点、召回、规则命中、模板选择和耗时。
-- Eval harness：覆盖建档、纠错、疲劳调整、饮食外食、知识召回和安全边界。
-- Web UI：React/Vite 页面支持流式对话和逐字显示。
+FitAgent 是面向训练、饮食与恢复管理的 Personal Agent（个人智能体）。它把长期目标、近期记录与可纠正记忆接入建议和执行流程：不是只生成一段健身回答，而是让建议有依据、操作有边界、过程可追踪。
 
-## 技术栈
+**模型负责理解与候选建议，宿主负责权限、状态、审批和执行验收。**
 
-- Backend: FastAPI
-- Database: PostgreSQL + pgvector
-- Agent runtime: service-orchestrated single-agent workflow
-- Model provider: DeepSeek by default, with Qwen/OpenAI switches and offline fallback
-- Frontend: React + Vite
-- Tests: pytest + smoke test + eval logs
+[本地运行](docs/GETTING_STARTED.md) · [架构与源码](docs/ARCHITECTURE.md) · [演示与验收](docs/SHOWCASE.md) · [自带模型密钥](docs/MODEL_ACCESS.md)
 
-## 目录结构
+## 用户可以做什么？
+
+| 场景 | 交互示例 | 系统处理 |
+| --- | --- | --- |
+| 记录与查询 | “今天练了40分钟；查一下最近的训练。” | 采集信息，必要时追问，保存训练记录并支持查询 |
+| 个性化计划 | “每周练三次，周二只跑步，不安排推举。” | 结合档案、历史与约束生成候选计划；限定日期的变更检查修改范围 |
+| 信息纠正 | “昨天其实是20分钟，之前记错了。” | 需要明确记录与确认；更新事实，使旧记忆与相关派生判断失效 |
+| 周期复盘 | “结合最近训练、饮食和恢复情况，复盘这周。” | 证据分析、领域子任务和方案规划协作，交付带依据的建议 |
+| 长期跟踪 | 查看目标、待审批调整与执行历史 | 保存责任及审批状态，支持跟进、暂停与取消；后台需单独启动 |
+
+这是支持的场景类别，不是任意表达均已验收或全部健身功能覆盖的承诺。饮食与恢复同时提供独立记录入口；对话纠正有明确的记录、字段与确认范围。
+
+## 四条技术主线
+
+### 对话式业务执行：把语言接到业务状态
+
+意图路由复用本轮任务集合，工具统一声明参数、权限与前置条件。明确记录、纠正和确认走受控业务路径；开放对话另有受限的模型选工具循环。缺失信息时先追问，模型建议不等于业务写入。
+
+默认采用轻量分发，不让每次请求依次运行四层分类器。语义辅助与 Jev（类型化决策模型）可选，不配置也能运行。
+
+[业务入口](fast_api/app/services/coach_agent.py) · [执行控制](fast_api/app/services/agent_runtime.py) · [工具分发](fast_api/app/services/agent_tool_dispatcher.py) · [模型工具循环](fast_api/app/services/llm_agent.py) · [路由取舍](docs/LIGHTWEIGHT_DELEGATION_20261004.md)
+
+### 事实召回与长期记忆：相似不等于适用
+
+RAG（检索增强生成）服务于当前任务：区分事实、经验、观察与归纳，按任务选择记忆；向量、关键词、实体与时间多路召回，结合 BM25（关键词相关性评分）、RRF（多路排序融合）及重要性、时效性、适用性综合排序。
+
+用户更正后，旧事实退出默认召回，依赖它的派生记忆沿来源关系失效；历史依据保留。没有向量服务时走词法降级路径，不把降级结果标为语义检索成功。
+
+[记忆读写与检索](fast_api/app/services/memory_system.py) · [任务化召回](fast_api/app/services/memory_planner.py) · [依赖失效](fast_api/app/services/memory_dependencies.py) · [上下文构建](fast_api/app/services/context_builder.py)
+
+### 多智能体协作：分工，也约束交付
+
+训练、饮食与恢复子智能体使用隔离上下文和只读工具。周期复盘按“证据分析 → 领域建议 → 方案规划”交接，共享调用预算；宿主验收结构化结果，重新读取证据检查变化。前置任务失败、证据变化或刷新失败时阻断后续方案，子任务不能批准自己或直接修改计划。
+
+这是有边界的协作，不是多个角色自由聊天。离线模式明确显示跳过，不冒充真实模型完成；不宣称多智能体优于单智能体的量化收益。
+
+[领域子智能体](fast_api/app/services/domain_subagents.py) · [复盘交接](fast_api/app/services/review_collaboration.py) · [生命周期](fast_api/app/services/subagent_runtime.py) · [持久目录](fast_api/app/services/subagent_journal.py)
+
+### 安全控制与任务级评测：检查任务是否真的完成
+
+检查账号归属、工具参数和前置依赖；计划变更设置必要审批、版本冲突与重复执行保护。任务级评测检查回答依据、执行路径及最终业务状态，覆盖记忆纠错、协作交接、工具异常与中断。
+
+模型调用、工具结果及子任务事件形成持久记录，前端以折叠时间线和历史面板展示。回放只读取记录，不自动重新执行；不展示隐藏推理，也不承诺精确重建每次模型上下文。
+
+[审批](fast_api/app/services/approval_manager.py) · [追踪读取](fast_api/app/services/execution_trace.py) · [前端时间线](web/src/ExecutionTimeline.tsx) · [任务级验收](algorithm/evaluation/fitagent_journey_eval.py) · [追踪边界](docs/EXECUTION_TRACE_GUIDE_20261004.md)
+
+## 架构一览
+
+```mermaid
+flowchart TD
+    UI[对话 / 训练安排 / 记录 / 长期跟踪] --> Host[宿主：身份、会话与领域状态]
+    Host --> Route[意图分发与任务集合]
+    Route --> Context[有效记忆、记录、目标和约束]
+    Context --> Business[受控业务链路 / 受限模型工具循环]
+    Context --> Analysis[周期复盘：证据分析]
+    Analysis --> Domains[训练 / 饮食 / 恢复子智能体]
+    Domains --> Planning[方案规划与结构化交付]
+    Planning --> Accept[宿主验收与证据重验]
+    Business --> Gate[工具校验 / 风险检查 / 必要审批]
+    Accept --> Gate
+    Gate --> State[(档案、记忆、计划与记录)]
+    State --> Context
+    Host --> Trace[持久执行记录与历史查看]
+    Gate --> Trace
+    Trace --> Eval[任务级评测与失败归因]
+```
+
+两条执行路径共用宿主权限边界，不是所有请求都运行复盘协作。子任务只交付建议，最终业务写入留在宿主。
+
+## 页面预览
+
+![当前对话工作台：原有前端与合成接口响应](docs/assets/fitagent-chat-20261006.png)
+
+当前原有前端的合成演示截图，展示界面组织，不是实时模型调用或业务验收结果。页面还提供训练安排、训练记录、长期跟踪、设置与开发诊断。
+
+<details>
+<summary>展开：计划调整如何先审阅、再批准</summary>
+
+![长期跟踪与待审批草案：内置合成演示](docs/assets/fitagent-workspace-20261006.png)
+
+该页面使用内置合成数据，不连接业务数据库。批准与执行是不同状态，候选调整不代表已经修改计划。
+
+</details>
+
+操作步骤与证据边界见[演示指南](docs/SHOWCASE.md)。
+
+## 本地使用：不需要租服务器
+
+完整业务可在自己的电脑运行；调用远程模型不要求本机显卡。不提供共享密钥、免费额度或常驻公共服务。
+
+准备 Python（后端运行环境）3.11/3.12、Node.js（前端构建环境）20.19 及以上兼容版本，以及专用于本项目的 PostgreSQL（关系数据库）空库。完整安装步骤见[快速开始](docs/GETTING_STARTED.md)。
+
+```powershell
+git clone https://github.com/threeing3/fitagents.git
+cd fitagents
+# 按快速开始安装依赖、构建前端并准备新数据库后：
+python -m scripts.run_local_byok --provider offline --ack-db-migrations
+# 使用真实模型，替换为自己账号可用的模型名称：
+python -m scripts.run_local_byok --provider deepseek --model YOUR_MODEL_ID --ack-db-migrations
+```
+
+启动入口隐式询问数据库连接串及密钥；确认参数表示允许迁移所选数据库，不要指向未经备份审计的重要旧库。只监听本机，打开 <http://127.0.0.1:8015/> 注册使用。不自动启动后台工作进程，默认关闭远程向量调用与第三方追踪。
+
+离线模式用于检查规则与业务状态，不能证明模型理解、语义召回或多智能体质量。自带密钥是单部署配置，不是公网逐用户配置密钥的托管服务。
+
+## 如何检查项目，而不只看截图？
+
+| 想检查什么 | 阅读与复现入口 |
+| --- | --- |
+| 对话如何成为工具执行 | [执行控制](fast_api/app/services/agent_runtime.py)、[工具循环](fast_api/app/services/llm_agent.py) |
+| 纠正后旧结论为何失效 | [依赖失效测试](tests/test_memory_dependencies.py)、[记忆评测集](tests/evals/hindsight_memory_eval_cases.json) |
+| 子任务有没有真实权限边界 | [领域测试](tests/test_domain_subagents.py)、[子任务运行测试](tests/test_subagent_runtime.py) |
+| 任务是否真的完成 | [固定合成业务链路](algorithm/evaluation/fitagent_journey_eval.py)、[工具循环评测](algorithm/evaluation/tool_loop_task_eval.py) |
+| 中断和历史记录怎样呈现 | [追踪指南](docs/EXECUTION_TRACE_GUIDE_20261004.md)、[验收矩阵](docs/TRACE_ACCEPTANCE_MATRIX_20261005.md) |
+
+脚本化模型用于协议与故障测试，真实模型评测检查模型行为，二者分别记账。历史验收有版本和范围，不将测试数量当作用户效果或线上稳定性指标。详见[展示与验证](docs/SHOWCASE.md)。
+
+## 目录导航
 
 ```text
-.
-├── docker-compose.yml
-├── .env.example
-├── fast_api/
-│   ├── Dockerfile
-│   ├── requirements.txt
-│   └── app/
-│       ├── api/
-│       │   ├── coach_platform.py
-│       │   └── memory_api.py
-│       ├── core/
-│       ├── data/fitness_knowledge/
-│       ├── db/
-│       ├── schemas/
-│       └── services/
-├── web/
-├── scripts/
-│   ├── start-dev.ps1
-│   ├── smoke-test.ps1
-│   └── repair-current-demo-profile.ps1
-├── tests/
-└── logs/
+fast_api/app/services/  对话执行、记忆、领域子任务、审批与长期责任
+fast_api/app/api/       登录账号范围内的业务与追踪接口
+web/src/               产品页面、执行时间线与历史追踪
+algorithm/evaluation/  模型与任务级评测
+tests/                 回归、隔离、交接与故障测试
+scripts/               本地运行与专项验收
+docs/                  架构、复现、决策与验收范围
 ```
 
-## 环境变量
+## 边界与参考
 
-首次运行时复制模板：
+个人开发项目，不提供医疗诊断，不代替医生或专业训练指导。当前结合受控工作流、受限模型工具循环和领域子智能体，不是开放式通用自主执行系统。没有公网容量承诺，也未完成多智能体优于单智能体的公平效果对照。
 
-```powershell
-Copy-Item .env.example .env
-```
-
-默认配置使用 DeepSeek：
-
-```env
-LLM_PROVIDER=deepseek
-DEEPSEEK_BASE_URL=https://api.deepseek.com
-DEEPSEEK_CHAT_MODEL=deepseek-v4-pro
-DEEPSEEK_API_KEY=你的 DeepSeek API Key
-```
-
-如需切换 Qwen/DashScope：
-
-```env
-LLM_PROVIDER=qwen
-QWEN_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
-QWEN_CHAT_MODEL=qwen-plus
-DASHSCOPE_API_KEY=你的 DashScope API Key
-```
-
-Embedding 可以独立配置。开发演示时如果外部 embedding 网络不稳定，可使用：
-
-```env
-EMBEDDING_PROVIDER=offline
-USE_PGVECTOR=true
-```
-
-## Docker Compose 运行
-
-```powershell
-cd "C:\Users\Lenovo\Documents\New project 4\ai-fitness-planner"
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-dev.ps1
-```
-
-启动成功后：
-
-- Web UI: http://localhost:5173
-- API docs: http://localhost:1015/docs
-- Health check: http://localhost:1015/health
-- PostgreSQL: localhost:4553
-
-停止服务：
-
-```powershell
-docker compose down
-```
-
-仅在确认不需要历史数据时清空数据库卷：
-
-```powershell
-docker compose down -v
-```
-
-## PyCharm 开发
-
-推荐用 Docker Compose 跑 PostgreSQL，PyCharm 调试 FastAPI：
-
-```powershell
-docker compose up -d postgres
-.\.venv\Scripts\python.exe -m uvicorn fast_api.app.main:app --reload --port 1015
-```
-
-如果需要重建本地虚拟环境：
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install --upgrade pip
-.\.venv\Scripts\python.exe -m pip install -r fast_api\requirements.txt
-```
-
-前端依赖已不提交到仓库。需要本机前端开发时：
-
-```powershell
-cd web
-npm install
-npm run dev
-```
-
-如果本机 Node 版本过旧，优先使用 Docker Compose 中的前端服务。
-
-## 常用命令
-
-静态检查：
-
-```powershell
-.\.venv\Scripts\python.exe -m compileall fast_api\app tests
-```
-
-单元测试：
-
-```powershell
-.\.venv\Scripts\python.exe -m pytest tests
-```
-
-API smoke test：
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\smoke-test.ps1
-```
-
-Compose 配置检查：
-
-```powershell
-docker compose config --quiet
-```
-
-## 主要 API
-
-- `POST /v1/chat/sessions`：创建用户专属 Agent 会话
-- `POST /v1/chat/messages/stream`：发送消息并流式返回教练回复
-- `POST /v1/checkins/daily`：记录每日睡眠、疲劳、酸痛、饮食执行和训练完成度
-- `POST /v1/workouts/logs`：记录动作、重量、次数、组数、RPE 和备注
-- `POST /v1/plans/generate`：生成训练与营养计划
-- `POST /v1/plans/adjust`：基于反馈调整计划
-- `GET /v1/users/{user_id}/dashboard`：读取今日计划、档案、记忆和关键指标
-- `GET /v1/agent-runs/{run_id}`：查看一次 Agent 执行 trace
-- `POST /v1/evals/run`：运行 eval harness
-
-## 数据与日志
-
-PostgreSQL 统一保存：
-
-- 用户、档案、训练计划、训练日志、饮食日志、每日 check-in
-- 长期记忆、会话消息、agent run、tool call
-- prompt/eval 数据和知识库数据
-- pgvector embedding
-
-日志目录：
-
-- `logs/agent-runs/`：每次对话的可读运行日志
-- `logs/experiments/`：启动、smoke test 和 eval 日志
-
-### Agent Lab（智能体实验室）
-
-登录后进入 Agent Lab，可回放当前用户最近的 AgentRun（智能体执行记录）。页面按“理解请求 → 制定计划 → 召回上下文 → 执行工具 → 验证结果 → 安全检查 → 生成回复”展示脱敏决策轨迹，并自动标记规划降级、工具失败、验证器问题、安全护栏介入和检索降级。接口不会返回原始用户输入、工具参数、模型上下文或本地日志路径。
-
-实验室同时公开 `agent_challenge_v1` 高难度诊断基线：120 条固定测试样例覆盖多意图、安全绕过、记忆冲突、指代不明、参数缺失和口语噪声。该集合固定标记为 `partition=test`、`training_eligible=false`，不得进入训练数据。
-
-日志不会记录 API key。
-
-## 面试展示重点
-
-- 不是一次性 prompt demo，而是有用户档案、长期记忆、规则、模板、反馈和评估闭环的 Agent 产品。
-- RAG 只用于解释知识和教练案例，影响训练/饮食决策的内容使用结构化 `decision_rules` 与 `plan_templates`。
-- Agent 可观测性完整：能看见意图识别、profile extraction、memory writes、retrieval、rule match、template selection、LLM/fallback 和 latency。
-- 支持 DeepSeek/Qwen/OpenAI provider abstraction，模型失败时有可演示的 deterministic fallback。
-- 保持 Web-first 主线，旧 Streamlit、MongoDB、FAISS、USDA demo 路径已移除。
-
-## 健康边界
-
-本项目提供健身建议，不做医疗诊断或用药建议。疼痛、伤病、疾病、极端节食、胸闷、头晕、心悸等场景需要触发安全提示，并建议咨询专业人士。
-
-## 算法实验层（面试项目）
-
-项目新增 `algorithm/` 离线实验层，用于展示大模型应用算法和业务算法后训练能力。它不改变现有 FastAPI 主链路，主要负责：
-
-- 从 Agent run、tool call、反馈和决策结果导出脱敏训练样本。
-- 构建 SFT、工具决策、安全和偏好数据集。
-- 评估意图识别、记忆召回、工具规划、回复重排序和业务接受率。
-- 在 AutoDL 上使用独立训练依赖运行 QLoRA/DPO。
-- 保存数据 manifest、实验配置、评测报告和模型卡。
-
-### 阶段三可信基线（2026-08-09）
-
-- 38 条固定业务样例全部通过；固定评测集包含 120 条意图、80 条召回、200 条工具规划、150 条安全和 100 条回复质量样例。
-- 意图 Macro-F1 为 1.00，风险 Recall 为 1.00；这些结果来自 `seed_eval` 规则覆盖集，只证明固定场景门禁，不代表真实线上分布。
-- BM25 的 Recall@5 为 0.95；当前没有带真实向量服务来源的分数，因此向量结果明确显示 `vector unavailable`，不会用 SHA-256 伪向量替代。
-- 规则 Planner 的工具选择和顺序准确率均为 1.00，结构合法率为 1.00；未配置模型时不伪造 LLM Planner 结果。
-- 训练工厂可复现生成 1200 条 `synthetic` 样本，按 50 个用户整体切分为 960/120/120，零用户泄漏；业务结果只标记为 `simulated_outcome`。
-- 当前没有经过真实人工审核的偏好对，因此 DPO 保持关闭。完整脱敏结果见 `algorithm/evaluation/reports/maturity_03_baseline.summary.json` 和 `algorithm/datasets/manifests/maturity_03_synthetic.summary.json`。
-
-### Intent 04 真实 Qwen3-4B 后训练（2026-08-18）
-
-- 在单张 RTX 4090 上完成 Qwen3-4B 的 4-bit QLoRA 意图适配器训练，并通过独立进程重载。
-- 120 条永久隔离挑战集上，适配器结构合法率为 100%，风险召回率为 100%；安全合并后完全匹配率由底座的 5.83% 提升到 13.33%。
-- 完全匹配率仍低，因此当前只标记为 `verified_offline`，不声明线上业务提升；生产安全仍由确定性规则控制。
-- 脱敏发布摘要见 `algorithm/evaluation/reports/intent_qwen3_4b_release.summary.json`，完整训练说明见 `docs/QWEN3_INTENT_TRAINING.md`。
-
-统一阶段三门禁：
-
-```powershell
-python -m algorithm.evaluation.build_fixed_evals --verify
-python -m algorithm.evaluation.run_maturity_gate `
-  --experiment-id maturity_03_algorithms_20260809 `
-  --output <new-experiment-report.json>
-```
-
-项目还提供“学习模式”，用于把每个算法模块变成可练习、可验收、可面试表达的课程。默认采用 conversation-first（对话优先）方式：你在 Codex 对话中回答概念题和实验预测，由 Codex 执行命令、展示结果、维护进度和实验日志，你不需要自己操作终端。
-
-```powershell
-python -m algorithm.learning.mode list
-python -m algorithm.learning.mode next
-python -m algorithm.learning.mode show 03_intent_and_routing
-python -m algorithm.learning.mode check 03_intent_and_routing
-python -m algorithm.learning.mode progress
-```
-
-学习方法和 4–6 周能力地图见 [`docs/LEARNING_MODE.md`](docs/LEARNING_MODE.md)。
-学习总控协议见 [`docs/LEARNING_CONTROL_PROTOCOL.md`](docs/LEARNING_CONTROL_PROTOCOL.md)，机器可读配置见 [`algorithm/research_state/learning_control.json`](algorithm/research_state/learning_control.json)。
-
-推荐先阅读：
-
-- `docs/ALGORITHM_UPGRADE_PLAN.md`
-- `docs/DATA_GOVERNANCE.md`
-- `docs/EVALUATION_PROTOCOL.md`
-- `docs/MODEL_CARD.md`
-- `docs/INTERVIEW_DEMO_SCRIPT.md`
-- `docs/CI_AND_DEPLOYMENT.md`
-- `docs/PRODUCT_SECURITY.md`
-
-最小数据管线：
-
-```powershell
-python -m algorithm.data.export_traces --output algorithm/datasets/manifests/training_examples.jsonl --db local_dev.db --log-dir logs/agent-runs --salt "local-dev-salt"
-python -m algorithm.data.validate_dataset algorithm/datasets/manifests/training_examples.jsonl
-python -m algorithm.datasets.build_sft_dataset algorithm/datasets/manifests/training_examples.jsonl algorithm/datasets/manifests/sft_train.jsonl
-python -m algorithm.datasets.build_preference_dataset algorithm/datasets/manifests/training_examples.jsonl algorithm/datasets/manifests/preference_pairs.jsonl
-python -m algorithm.app_algorithms.intent_baseline tests/evals/intent_eval_cases.json
-```
-
-需要在真实轨迹不足时做学习实验，可使用一键数据集总工厂；合成样本会显式标记来源，不会伪装成真实业务数据：
-
-```powershell
-python -m algorithm.datasets.build_bundle --input algorithm/datasets/manifests/training_examples.jsonl --output-dir <ignored-experiment-directory> --synthetic-count 1200 --seed 42
-python -m algorithm.business.business_baseline --count 240 --seed 42 --experiment-id business-baseline-v1 --output <report.json>
-python -m algorithm.app_algorithms.memory_retrieval_eval
-```
-
-AutoDL 训练入口：
-
-```powershell
-pip install -r algorithm/training/requirements-training.txt
-python -m algorithm.training.sft.train_qlora --config algorithm/training/configs/sft_qwen3b.json --dry-run
-python -m algorithm.training.sft.train_qlora --config algorithm/training/configs/sft_qwen3b.json
-python -m algorithm.training.dpo.train_dpo --config algorithm/training/configs/dpo_qwen3b.json --dry-run
-python -m algorithm.training.dpo.train_dpo --config algorithm/training/configs/dpo_qwen3b.json
-```
-
-只有在 `preference_pairs.jsonl` 含有经过审核的 `chosen/rejected` 对后才运行 DPO；数据不足时保持空文件，不从未标注回复推断偏好。
-因此，真实数据导出的 DPO dry-run 失败且提示数据集为空是预期的安全门禁；完成合成/专家偏好数据审核后，再把配置中的 `dataset_path` 指向非空文件。
+追踪与子任务生命周期设计参考 [DeepSeek Harness（智能体执行框架）](https://github.com/deepseek-ai/deepseek-harness) 的职责分离；展示组织参考 [Dify](https://github.com/langgenius/dify)、[Open WebUI](https://github.com/open-webui/open-webui) 和 [Open Deep Research](https://github.com/langchain-ai/open_deep_research)。这些是设计参考，不宣称相同完整性或复制其代码。

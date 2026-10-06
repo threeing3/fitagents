@@ -8,6 +8,7 @@ from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
 from fast_api.app.db import models
+from fast_api.app.services.exercise_constraints import exercise_exclusions
 from fast_api.app.services.fitness_knowledge import FitnessKnowledgeService
 from fast_api.app.services.intent_contract import IntentDecisionV2
 from fast_api.app.services.intent_decision import IntentDecision
@@ -15,7 +16,7 @@ from fast_api.app.services.intent_decision import IntentRouter as StructuredInte
 from fast_api.app.services.memory_planner import MemoryPlanner, MemoryRecallPlan
 from fast_api.app.services.memory_system import MemoryManager
 from fast_api.app.services.model_provider import ModelProvider
-from fast_api.app.services.plan_request import parse_plan_request
+from fast_api.app.services.plan_request import date_in_timezone, parse_plan_request
 
 
 class IntentRouter:
@@ -254,6 +255,10 @@ class FitnessRetrievalService:
         self.db = db
         self.memory_manager = MemoryManager(db, model_provider)
 
+    def get_user_timezone(self, user_id: uuid.UUID) -> str:
+        user = self.db.get(models.User, user_id)
+        return user.timezone if user is not None else "UTC"
+
     def get_core_profile(self, user_id: uuid.UUID) -> dict[str, Any]:
         profile = self.db.get(models.UserProfile, user_id)
         if profile is None:
@@ -349,6 +354,7 @@ class FitnessRetrievalService:
         return [
             {
                 "performed_at": log.performed_at.isoformat() if log.performed_at else None,
+                "id": str(log.id),
                 "workout_name": log.workout_name,
                 "duration_minutes": log.duration_minutes,
                 "rpe": log.rpe,
@@ -406,6 +412,7 @@ class FitnessRetrievalService:
         return [
             {
                 "date": item.summary_date.isoformat(),
+                "id": str(item.id),
                 "total_calories": item.total_calories,
                 "total_protein_g": item.total_protein_g,
                 "target_calories": item.target_calories,
@@ -428,6 +435,7 @@ class FitnessRetrievalService:
         return [
             {
                 "date": log.log_date.isoformat(),
+                "id": str(log.id),
                 "sleep_hours": log.sleep_hours,
                 "sleep_quality_score": log.sleep_quality_score,
                 "fatigue_score": log.fatigue_score,
@@ -453,6 +461,7 @@ class FitnessRetrievalService:
         return [
             {
                 "date": log.symptom_date.isoformat(),
+                "id": str(log.id),
                 "body_part": log.body_part,
                 "symptom_type": log.symptom_type,
                 "severity_score": log.severity_score,
@@ -521,6 +530,7 @@ class FitnessRetrievalService:
         retrieval_context: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         by_key: dict[str, dict[str, Any]] = {}
+        lanes: list[tuple[str, list[str]]] = []
         for search in plan.searches:
             memories = self.memory_manager.search_memories(
                 user_id,
@@ -531,8 +541,13 @@ class FitnessRetrievalService:
                 fact_kind=search.fact_kind,
                 current_context=retrieval_context,
             )
+            keys: list[str] = []
             for memory in memories:
+                if getattr(memory, "memory_network", "world") in plan.excluded_networks:
+                    continue
                 key = str(memory.id)
+                if key not in keys:
+                    keys.append(key)
                 if key in by_key:
                     by_key[key].setdefault("retrieval_plan_labels", []).append(search.label)
                     continue
@@ -541,7 +556,29 @@ class FitnessRetrievalService:
                 payload["retrieval_plan_labels"] = [search.label]
                 payload["retrieval_plan_rationale"] = search.rationale
                 by_key[key] = payload
-        return list(by_key.values())[: plan.top_k]
+            lanes.append((search.label, keys))
+
+        # A high-scoring first lane must not consume every task-context slot.
+        # Preserve rank within each lane; risk facts receive the first slot.
+        lanes.sort(key=lambda lane: lane[0] != "risk_facts")
+        selected: list[str] = []
+        selected_set: set[str] = set()
+        while len(selected) < max(0, plan.top_k):
+            added = False
+            for _, keys in lanes:
+                while keys and keys[0] in selected_set:
+                    keys.pop(0)
+                if not keys:
+                    continue
+                key = keys.pop(0)
+                selected.append(key)
+                selected_set.add(key)
+                added = True
+                if len(selected) >= plan.top_k:
+                    break
+            if not added:
+                break
+        return [by_key[key] for key in selected]
 
     def _memory_payload(self, memory: models.LongTermMemory) -> dict[str, Any]:
         return {
@@ -731,6 +768,7 @@ class ContextBuilder:
             intent_decision.entities,
         )
         current_request_policy = {
+            "exercise_exclusions": exercise_exclusions(user_message),
             "current_intent": selected_intent,
             "secondary_intents": intent_decision.secondary_intents,
             "should_generate_plan": intent_decision.allowed_actions.get(
@@ -743,7 +781,12 @@ class ContextBuilder:
             "missing_slots": intent_decision.missing_slots,
             "allowed_actions": intent_decision.allowed_actions,
             "task_plan": intent_decision.task_plan,
-            "plan_request": parse_plan_request(user_message)
+            "plan_request": parse_plan_request(
+                user_message,
+                today=date_in_timezone(
+                    getattr(self.retrieval, "get_user_timezone", lambda _id: "UTC")(user_id)
+                ),
+            )
             if selected_intent == "training_plan"
             else None,
             "history_scope": (

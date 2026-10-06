@@ -18,11 +18,17 @@ class DecisionLogger:
         user_id: uuid.UUID,
         decision: dict[str, Any],
     ) -> models.AgentDecision:
+        from fast_api.app.services.decision_dependencies import DecisionDependencyService
+
+        context = dict(decision.get("context_used", {}))
+        context["domain_dependencies"] = DecisionDependencyService(self.db).capture(
+            user_id, context
+        )
         item = models.AgentDecision(
             user_id=user_id,
             decision_type=decision["decision_type"],
             input_summary=decision.get("input_summary", ""),
-            context_used=decision.get("context_used", {}),
+            context_used=context,
             decision_result=decision["decision_result"],
             reason=decision["reason"],
             confidence_score=float(decision.get("confidence_score", 0.75)),

@@ -19,7 +19,7 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
     } catch {
       // Keep the non-JSON upstream message.
     }
-    throw new Error(detail);
+    throw Object.assign(new Error(detail), { status: response.status });
   }
   if (response.status === 204) return undefined as T;
   return response.json();
@@ -30,6 +30,56 @@ export function pause(ms: number): Promise<void> {
 }
 
 // ---- high-level API helpers ----
+
+export const responsibilityApi = {
+  reconcile: (id: string, expectedAttempt: number) => api<{ status: string; changed: boolean; requeued: boolean }>(`/v1/tasks/${encodeURIComponent(id)}/reconcile`, { method: "POST", body: JSON.stringify({ expected_attempt: expectedAttempt, confirm_no_retry: true }) }),
+  list: () => api<import("./types").Responsibility[]>("/v1/responsibilities"),
+  history: () => api<import("./types").ApprovalActivity[]>("/v1/approvals/history?limit=30"),
+  create: (payload: import("./types").WeeklyResponsibilityInput) => api<import("./types").Responsibility>("/v1/responsibilities/weekly-review", { method: "POST", body: JSON.stringify(payload) }),
+  lifecycle: (id: string, action: "pause" | "resume" | "cancel") => api<import("./types").Responsibility>(`/v1/responsibilities/${encodeURIComponent(id)}/lifecycle`, { method: "POST", body: JSON.stringify({ action }) }),
+  decide: (id: string, action: "approve" | "deny") => api<{ status: string }>("/v1/approvals/decide", { method: "POST", body: JSON.stringify({ approval_id: id, action }) }),
+};
+
+export type DecisionFollowup = {
+  id: string;
+  evaluation_plan_id: string;
+  status: string;
+  question: { question?: string; text?: string; [key: string]: unknown };
+};
+
+export const followupApi = {
+  list: () => api<DecisionFollowup[]>("/v1/agent/decision-followups"),
+  decline: (id: string) => api<DecisionFollowup>(`/v1/agent/decision-followups/${encodeURIComponent(id)}/decline`, { method: "POST" }),
+};
+
+export type WorkoutFacts = {
+  duration_minutes: number | null;
+  rpe: number | null;
+  completion_rate: number | null;
+};
+export type SavedWorkout = WorkoutFacts & {
+  id: string;
+  performed_at: string;
+  workout_name: string;
+  revision: number | null;
+  correction_available: boolean;
+};
+export type WorkoutCorrection = {
+  idempotency_key: string;
+  expected_revision: number;
+  expected: Partial<WorkoutFacts>;
+  changes: Partial<WorkoutFacts>;
+  reason: string;
+};
+export const workoutCorrectionApi = {
+  list: () => api<SavedWorkout[]>("/v1/workouts/logs?limit=30"),
+  correct: (id: string, payload: WorkoutCorrection) => api<{
+    status: string; revision: number; audit_id: string; idempotent_replay: boolean;
+    before: Partial<WorkoutFacts>; after: Partial<WorkoutFacts>;
+  }>(`/v1/workouts/logs/${encodeURIComponent(id)}/corrections`, {
+    method: "POST", body: JSON.stringify(payload), signal: AbortSignal.timeout(20000),
+  }),
+};
 
 export async function createSession(displayName: string = "Fitness User"): Promise<SessionState & { title: string; created_at: string }> {
   return api("/v1/chat/sessions", {
@@ -95,6 +145,8 @@ export async function fetchSessionMessages(sessionId: string): Promise<ChatMessa
       role: message.role,
       content: message.content,
       created_at: message.created_at,
+      execution_events: message.execution_events,
+      agent_run_id: message.agent_run_id,
     }));
 }
 
@@ -125,6 +177,70 @@ export async function submitCheckin(
   });
 }
 
+export type SubagentCatalog = {
+  parent_id: string; revision: number; recorded_at: string;
+  execution_lease?: { protocol: number } | null;
+  stop_control?: { protocol: number } | null;
+  continuation_available?: boolean;
+  children: Array<{ child_id: string; domain: string; status: string; failure_reason?: string }>;
+};
+
+export type SubagentTurnResult = {
+  status: string; no_business_writes: boolean;
+  failure_reason?: string;
+  advice?: { summary?: string; recommendations?: string[]; uncertainties?: string[] };
+};
+export function requestSubagentTurn(sessionId: string, key: string, message: string, role: string, row?: SubagentCatalog) {
+  const base = `/v1/chat/sessions/${encodeURIComponent(sessionId)}/subagents`;
+  return api<SubagentTurnResult>(row ? `${base}/${encodeURIComponent(row.parent_id)}/continue` : base, {
+    method: "POST", headers: { "Idempotency-Key": key },
+    body: JSON.stringify(row ? { message, expected_catalog_revision: row.revision } : { message, role }),
+  });
+}
+export function fetchSubagentRequestStatus(sessionId: string, key: string) {
+  return api<{ status: string; result?: SubagentTurnResult }>(
+    `/v1/chat/sessions/${encodeURIComponent(sessionId)}/subagent-requests/status`,
+    { headers: { "Idempotency-Key": key } },
+  );
+}
+
+export function cancelSubagentRequest(sessionId: string, key: string) {
+  return api<{ status: string; no_automatic_retry: boolean }>(
+    `/v1/chat/sessions/${encodeURIComponent(sessionId)}/subagent-requests/cancel`,
+    { method: "POST", headers: { "Idempotency-Key": key }, body: JSON.stringify({ confirm_no_retry: true }) },
+  );
+}
+
+export function reconcileSubagentRequest(sessionId: string, key: string, revision: number) {
+  return api<{ status: string; result?: SubagentTurnResult }>(
+    `/v1/chat/sessions/${encodeURIComponent(sessionId)}/subagent-requests/reconcile`,
+    { method: "POST", headers: { "Idempotency-Key": key }, body: JSON.stringify({ expected_revision: revision, confirm_no_retry: true }) },
+  );
+}
+
+export function reconcileSubagentCatalog(sessionId: string, row: SubagentCatalog) {
+  return api<{ changed: boolean; requeued: boolean; revision: number }>(
+    `/v1/chat/sessions/${encodeURIComponent(sessionId)}/subagents/${encodeURIComponent(row.parent_id)}/reconcile`,
+    { method: "POST", body: JSON.stringify({ expected_revision: row.revision, confirm_no_retry: true }) },
+  );
+}
+
+export function stopSubagentTree(sessionId: string, row: SubagentCatalog) {
+  return api<{ status: string }>(`/v1/chat/sessions/${encodeURIComponent(sessionId)}/subagents/${encodeURIComponent(row.parent_id)}/stop`,
+    { method: "POST", body: JSON.stringify({ expected_revision: row.revision, confirm_no_retry: true }) });
+}
+
+export async function fetchSubagentCatalogs(sessionId: string, signal?: AbortSignal): Promise<SubagentCatalog[]> {
+  const rows = await api<SubagentCatalog[]>(`/v1/chat/sessions/${encodeURIComponent(sessionId)}/subagents?limit=10`, { signal });
+  if (!Array.isArray(rows) || rows.some(row => !row || typeof row.parent_id !== "string"
+    || !Number.isInteger(row.revision) || typeof row.recorded_at !== "string"
+    || !Array.isArray(row.children) || row.children.some(child => !child
+      || typeof child.child_id !== "string" || typeof child.domain !== "string" || typeof child.status !== "string"))) {
+    throw new Error("Invalid child catalog response");
+  }
+  return rows;
+}
+
 export async function logWorkout(
   userId: string,
   data: Record<string, any>,
@@ -142,6 +258,8 @@ export type ChatRequestStatus = {
   confirmed_writes: { kind: string; record_id: string; workout_name: string; duration_minutes: number | null }[];
   assistant_message?: string;
   agent_run_id?: string;
+  trace_id?: string;
+  trace_state?: string;
   may_repeat_writes: boolean;
 };
 

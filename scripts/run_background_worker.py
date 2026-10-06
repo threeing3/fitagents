@@ -19,14 +19,15 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from fast_api.app.db.database import SessionLocal
-from fast_api.app.services.background_tasks import (
-    run_due_decision_evaluations,
-    run_one_background_task,
-)
-
 
 def main() -> None:
+    from fast_api.app.db.database import SessionLocal
+    from fast_api.app.services.background_tasks import (
+        run_due_decision_evaluations,
+        run_due_responsibilities,
+        run_one_background_task,
+    )
+
     parser = argparse.ArgumentParser(description="AI Fitness background task worker")
     parser.add_argument("--poll-seconds", type=float, default=2.0)
     parser.add_argument("--once", action="store_true", help="Process at most one task and exit")
@@ -37,9 +38,14 @@ def main() -> None:
 
     while True:
         with SessionLocal() as db:
+            wake_result = run_due_responsibilities(db)
+            if wake_result["queued"] or wake_result["expired"]:
+                logging.info("responsibility scan result=%s", wake_result)
             task = run_one_background_task(db)
             if task is not None:
-                logging.info("processed task id=%s type=%s status=%s", task.id, task.task_type, task.status)
+                logging.info(
+                    "processed task id=%s type=%s status=%s", task.id, task.task_type, task.status
+                )
             else:
                 evaluation_result = run_due_decision_evaluations(db)
                 if evaluation_result["processed"]:

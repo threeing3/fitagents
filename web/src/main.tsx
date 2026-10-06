@@ -9,30 +9,39 @@ import {
   Zap,
   LogOut,
   UserCircle,
-  FlaskConical,
   Languages,
+  PanelLeft,
+  CalendarDays,
+  ChartNoAxesColumn,
+  TrendingUp,
+  Settings,
 } from "lucide-react";
 import type { SessionState, Dashboard, ChatMessage, AgentTraceItem, ViewName, UsageSummary } from "./types";
 import { createSession, fetchChatRequestStatus, fetchDashboard, fetchSessionMessages, fetchUsageSummary, listSessions, pause, streamChat } from "./api";
 import { ChatView } from "./ChatView";
+import { publicTraceMetadata } from "./ExecutionTimeline";
 import { ChatRequestLedger } from "./chatRequestLedger";
 import { DashboardView } from "./DashboardView";
+import { ResponsibilityView } from "./ResponsibilityView";
+import { createResponsibilityDemo } from "./responsibilityDemo";
 import { CheckinView } from "./CheckinView";
-import { WorkoutView } from "./WorkoutView";
-import { AccountView } from "./AccountView";
+import { TrainingWorkspace } from "./TrainingWorkspace";
+import { SessionHistory } from "./SessionHistory";
+import { SettingsView } from "./SettingsView";
 import { AuthProvider, useAuth } from "./AuthContext";
 import { LoginView } from "./LoginView";
-import { AlgorithmLabView } from "./AlgorithmLabView";
 import { LanguageProvider, useLanguage } from "./LanguageContext";
 import "./styles.css";
+import "./workspace.css";
+import "./harness.css";
 
 const TYPEWRITER_DELAY_MS = 16;
 function introMessage(isZh: boolean): ChatMessage {
   return {
     role: "assistant",
     content: isZh
-      ? "你好，我是你的 AI 健身教练。请告诉我年龄、身高、体重、目标、训练经验和可用器械，我会逐步建立档案并给出安全建议。"
-      : "Hi, I'm your AI fitness coach. Tell me your age, height, weight, goals, training experience, and available equipment.",
+      ? "这里是你的训练工作台。目标和安排由你决定，我可以整理训练记录、提供候选方案，并协助完成你确认的操作。先告诉我你的目标、训练经验和可用器械；需要补充的信息，我们再逐步确认。"
+      : "Your training, your decisions. I can organize your records, propose options and assist with actions you authorize. Start with your goals, experience and available equipment.",
   };
 }
 
@@ -49,13 +58,27 @@ function AppContent() {
   const [agentStatus, setAgentStatus] = useState("Ready");
   const [agentTrace, setAgentTrace] = useState<AgentTraceItem[]>([]);
   const [latestRunId, setLatestRunId] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth > 768);
   const [usage, setUsage] = useState<UsageSummary | null>(null);
+  const [sessionLoading, setSessionLoading] = useState(false);
+  const sessionEpoch = useRef(0);
+  const currentOwner = useRef(auth.user?.user_id);
+  currentOwner.current = auth.user?.user_id;
+  useEffect(() => {
+    if (window.innerWidth <= 768) setSidebarOpen(false);
+  }, [activeView]);
 
   // ---- session init (runs after auth is ready) ----
   useEffect(() => {
     if (!auth.user) return;
     let cancelled = false;
+    const epoch = ++sessionEpoch.current;
+    setSession(null);
+    setMessages([introMessage(isZh)]);
+    setAgentTrace([]);
+    setLatestRunId(null);
+    setDashboard(null);
+    setSessionLoading(true);
     const storageKey = `ai_fitness_active_session_${auth.user.user_id}`;
 
     async function restoreSession() {
@@ -72,7 +95,7 @@ function AppContent() {
           active = await createSession(auth.user?.display_name || "Fitness User");
         }
 
-        if (cancelled) return;
+        if (cancelled || epoch !== sessionEpoch.current) return;
         localStorage.setItem(storageKey, active.session_id);
         setSession({
           session_id: active.session_id,
@@ -82,13 +105,12 @@ function AppContent() {
         });
 
         const history = await fetchSessionMessages(active.session_id);
-        if (cancelled) return;
+        if (cancelled || epoch !== sessionEpoch.current) return;
         setMessages(history.length > 0 ? history : [introMessage(isZh)]);
-        if (history.length > 0) {
-          setNotice(isZh ? `已加载上次会话的 ${history.length} 条消息。` : `Loaded ${history.length} saved messages from your last session.`);
-        }
       } catch (error: any) {
         if (!cancelled) setNotice(isZh ? `服务暂不可用：${error.message}` : `Backend unavailable: ${error.message}`);
+      } finally {
+        if (!cancelled && epoch === sessionEpoch.current) setSessionLoading(false);
       }
     }
 
@@ -97,6 +119,27 @@ function AppContent() {
       cancelled = true;
     };
   }, [auth.user, isZh]);
+
+  async function selectSession(value: SessionState) {
+    if (busy || sessionLoading || value.user_id !== currentOwner.current) return;
+    if (window.innerWidth <= 768) setSidebarOpen(false);
+    if (value.session_id === session?.session_id) { setActiveView("chat"); return; }
+    const epoch = ++sessionEpoch.current;
+    setSessionLoading(true);
+    try {
+      const history = await fetchSessionMessages(value.session_id);
+      if (epoch !== sessionEpoch.current || value.user_id !== currentOwner.current) return;
+      setSession(value);
+      setMessages(history.length ? history : [introMessage(isZh)]);
+      setAgentTrace([]); setLatestRunId(null); setNotice("");
+      setActiveView("chat");
+      localStorage.setItem(`ai_fitness_active_session_${value.user_id}`, value.session_id);
+    } catch {
+      if (epoch === sessionEpoch.current) setNotice(isZh ? "会话读取失败，当前对话仍保留。" : "Conversation unavailable. Current conversation retained.");
+    } finally {
+      if (epoch === sessionEpoch.current) setSessionLoading(false);
+    }
+  }
 
   useEffect(() => {
     if (!auth.user) return;
@@ -110,9 +153,9 @@ function AppContent() {
   async function refreshDashboard(userId: string) {
     try {
       const data = await fetchDashboard(userId);
-      setDashboard(data);
+      if (userId === currentOwner.current) setDashboard(data);
     } catch {
-      setDashboard(null);
+      if (userId === currentOwner.current) setDashboard(null);
     }
   }
 
@@ -182,18 +225,31 @@ function AppContent() {
             try {
               const event = JSON.parse(line);
               if (event.type === "answer_delta") await appendChars(String(event.text || ""));
-              else if (event.type === "status") {
+              else if (event.type === "execution_event") {
+                setMessages(prev => {
+                  const next = [...prev];
+                  const last = next[next.length - 1];
+                  if (last?.role === "assistant") next[next.length - 1] = { ...last, execution_events: [...(last.execution_events || []), event] };
+                  return next;
+                });
+              } else if (event.type === "status") {
                 setAgentStatus(String(event.text || "Processing..."));
                 pushTrace({ type: "status", title: "Status", summary: String(event.text || ""), metadata: compactMeta(event) });
               } else if (event.type === "step") {
-                pushTrace({ type: "step", title: String(event.name || "Step"), summary: String(event.summary || ""), latency_ms: event.latency_ms, metadata: event.metadata || {} });
+                pushTrace({ type: "step", title: String(event.name || "Step"), summary: String(event.summary || ""), latency_ms: event.latency_ms, metadata: publicTraceMetadata(event) });
               } else if (event.type === "tool_call") {
-                pushTrace({ type: "tool_call", title: String(event.name || "Tool"), summary: String(event.summary || event.status || ""), metadata: event.metadata || {} });
+                pushTrace({ type: "tool_call", title: String(event.name || "Tool"), summary: String(event.summary || event.status || ""), metadata: publicTraceMetadata(event) });
               } else if (event.type === "error") {
                 pushTrace({ type: "error", title: "Error", summary: String(event.summary || event.message || "") });
               } else if (event.type === "done") {
                 receivedDone = true;
                 setLatestRunId(event.run_id || null);
+                setMessages(prev => {
+                  const next = [...prev];
+                  const last = next[next.length - 1];
+                  if (last?.role === "assistant") next[next.length - 1] = { ...last, agent_run_id: event.run_id || null };
+                  return next;
+                });
                 setAgentStatus("Done");
                 pushTrace({ type: "done", title: "Complete", summary: event.run_id ? `Run ${event.run_id.slice(0, 8)}` : "Done", metadata: { log_path: event.log_path, tool_calls: event.tool_calls || [] } });
               }
@@ -225,10 +281,24 @@ function AppContent() {
       } catch (err: any) {
         // This is a read-only lookup using the same request key, never a new execution.
         const recovered = await fetchChatRequestStatus(session.session_id, requestKey).catch(() => null);
+        if (recovered?.trace_id) {
+          setMessages(prev => {
+            const next = [...prev];
+            const last = next[next.length - 1];
+            if (last?.role === "assistant") next[next.length - 1] = { ...last, agent_run_id: recovered.trace_id };
+            return next;
+          });
+        }
         let content = `Request failed: ${err.message}`;
         if (recovered?.status === "completed" && typeof recovered.assistant_message === "string") {
           content = recovered.assistant_message;
           setLatestRunId(recovered.agent_run_id || null);
+          setMessages(prev => {
+            const next = [...prev];
+            const last = next[next.length - 1];
+            if (last?.role === "assistant") next[next.length - 1] = { ...last, agent_run_id: recovered.agent_run_id || null };
+            return next;
+          });
           setAgentStatus(isZh ? "已恢复完成结果" : "Completed result recovered");
           try {
             requestLedger.complete(requestIdentity, requestKey);
@@ -275,7 +345,7 @@ function AppContent() {
       <div className="auth-loading">
         <Dumbbell size={36} className="auth-loading-icon" />
         <span>{isZh ? "正在连接服务…" : "Loading..."}</span>
-        <small>{isZh ? "免费实例冷启动可能需要约一分钟" : "A free instance can take about a minute to wake"}</small>
+        <small>{isZh ? "正在确认账号与本地服务状态" : "Checking account and service status"}</small>
       </div>
     );
   }
@@ -290,27 +360,31 @@ function AppContent() {
     <div className="app-root">
       {/* ---- Sidebar ---- */}
       <aside className={`sidebar ${sidebarOpen ? "open" : "closed"}`}>
-        <div className="sidebar-brand" onClick={() => setSidebarOpen((v) => !v)}>
-          <Zap size={24} />
-          {sidebarOpen && <span>AI Coach</span>}
-        </div>
+        <button className="sidebar-brand" type="button" aria-label={isZh ? "展开或收起导航" : "Toggle navigation"} aria-expanded={sidebarOpen} onClick={() => setSidebarOpen((v) => !v)}>
+          {sidebarOpen && <span className="fitagent-wordmark">Fit<span>Agent</span></span>}
+          <PanelLeft size={21} />
+        </button>
 
         <nav className="sidebar-nav">
           <NavItem icon={<MessageCircle size={20} />} label={isZh ? "对话" : "Chat"} active={activeView === "chat"} onClick={() => setActiveView("chat")} collapsed={!sidebarOpen} />
-          <NavItem icon={<LayoutDashboard size={20} />} label={isZh ? "概览" : "Dashboard"} active={activeView === "dashboard"} onClick={() => setActiveView("dashboard")} collapsed={!sidebarOpen} />
-          <NavItem icon={<ClipboardCheck size={20} />} label={isZh ? "打卡" : "Check-in"} active={activeView === "checkin"} onClick={() => setActiveView("checkin")} collapsed={!sidebarOpen} />
-          <NavItem icon={<Dumbbell size={20} />} label={isZh ? "训练记录" : "Workout"} active={activeView === "workout"} onClick={() => setActiveView("workout")} collapsed={!sidebarOpen} />
-          <NavItem icon={<FlaskConical size={20} />} label={isZh ? "算法实验" : "Algorithm Lab"} active={activeView === "algorithm"} onClick={() => setActiveView("algorithm")} collapsed={!sidebarOpen} />
-          <NavItem icon={<UserCircle size={20} />} label={isZh ? "账号" : "Account"} active={activeView === "account"} onClick={() => setActiveView("account")} collapsed={!sidebarOpen} />
+          <NavItem icon={<CalendarDays size={20} />} label={isZh ? "训练安排" : "Training schedule"} active={activeView === "plan"} onClick={() => setActiveView("plan")} collapsed={!sidebarOpen} />
+          <NavItem icon={<ChartNoAxesColumn size={20} />} label={isZh ? "训练记录" : "Workout"} active={activeView === "workout"} onClick={() => setActiveView("workout")} collapsed={!sidebarOpen} />
+          <NavItem icon={<TrendingUp size={20} />} label={isZh ? "长期跟踪" : "Follow-up"} active={activeView === "responsibilities"} onClick={() => setActiveView("responsibilities")} collapsed={!sidebarOpen} />
+          {sidebarOpen && <SessionHistory session={session} busy={busy || sessionLoading} onSelect={selectSession} />}
         </nav>
 
         <div className="sidebar-footer">
-          <button className="sidebar-language" type="button" onClick={() => setLanguage(language === "zh" ? "en" : "zh")}>
+          <NavItem icon={<Settings size={20} />} label={isZh ? "设置" : "Settings"} active={["settings", "account", "algorithm"].includes(activeView)} onClick={() => setActiveView("settings")} collapsed={!sidebarOpen} />
+          <div className="sidebar-utilities">
+            <button aria-label={isZh ? "今日概览" : "Today overview"} title={isZh ? "今日概览" : "Today overview"} onClick={() => setActiveView("dashboard")}><LayoutDashboard size={18} /></button>
+            <button aria-label={isZh ? "状态打卡" : "Check-in"} title={isZh ? "状态打卡" : "Check-in"} onClick={() => setActiveView("checkin")}><ClipboardCheck size={18} /></button>
+          <button className="sidebar-language" type="button" aria-label={isZh ? "切换显示语言" : "Switch interface language"} onClick={() => setLanguage(language === "zh" ? "en" : "zh")}>
             <Languages size={14} /> {sidebarOpen && (isZh ? "English" : "中文")}
           </button>
+          </div>
           <div className="session-badge">
             <div className={`status-dot ${session ? "live" : "dead"}`} />
-            {sidebarOpen && <span>{session ? "Session live" : "Connecting..."}</span>}
+            {sidebarOpen && <span>{session ? (isZh ? "会话已连接" : "Session connected") : (isZh ? "会话连接中" : "Connecting session")}</span>}
           </div>
           {sidebarOpen && (
             <div className="sidebar-user">
@@ -319,7 +393,7 @@ function AppContent() {
                   {auth.user.avatar_url ? (
                     <img src={auth.user.avatar_url} alt="" />
                   ) : (
-                    auth.user.display_name.slice(0, 2).toUpperCase()
+                    <UserCircle size={25} />
                   )}
                 </span>
                 <span className="sidebar-user-copy">
@@ -344,7 +418,7 @@ function AppContent() {
       <div className="main-area">
         {usage && !usage.live_calls_available && (
           <div className="quota-banner">
-            {isZh ? "今日在线模型额度已用完，已自动切换为确定性离线回复。" : "Today's live-model quota is exhausted. Deterministic offline replies are active."}
+            {isZh ? "当前不提供在线模型调用，使用离线规则回复。会话连接不代表模型已连接。" : "Live model calls are unavailable. Offline rules are active; a connected session is not a connected model."}
           </div>
         )}
         {/* Notice bar */}
@@ -359,13 +433,15 @@ function AppContent() {
         {activeView === "chat" && (
           <ChatView
             messages={messages}
-            busy={busy}
+            busy={busy || sessionLoading}
             session={session}
-            agentStatus={agentStatus}
+            agentStatus={sessionLoading ? (isZh ? "正在读取会话…" : "Loading conversation…") : agentStatus}
             agentTrace={agentTrace}
             latestRunId={latestRunId}
             profileComplete={profileComplete}
             onSend={sendMessage}
+            dashboard={dashboard}
+            onNavigate={setActiveView}
           />
         )}
 
@@ -375,6 +451,7 @@ function AppContent() {
             session={session}
             busy={busy}
             onRefresh={() => session && refreshDashboard(session.user_id)}
+            onNavigate={setActiveView}
           />
         )}
 
@@ -388,8 +465,12 @@ function AppContent() {
           />
         )}
 
-        {activeView === "workout" && (
-          <WorkoutView
+        {(activeView === "workout" || activeView === "plan") && (
+          <TrainingWorkspace
+            initialPane={activeView === "plan" ? "adjustments" : "records"}
+            dashboard={dashboard}
+            key={auth.user.user_id}
+            userId={auth.user.user_id}
             session={session}
             busy={busy}
             setBusy={setBusy}
@@ -398,8 +479,8 @@ function AppContent() {
           />
         )}
 
-        {activeView === "account" && <AccountView />}
-        {activeView === "algorithm" && <AlgorithmLabView />}
+        {activeView === "responsibilities" && <ResponsibilityView key={auth.user.user_id} userId={auth.user.user_id} />}
+        {["settings", "account", "algorithm"].includes(activeView) && <SettingsView key={auth.user.user_id} initialSection={activeView === "account" ? "account" : activeView === "algorithm" ? "development" : "general"} />}
       </div>
     </div>
   );
@@ -440,6 +521,8 @@ function compactMeta(event: Record<string, any>): Record<string, any> {
 
 // ---- mount ----
 function App() {
+  const demo = useMemo(() => new URLSearchParams(window.location.search).get("demo") === "responsibilities" ? createResponsibilityDemo() : null, []);
+  if (demo) return <LanguageProvider><div className="responsibility-demo-shell"><ResponsibilityView userId="synthetic-demo" gateway={demo.gateway} demoAdvance={demo.advance} /></div></LanguageProvider>;
   return (
     <LanguageProvider>
       <AuthProvider>

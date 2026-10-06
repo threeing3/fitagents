@@ -15,6 +15,7 @@ from fast_api.app.core.config import Settings
 from fast_api.app.core.errors import IdempotencyConflictError
 from fast_api.app.db import models
 from fast_api.app.db.database import Base
+from fast_api.app.schemas.agent import WorkoutLogRequest
 from fast_api.app.services.agent_runtime import LLMPlanner, PlannerDecision
 from fast_api.app.services.chat_request_status import get_chat_request_status
 from fast_api.app.services.coach_agent import CoachAgentService
@@ -24,8 +25,13 @@ from fast_api.app.services.workout_history_query import history_query
 
 
 @contextmanager
-def conversation(tmp_path, planner_mode="rule"):
-    engine = create_engine("sqlite:///:memory:")
+def conversation(tmp_path, planner_mode="rule", *, durable_database=False):
+    database_url = (
+        f"sqlite:///{(tmp_path / 'conversation.sqlite').as_posix()}"
+        if durable_database
+        else "sqlite:///:memory:"
+    )
+    engine = create_engine(database_url)
     Base.metadata.create_all(engine)
     settings = Settings(
         _env_file=None,
@@ -125,6 +131,104 @@ def conversation(tmp_path, planner_mode="rule"):
             yield engine, session_id, user_id, turn
     finally:
         engine.dispose()
+
+
+@pytest.mark.parametrize("streaming", [False, True])
+def test_domain_delegation_has_persisted_journal_and_no_child_writes(tmp_path, streaming):
+    from fast_api.app.services.domain_subagents import DomainSubagents
+    from fast_api.app.services.execution_events import public_run_events
+
+    with conversation(tmp_path) as (engine, _, uid, turn):
+        result = turn("请复盘本周训练、饮食和恢复，先给建议，不要修改计划", streaming=streaming)
+        entries = result["state_updates"].get("execution_events", [])
+        children = [entry for entry in entries if entry["name"] == "subagent.result"]
+        assert {entry["details"]["domain"] for entry in children} == {
+            "training",
+            "nutrition",
+            "recovery",
+            "evidence_analysis",
+            "plan_planning",
+        }
+        assert all(entry["status"] == "skipped" for entry in children)
+        assert "没有完成联合复盘" in result["assistant_message"]
+        with Session(engine) as db:
+            run = db.get(models.AgentRun, result["agent_run_id"])
+            assert public_run_events(db, run, uid) == entries
+            assert public_run_events(db, run, uuid.uuid4()) == []
+            marker = next(node for node in run.nodes if node.get("type") == "ChatExecutionJournal")
+            message = db.get(models.ChatMessage, uuid.UUID(marker["message_id"]))
+            assert message.role == "assistant" and message.user_id == uid
+            assert db.scalars(select(models.TrainingPlan)).all() == []
+
+        # Exercise actual domain-specific ContextBuilder reads using a scripted child,
+        # while the parent provider remains offline. This is not live-model evidence.
+        from tests.test_domain_subagents import Provider, final
+
+        def factory(provider, reader):
+            return DomainSubagents(
+                Provider([{"action": "read", "tool": "records.read"}, final()] * 5), reader
+            )
+
+        with patch(
+            "fast_api.app.services.review_collaboration.DomainSubagents", side_effect=factory
+        ):
+            scripted = turn(
+                "请复盘本周训练、饮食和恢复，先给建议，不要修改计划", streaming=streaming
+            )
+        children = [
+            entry
+            for entry in scripted["state_updates"]["execution_events"]
+            if entry["name"] == "subagent.result"
+        ]
+        assert len(children) == 5 and all(entry["status"] == "completed" for entry in children)
+
+
+@pytest.mark.parametrize("streaming", [False, True])
+def test_chat_correction_preview_confirm_and_replay_preserve_one_workout(tmp_path, streaming):
+    with conversation(tmp_path) as (engine, _, uid, turn):
+        with Session(engine) as db:
+            service = CoachAgentService(
+                db,
+                ModelProvider(
+                    Settings(
+                        _env_file=None,
+                        LLM_PROVIDER="offline",
+                        EMBEDDING_PROVIDER="offline",
+                    )
+                ),
+            )
+            log_id = service.record_workout_log(
+                WorkoutLogRequest(
+                    user_id=uid,
+                    workout_name="慢跑",
+                    duration_minutes=30,
+                    rpe=6,
+                )
+            ).id
+        clarify = turn("我之前的训练记录写错了，我刚完成20分钟慢跑，帮我记录", streaming)
+        assert clarify["state_updates"]["workout_correction_status"] == "clarify"
+        assert clarify["workouts"] == [{"name": "慢跑", "minutes": 30}]
+        proposal = turn(f"更正训练记录 {log_id} 时长为20分钟；原因：核对手表", streaming)
+        assert proposal["state_updates"]["workout_correction_status"] == "awaiting_confirmation"
+        assert proposal["workouts"] == [{"name": "慢跑", "minutes": 30}]
+        confirmation_id = proposal["state_updates"]["confirmation_id"]
+        assert any(
+            item.get("name") == "command.result" and item.get("status") == "pending"
+            for item in proposal["state_updates"]["execution_events"]
+        )
+        vague = turn("好", streaming)
+        assert vague["state_updates"]["workout_correction_status"] == "clarify"
+        assert vague["workouts"] == [{"name": "慢跑", "minutes": 30}]
+        confirmed = turn(f"确认更正训练 {confirmation_id}", streaming)
+        assert confirmed["state_updates"]["workout_correction_status"] == "corrected"
+        assert confirmed["workouts"] == [{"name": "慢跑", "minutes": 20}]
+        replayed = turn(f"确认更正训练 {confirmation_id}", streaming)
+        assert replayed["state_updates"]["correction"]["idempotent_replay"]
+        assert (
+            replayed["state_updates"]["correction"]["audit_id"]
+            == confirmed["state_updates"]["correction"]["audit_id"]
+        )
+        assert replayed["workouts"] == [{"name": "慢跑", "minutes": 20}]
 
 
 @pytest.mark.parametrize("streaming", [False, True])
@@ -304,7 +408,7 @@ def test_dated_jog_request_persists_matching_plan_and_reuses_it(tmp_path, stream
 
 
 @pytest.mark.parametrize("streaming", [False, True])
-def test_dated_jog_change_archives_prior_plan_without_changing_fitness_goal(tmp_path, streaming):
+def test_dated_jog_change_moves_session_without_changing_fitness_goal(tmp_path, streaming):
     with conversation(tmp_path) as (engine, _, uid, turn):
         first = turn("请安排明天慢跑。", streaming)
         assert "明天慢跑" in first["assistant_message"]
@@ -314,14 +418,52 @@ def test_dated_jog_change_archives_prior_plan_without_changing_fitness_goal(tmp_
             plans = db.scalars(
                 select(models.TrainingPlan).where(models.TrainingPlan.user_id == uid)
             ).all()
-            assert len(plans) == 2
-            assert sorted(plan.status for plan in plans) == ["active", "archived"]
-            active = next(plan for plan in plans if plan.status == "active")
+            assert len(plans) == 1
+            active = plans[0]
+            assert active.status == "active"
+            old_date = (datetime.now().date() + timedelta(days=1)).isoformat()
+            new_date = (datetime.now().date() + timedelta(days=2)).isoformat()
+            assert [day["date"] for day in active.plan_json["training_days"]] == [new_date]
+            assert old_date not in active.plan_json["dated_constraints"]
             assert (
                 active.plan_json["request_constraints"]["target_date"]
                 == (datetime.now().date() + timedelta(days=2)).isoformat()
             )
             assert db.get(models.UserProfile, uid).goal == "maintenance"
+
+
+@pytest.mark.parametrize("streaming", [False, True])
+def test_record_workout_and_block_excluded_advice_before_display(tmp_path, streaming):
+    from fast_api.app.services.exercise_constraints import EXCLUSION_REPLY
+
+    async def bad_reply(*args, **kwargs):
+        return (
+            "训练建议先核对当前状态。" * 500
+            + "下次训练请完成overhead press三组，每组十次，保持动作稳定。"
+        )
+
+    with conversation(tmp_path) as (engine, _, uid, turn):
+        with patch.object(ModelProvider, "coach_reply", bad_reply):
+            result = turn(
+                "别安排推举。我刚完成30分钟跑步，帮我记录，并告诉我训练注意事项。", streaming
+            )
+        assert EXCLUSION_REPLY in result["assistant_message"]
+        assert "overhead press" not in result["assistant_message"]
+        if streaming:
+            shown = "".join(
+                item["text"] for item in result["events"] if item["type"] == "answer_delta"
+            )
+            assert "overhead press" not in shown
+        with Session(engine) as db:
+            logs = db.scalars(
+                select(models.WorkoutLog).where(models.WorkoutLog.user_id == uid)
+            ).all()
+            assert len(logs) == 1
+            assert logs[0].duration_minutes == 30
+            assert (
+                db.scalar(select(models.TrainingPlan).where(models.TrainingPlan.user_id == uid))
+                is None
+            )
 
 
 @pytest.mark.parametrize("streaming", [False, True])
@@ -698,7 +840,10 @@ def test_model_planner_cannot_omit_or_delay_registered_record(
 
 @pytest.mark.parametrize("streaming", [False, True])
 def test_model_planner_cannot_invent_unregistered_workout_write(tmp_path, monkeypatch, streaming):
+    planner_calls = []
+
     async def unsafe_plan(*args, **kwargs):
+        planner_calls.append(True)
         return PlannerDecision(
             selected_tools=["training.log.write"], tool_order=["training.log.write"]
         )
@@ -708,12 +853,13 @@ def test_model_planner_cannot_invent_unregistered_workout_write(tmp_path, monkey
         result = turn("力量训练后休息多久？", streaming)
         assert result["workouts"] == []
         assert not any(call["tool_name"] == "training.log.write" for call in result["tool_calls"])
-        assert result["state_updates"]["planner"]["fallback"] is True
+        assert planner_calls == []
+        assert result["state_updates"]["planner"]["mode"] == "dispatch_reuse"
 
 
 @pytest.mark.parametrize("streaming", [False, True])
 def test_completed_request_replays_after_fresh_service_without_writing(tmp_path, streaming):
-    with conversation(tmp_path) as (engine, sid, uid, turn):
+    with conversation(tmp_path, durable_database=True) as (engine, sid, uid, turn):
         message = "我刚完成30分钟哑铃训练，帮我记录"
         first = turn(message, streaming, key="network-retry-1")
         second = turn(message, streaming, key="network-retry-1")
@@ -786,7 +932,7 @@ def test_request_key_cannot_be_reused_for_changed_content(tmp_path):
 
 
 def test_interrupted_stream_keeps_request_reserved_after_write(tmp_path):
-    with conversation(tmp_path) as (engine, sid, uid, _):
+    with conversation(tmp_path, durable_database=True) as (engine, sid, uid, _):
         message = "我刚完成30分钟哑铃训练，帮我记录"
         provider = ModelProvider(
             Settings(
@@ -880,7 +1026,7 @@ def test_request_status_does_not_call_runtime_error_success(tmp_path, monkeypatc
         raise RuntimeError("Synthetic reply failure")
 
     monkeypatch.setattr(CoachAgentService, "_coaching_reply", fail_reply)
-    with conversation(tmp_path) as (engine, sid, uid, _):
+    with conversation(tmp_path, durable_database=True) as (engine, sid, uid, _):
         with Session(engine) as db:
             service = CoachAgentService(
                 db,

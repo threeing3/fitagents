@@ -654,6 +654,32 @@ class AgentRun(Base, TimestampMixin):
     log_path: Mapped[str | None] = mapped_column(Text)
 
 
+class PendingApproval(Base, TimestampMixin):
+    """One explicitly authorized action, never an inferred blanket permission."""
+
+    __tablename__ = "pending_approvals"
+    __table_args__ = (UniqueConstraint("job_id", name="uq_pending_approval_job"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), index=True
+    )
+    session_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    job_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("background_tasks.id"), nullable=True
+    )
+    tool_name: Mapped[str] = mapped_column(String(120))
+    tool_description: Mapped[str] = mapped_column(Text)
+    permission_level: Mapped[str] = mapped_column(String(32))
+    input_summary: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    input_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    context_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    status: Mapped[str] = mapped_column(String(32), default="pending", index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    decided_by: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
+
 class BackgroundTask(Base, TimestampMixin):
     __tablename__ = "background_tasks"
     __table_args__ = (

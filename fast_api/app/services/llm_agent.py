@@ -21,24 +21,21 @@ import re
 import time
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime
 from typing import Any
 
-from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
-from fast_api.app.db import models
-from fast_api.app.core.guardrails import run_guardrails, Severity as GuardrailSeverity
-from fast_api.app.core.metrics import llm_requests_total, llm_request_latency_seconds
+from fast_api.app.core.guardrails import Severity as GuardrailSeverity
+from fast_api.app.core.guardrails import run_guardrails
+from fast_api.app.services.agent_observability import AgentRunLogger
 from fast_api.app.services.agent_runtime import (
     AgentExecutor,
     AgentTaskTimeline,
     ToolRegistry,
-    ToolSpec,
-    TaskStep,
 )
-from fast_api.app.services.agent_observability import AgentRunLogger
 from fast_api.app.services.context_window_manager import ContextWindowManager, estimate_tokens
 from fast_api.app.services.model_provider import ModelProvider
+from fast_api.app.services.prompt_budget import PromptBudgetExceeded, enforce_prompt_budget
 
 logger = logging.getLogger(__name__)
 
@@ -59,8 +56,19 @@ class LLMAgentResult:
     error: str | None = None
 
 
-class LLMAgentService:
+READ_ONLY_MODEL_TOOLS = frozenset(
+    {
+        "training.log.read",
+        "context.build",
+        "plan.decide",
+        "plan.verify",
+        "response.verify",
+        "guardrail.check",
+    }
+)
 
+
+class LLMAgentService:
     def __init__(
         self,
         db,
@@ -73,7 +81,7 @@ class LLMAgentService:
     ):
         self.db = db
         self.model_provider = model_provider
-        self.tool_registry = tool_registry
+        self.tool_registry = tool_registry.read_only_view(READ_ONLY_MODEL_TOOLS)
         self.user_id = user_id
         self.session_id = session_id
         self.profile = profile
@@ -103,26 +111,44 @@ class LLMAgentService:
             HumanMessage(content=self.message),
         ]
 
-        self.nodes.append(self.run_logger.event(
-            "RequestReceived",
-            {
-                "message_chars": len(self.message),
-                "provider": self.model_provider.settings.llm_provider,
-                "chat_model": self.model_provider.settings.chat_model,
-            },
-        ))
-        self.nodes.append(self.run_logger.event(
-            "ToolRegistry",
-            {"tools": self.tool_registry.list_specs()},
-        ))
-        self.nodes.append(self.run_logger.event(
-            "LLMAgentStart",
-            {"architecture": "llm_driven_tool_use", "max_iterations": MAX_ITERATIONS},
-        ))
+        self.nodes.append(
+            self.run_logger.event(
+                "RequestReceived",
+                {
+                    "message_chars": len(self.message),
+                    "provider": self.model_provider.settings.llm_provider,
+                    "chat_model": self.model_provider.settings.chat_model,
+                },
+            )
+        )
+        self.nodes.append(
+            self.run_logger.event(
+                "ToolRegistry",
+                {"tools": self.tool_registry.list_specs()},
+            )
+        )
+        self.nodes.append(
+            self.run_logger.event(
+                "LLMAgentStart",
+                {"architecture": "llm_driven_tool_use", "max_iterations": MAX_ITERATIONS},
+            )
+        )
 
         final_response = ""
+        model_call_count = 0
         for iteration in range(1, MAX_ITERATIONS + 1):
             call_start = time.perf_counter()
+            try:
+                enforce_prompt_budget(self.model_provider.settings.chat_model, messages)
+            except PromptBudgetExceeded as exc:
+                self.nodes.append(self.run_logger.event("PromptBudgetRejected", exc.report))
+                return LLMAgentResult(
+                    final_response="",
+                    error=str(exc),
+                    nodes=self.nodes,
+                    tool_calls=self.tool_calls,
+                    iterations=model_call_count,
+                )
             model = self.model_provider.chat_model(temperature=0.4)
             if model is None:
                 return LLMAgentResult(
@@ -131,6 +157,7 @@ class LLMAgentService:
                 )
 
             try:
+                model_call_count += 1
                 response = await model.ainvoke(messages)
             except Exception as exc:
                 logger.error("LLM call failed at iteration %d: %s", iteration, exc)
@@ -147,15 +174,17 @@ class LLMAgentService:
             response_text = str(response.content)
             self.total_tokens += len(response_text) // 3
 
-            self.nodes.append(self.run_logger.event(
-                "LLMIteration" + str(iteration),
-                {
-                    "iteration": iteration,
-                    "response_preview": response_text[:200],
-                    "has_tool_call": "<tool_call>" in response_text,
-                    "latency_ms": latency,
-                },
-            ))
+            self.nodes.append(
+                self.run_logger.event(
+                    "LLMIteration" + str(iteration),
+                    {
+                        "iteration": iteration,
+                        "response_preview": response_text[:200],
+                        "has_tool_call": "<tool_call>" in response_text,
+                        "latency_ms": latency,
+                    },
+                )
+            )
 
             tool_call_matches = TOOL_CALL_RE.findall(response_text)
 
@@ -167,9 +196,38 @@ class LLMAgentService:
                 )
                 break
 
+            # Preserve the action that produced each observation for the next model call.
+            messages.append(AIMessage(content=response_text))
             for match in tool_call_matches:
                 tool_call_data = self._parse_tool_call_json(match)
                 if tool_call_data is None:
+                    invalid = {
+                        "tool_name": "",
+                        "status": "invalid",
+                        "input": {},
+                        "output": {},
+                        "latency_ms": 0,
+                        "attempts": 0,
+                        "iteration": iteration,
+                        "reason": "invalid_tool_call",
+                    }
+                    self.tool_calls.append(invalid)
+                    self.nodes.append(self.run_logger.event("ToolProtocolError", invalid))
+                    messages.append(
+                        HumanMessage(
+                            content=json.dumps(
+                                {
+                                    "error": "invalid_tool_call",
+                                    "message": "No tool executed. Use a JSON object with a nonempty "
+                                    "string name and an object input. Choose only available tools.",
+                                    "available_tools": sorted(
+                                        spec["name"] for spec in self.tool_registry.list_specs()
+                                    ),
+                                },
+                                ensure_ascii=False,
+                            )
+                        )
+                    )
                     continue
 
                 tool_name = tool_call_data.get("name", "")
@@ -180,16 +238,32 @@ class LLMAgentService:
 
                 specs_set = {s["name"] for s in self.tool_registry.list_specs()}
                 if tool_name not in specs_set:
-                    tool_result_text = json.dumps({
-                        "error": "Unknown tool: " + tool_name,
-                        "available_tools": sorted(specs_set),
-                    })
+                    denied = {
+                        "tool_name": tool_name,
+                        "status": "blocked",
+                        "input": tool_input,
+                        "output": {},
+                        "latency_ms": 0,
+                        "attempts": 0,
+                        "iteration": iteration,
+                        "reason": "not_in_read_only_capabilities",
+                    }
+                    self.tool_calls.append(denied)
+                    self.nodes.append(self.run_logger.event("ToolAuthorization", denied))
+                    final_response = (
+                        "本轮未执行该工具，也未通过该工具修改业务数据。"
+                        "自由问答只开放已核对的只读能力；记录、纠正和计划变更需进入受控业务流程。"
+                    )
+                    break
                 else:
                     step = self.timeline.add_step(
-                        "llm_agent_" + tool_name, tool_name,
+                        "llm_agent_" + tool_name,
+                        tool_name,
                         "LLM requested " + tool_name + " at iteration " + str(iteration),
                     )
-                    execution = await self.executor.execute(self.tool_registry, self.timeline, step, tool_input)
+                    execution = await self.executor.execute(
+                        self.tool_registry, self.timeline, step, tool_input
+                    )
                     result = execution.result
 
                     tool_call_record = {
@@ -200,22 +274,29 @@ class LLMAgentService:
                         "latency_ms": result.latency_ms,
                         "attempts": result.attempts,
                         "iteration": iteration,
+                        "validation_errors": result.validation_errors,
                     }
                     self.tool_calls.append(tool_call_record)
                     self.nodes.append(self.run_logger.event("ToolExecutor", tool_call_record))
 
                     if result.status == "success":
-                        tool_result_text = json.dumps(result.output_json, ensure_ascii=False, default=str)
+                        tool_result_text = json.dumps(
+                            result.output_json, ensure_ascii=False, default=str
+                        )
                     else:
-                        tool_result_text = json.dumps({
-                            "error": result.error or "Tool execution failed",
-                            "tool_name": tool_name,
-                        })
+                        tool_result_text = json.dumps(
+                            {
+                                "error": result.error or "Tool execution failed",
+                                "tool_name": tool_name,
+                                "validation_errors": result.validation_errors,
+                            }
+                        )
 
                 # ---- Context compaction check ----
-                total_chars = sum(len(str(m.content)) for m in messages)
                 est_tokens_now = estimate_tokens(
-                    json.dumps([{"role": type(m).__name__, "c": str(m.content)[:200]} for m in messages])
+                    json.dumps(
+                        [{"role": type(m).__name__, "c": str(m.content)[:200]} for m in messages]
+                    )
                 )
                 if est_tokens_now > self.ctx_manager.total_tokens * 0.75:
                     self.ctx_manager.compaction_count += 1
@@ -231,66 +312,129 @@ class LLMAgentService:
                     else:
                         compacted.extend(recent)
                     messages = compacted
-                    self.nodes.append(self.run_logger.event(
-                        "ContextCompaction",
-                        {"reason": "approaching_token_limit", "est_tokens_before": est_tokens_now},
-                    ))
+                    self.nodes.append(
+                        self.run_logger.event(
+                            "ContextCompaction",
+                            {
+                                "reason": "approaching_token_limit",
+                                "est_tokens_before": est_tokens_now,
+                            },
+                        )
+                    )
 
                 # Inject tool result
                 result_message = (
-                    '<tool_result tool="' + tool_name + '">\n'
-                    + tool_result_text + '\n'
-                    + '</tool_result>\n\n'
-                    + 'Continue. Call more tools if needed, or produce the final reply. '
-                    + 'Available tools: ' + str(sorted(specs_set))
+                    '<tool_result tool="'
+                    + tool_name
+                    + '">\n'
+                    + tool_result_text
+                    + "\n"
+                    + "</tool_result>\n\n"
+                    + "Continue. Call more tools if needed, or produce the final reply. "
+                    + "Available tools: "
+                    + str(sorted(specs_set))
                 )
                 messages.append(HumanMessage(content=result_message))
 
+            if final_response:
+                break
+
         # ---- Final response ----
         if not final_response:
-            messages.append(HumanMessage(content="Please produce the final coaching reply now. Do not call any more tools."))
+            messages.append(
+                HumanMessage(
+                    content="Please produce the final coaching reply now. Do not call any more tools."
+                )
+            )
             try:
+                enforce_prompt_budget(self.model_provider.settings.chat_model, messages)
                 model = self.model_provider.chat_model(temperature=0.4)
-                final = await model.ainvoke(messages) if model else None
+                if model:
+                    model_call_count += 1
+                    final = await model.ainvoke(messages)
+                else:
+                    final = None
                 final_response = str(final.content) if final else ""
+            except PromptBudgetExceeded as exc:
+                self.nodes.append(self.run_logger.event("PromptBudgetRejected", exc.report))
+                return LLMAgentResult(
+                    final_response="",
+                    error=str(exc),
+                    nodes=self.nodes,
+                    tool_calls=self.tool_calls,
+                    iterations=model_call_count,
+                )
             except Exception as exc:
                 logger.error("Final response generation failed: %s", exc)
                 final_response = ""
 
         if not final_response:
-            final_response = "I've reviewed your information. How can I help you with your fitness goals today?"
+            final_response = (
+                "I've reviewed your information. How can I help you with your fitness goals today?"
+            )
             self.run_logger.event("LLMAgentFallback", {"reason": "empty_final_response"})
 
         # ---- Guardrail ----
-        guardrail_result = run_guardrails(final_response, user_message=self.message, profile=self.profile)
+        guardrail_result = run_guardrails(
+            final_response, user_message=self.message, profile=self.profile
+        )
         guardrail = {
             "action": guardrail_result.action.value,
             "passed": guardrail_result.passed,
             "flags": [
-                {"rule_id": f.rule_id, "severity": f.severity.value, "category": f.category, "message": f.message}
+                {
+                    "rule_id": f.rule_id,
+                    "severity": f.severity.value,
+                    "category": f.category,
+                    "message": f.message,
+                }
                 for f in guardrail_result.flags
             ],
         }
         if guardrail_result.action == GuardrailSeverity.BLOCK:
             final_response = guardrail_result.blocked_replacement or final_response
 
+        from fast_api.app.services.exercise_constraints import (
+            EXCLUSION_REPLY,
+            exercise_exclusions,
+            violates_exclusions,
+        )
+
+        if violates_exclusions(final_response, exercise_exclusions(self.message)):
+            final_response = EXCLUSION_REPLY
+            guardrail = {
+                "action": "block",
+                "passed": False,
+                "flags": [
+                    {
+                        "rule_id": "excluded_exercise",
+                        "severity": "block",
+                        "category": "user_constraint",
+                        "message": "回复包含明确排除的动作。",
+                    }
+                ],
+            }
+
         self.nodes.append(self.run_logger.event("GuardrailCheck", guardrail))
 
         total_ms = round((time.perf_counter() - started_at) * 1000)
-        iter_count = len([n for n in self.nodes if "LLMIteration" in str(n.get("event_type", ""))])
+        iter_count = model_call_count
 
-        self.run_logger.event("LLMAgentComplete", {
-            "iterations": iter_count,
-            "tool_calls": len(self.tool_calls),
-            "total_latency_ms": total_ms,
-            "total_tokens_est": self.total_tokens,
-        })
+        self.run_logger.event(
+            "LLMAgentComplete",
+            {
+                "iterations": iter_count,
+                "tool_calls": len(self.tool_calls),
+                "total_latency_ms": total_ms,
+                "total_tokens_est": self.total_tokens,
+            },
+        )
 
         return LLMAgentResult(
             final_response=final_response,
             tool_calls=self.tool_calls,
             nodes=self.nodes,
-            iterations=len([tc for tc in self.tool_calls]),
+            iterations=iter_count,
             total_tokens=self.total_tokens,
             total_latency_ms=total_ms,
             guardrail=guardrail,
@@ -318,8 +462,7 @@ class LLMAgentService:
             "</tool_call>\n\n"
             "After each tool call, you will receive a <tool_result> with the "
             "tool's output. You can then call more tools or produce your final "
-            "coaching reply.\n\n"
-            + tools_text + "\n"
+            "coaching reply.\n\n" + tools_text + "\n"
             "## Safety rules\n\n"
             "- NEVER give medical diagnoses or medication advice. If the user "
             "asks, recommend they consult a doctor.\n"
@@ -380,23 +523,9 @@ class LLMAgentService:
     def _simplify_schema(self, schema: dict[str, Any]) -> str:
         if not schema:
             return ""
-        required = schema.get("required", [])
-        properties = schema.get("properties", {})
-        if not required and not properties:
-            return ""
-
-        parts = []
-        for key in required:
-            prop = properties.get(key, {})
-            ptype = prop.get("type", "any")
-            parts.append(key + ": " + str(ptype) + " (required)")
-        for key in properties:
-            if key not in required:
-                prop = properties[key]
-                ptype = prop.get("type", "any")
-                parts.append(key + ": " + str(ptype) + " (optional)")
-
-        return "{" + ", ".join(parts) + "}"
+        # Preserve the execution contract, including empty and nested objects.
+        # A lossy summary hid additionalProperties and encouraged guessed inputs.
+        return json.dumps(schema, ensure_ascii=False, separators=(",", ":"))
 
     # ----------------------------------------------------------------
     # Tool call parser
@@ -408,13 +537,21 @@ class LLMAgentService:
         text = re.sub(r"\s*```$", "", text)
 
         try:
-            return json.loads(text)
+            payload = json.loads(text)
         except json.JSONDecodeError:
             match = re.search(r"\{.*\}", text, re.DOTALL)
             if match:
                 try:
-                    return json.loads(match.group(0))
+                    payload = json.loads(match.group(0))
                 except json.JSONDecodeError:
-                    pass
-        logger.warning("Failed to parse tool call: %s", text[:200])
-        return None
+                    return None
+            else:
+                return None
+        if not isinstance(payload, dict):
+            return None
+        name = payload.get("name")
+        if not isinstance(name, str) or not name.strip():
+            return None
+        if not isinstance(payload.get("input", {}), dict):
+            return None
+        return payload

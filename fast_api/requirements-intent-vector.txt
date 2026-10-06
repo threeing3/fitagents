@@ -1,0 +1,5 @@
+# Optional local semantic routing, isolated from the base API requirements.
+onnxruntime==1.20.1
+tokenizers>=0.21,<0.23
+numpy>=1.26,<3
+huggingface-hub>=0.34,<2

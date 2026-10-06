@@ -87,6 +87,24 @@ class AgentVerifier:
             return VerificationResult(False, issues)
 
         training_days = plan_json.get("training_days")
+        from fast_api.app.services.exercise_constraints import excluded_movement
+
+        exclusions = list(plan_json.get("exercise_exclusions") or []) + list(
+            (context_packet.get("current_request_policy") or {}).get("exercise_exclusions") or []
+        )
+        for day in training_days if isinstance(training_days, list) else []:
+            for exercise in day.get("exercises") or [] if isinstance(day, dict) else []:
+                if isinstance(exercise, dict) and excluded_movement(
+                    str(exercise.get("name") or ""), exclusions
+                ):
+                    issues.append(
+                        VerificationIssue(
+                            "excluded_exercise",
+                            "error",
+                            "计划包含明确排除的动作。",
+                            repairable=False,
+                        )
+                    )
         if not isinstance(training_days, list) or not training_days:
             issues.append(
                 VerificationIssue(
@@ -150,9 +168,12 @@ class AgentVerifier:
         ) or plan_json.get("request_constraints")
         if requested_plan:
             actual_constraints = plan_json.get("request_constraints") or {}
-            actual_day = (
-                training_days[0] if isinstance(training_days, list) and training_days else {}
-            )
+            matching = [
+                day
+                for day in training_days or []
+                if isinstance(day, dict) and day.get("date") == requested_plan.get("target_date")
+            ]
+            actual_day = matching[0] if len(matching) == 1 else {}
             actual_day = actual_day if isinstance(actual_day, dict) else {}
             if actual_constraints.get("target_date") != requested_plan.get(
                 "target_date"
@@ -168,7 +189,8 @@ class AgentVerifier:
             if requested_plan.get("exercise_type") == "easy_jog" and (
                 actual_constraints.get("exercise_type") != "easy_jog"
                 or actual_day.get("name") != "慢跑"
-                or not any(
+                or not actual_day.get("exercises")
+                or not all(
                     isinstance(item, dict) and item.get("name") == "慢跑"
                     for item in actual_day.get("exercises") or []
                 )
@@ -178,6 +200,30 @@ class AgentVerifier:
                         "requested_exercise_mismatch",
                         "error",
                         "计划运动类型与本轮明确请求不一致。",
+                        repairable=False,
+                    )
+                )
+
+        for locked_date, activity in (plan_json.get("dated_constraints") or {}).items():
+            matching = [
+                day
+                for day in training_days or []
+                if isinstance(day, dict) and day.get("date") == locked_date
+            ]
+            if (
+                activity != "easy_jog"
+                or len(matching) != 1
+                or not matching[0].get("exercises")
+                or not all(
+                    isinstance(item, dict) and item.get("name") == "慢跑"
+                    for item in matching[0].get("exercises") or []
+                )
+            ):
+                issues.append(
+                    VerificationIssue(
+                        "locked_dated_constraint_mismatch",
+                        "error",
+                        "历史指定日期约束不满足。",
                         repairable=False,
                     )
                 )
@@ -286,6 +332,23 @@ class AgentVerifier:
         issues: list[VerificationIssue] = []
         response = response or ""
         user_message = user_message or ""
+        from fast_api.app.services.exercise_constraints import (
+            exercise_exclusions,
+            violates_exclusions,
+        )
+
+        exclusions = exercise_exclusions(user_message) + list(
+            policy.get("exercise_exclusions") or []
+        )
+        if violates_exclusions(response, exclusions):
+            issues.append(
+                VerificationIssue(
+                    "excluded_exercise_response",
+                    "error",
+                    "回复包含明确排除的动作。",
+                    repairable=False,
+                )
+            )
 
         if len(response.strip()) < 20:
             issues.append(

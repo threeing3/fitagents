@@ -10,7 +10,7 @@ psycopg[binary]==3.2.3
 pgvector==0.3.6
 langchain-core==1.5.3
 langchain-openai==1.4.2
-PyJWT[crypto]==2.13.0
+PyJWT[crypto]==2.15.0
 passlib[bcrypt]==1.7.4
 bcrypt==4.0.1
 slowapi==0.1.9

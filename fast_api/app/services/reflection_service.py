@@ -1,6 +1,7 @@
 import uuid
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
@@ -70,9 +71,29 @@ class ReflectionService:
             "memories": [self._memory_summary(memory) for memory in created],
         }
 
-    def reflect_weekly(self, user_id: uuid.UUID, week_start: date, week_end: date) -> dict[str, Any]:
+    def reflect_weekly(
+        self,
+        user_id: uuid.UUID,
+        week_start: date,
+        week_end: date,
+        *,
+        timezone_name: str | None = None,
+        as_of: datetime | None = None,
+        not_before: datetime | None = None,
+        window_start: datetime | None = None,
+    ) -> dict[str, Any]:
         start_dt = datetime.combine(week_start, datetime.min.time())
         end_dt = datetime.combine(week_end, datetime.max.time())
+        if timezone_name:
+            zone = ZoneInfo(timezone_name)
+            start_dt = start_dt.replace(tzinfo=zone).astimezone(timezone.utc).replace(tzinfo=None)
+            end_dt = end_dt.replace(tzinfo=zone).astimezone(timezone.utc).replace(tzinfo=None)
+        if as_of:
+            end_dt = min(end_dt, as_of.astimezone(timezone.utc).replace(tzinfo=None))
+        if window_start:
+            start_dt = window_start.astimezone(timezone.utc).replace(tzinfo=None)
+        if not_before:
+            start_dt = max(start_dt, not_before.astimezone(timezone.utc).replace(tzinfo=None))
         workout_logs = self._workout_logs_between(user_id, start_dt, end_dt)
         exercise_logs = self._exercise_logs_between(user_id, start_dt, end_dt)
         nutrition_summaries = self._nutrition_summaries_between(user_id, week_start, week_end)
@@ -82,9 +103,13 @@ class ReflectionService:
 
         created: list[models.LongTermMemory] = []
         weekly_specs = [
-            self._build_weekly_training_observation(workout_logs, exercise_logs, week_start, week_end),
+            self._build_weekly_training_observation(
+                workout_logs, exercise_logs, week_start, week_end
+            ),
             self._build_weekly_nutrition_observation(nutrition_summaries, week_start, week_end),
-            self._build_weekly_recovery_observation(recovery_logs, symptom_logs, week_start, week_end),
+            self._build_weekly_recovery_observation(
+                recovery_logs, symptom_logs, week_start, week_end
+            ),
         ]
         for spec in weekly_specs:
             if not spec:
@@ -130,7 +155,35 @@ class ReflectionService:
                     source_type="weekly_reflection",
                 )
             )
-        return {"created_count": len(created), "memories": [self._memory_summary(memory) for memory in created]}
+        return {
+            "created_count": len(created),
+            "memories": [self._memory_summary(memory) for memory in created],
+            "adjustment_signal": self._weekly_adjustment_signal(
+                recovery_logs, symptom_logs, as_of, timezone_name
+            ),
+        }
+
+    def _weekly_adjustment_signal(self, recovery_logs, symptom_logs, as_of, timezone_name):
+        # Date-only records on the cutoff date cannot establish when evidence arrived.
+        prior = recovery_logs
+        if as_of and timezone_name:
+            cutoff_date = as_of.astimezone(ZoneInfo(timezone_name)).date()
+            prior = [row for row in prior if row.log_date < cutoff_date]
+        scored = [
+            row for row in prior if row.fatigue_score is not None and 1 <= row.fatigue_score <= 10
+        ]
+        if symptom_logs:
+            return {"eligible": False, "reason": "symptoms_require_manual_review"}
+        if len(scored) < 3:
+            return {"eligible": False, "reason": "insufficient_recovery_evidence"}
+        average = self._average([row.fatigue_score for row in scored])
+        return {
+            "eligible": average >= 7,
+            "reason": "synthetic_policy_high_fatigue" if average >= 7 else "no_reduction_signal",
+            "policy": "demo_fatigue_v1_not_clinical",
+            "average_fatigue": average,
+            "evidence": self._evidence_for(scored, "recovery_logs"),
+        }
 
     def reflect_decision_outcomes(
         self,
@@ -140,7 +193,9 @@ class ReflectionService:
     ) -> dict[str, Any]:
         from fast_api.app.services.outcome_reflection_service import OutcomeReflectionService
 
-        return OutcomeReflectionService(self.db, self.memory_manager).reflect_recent_decision_outcomes(
+        return OutcomeReflectionService(
+            self.db, self.memory_manager
+        ).reflect_recent_decision_outcomes(
             user_id=user_id,
             since_days=since_days,
             outcome_window_days=outcome_window_days,
@@ -159,16 +214,23 @@ class ReflectionService:
         return list(
             self.db.scalars(
                 select(models.SymptomLog)
-                .where(models.SymptomLog.user_id == user_id, models.SymptomLog.symptom_date >= since)
+                .where(
+                    models.SymptomLog.user_id == user_id, models.SymptomLog.symptom_date >= since
+                )
                 .order_by(desc(models.SymptomLog.symptom_date))
             )
         )
 
-    def _recent_nutrition_summaries(self, user_id: uuid.UUID, since: date) -> list[models.NutritionDailySummary]:
+    def _recent_nutrition_summaries(
+        self, user_id: uuid.UUID, since: date
+    ) -> list[models.NutritionDailySummary]:
         return list(
             self.db.scalars(
                 select(models.NutritionDailySummary)
-                .where(models.NutritionDailySummary.user_id == user_id, models.NutritionDailySummary.summary_date >= since)
+                .where(
+                    models.NutritionDailySummary.user_id == user_id,
+                    models.NutritionDailySummary.summary_date >= since,
+                )
                 .order_by(desc(models.NutritionDailySummary.summary_date))
             )
         )
@@ -177,71 +239,114 @@ class ReflectionService:
         return list(
             self.db.scalars(
                 select(models.WorkoutLog)
-                .where(models.WorkoutLog.user_id == user_id, models.WorkoutLog.performed_at >= since)
+                .where(
+                    models.WorkoutLog.user_id == user_id, models.WorkoutLog.performed_at >= since
+                )
                 .order_by(desc(models.WorkoutLog.performed_at))
             )
         )
 
-    def _recent_agent_decisions(self, user_id: uuid.UUID, since: datetime) -> list[models.AgentDecision]:
+    def _recent_agent_decisions(
+        self, user_id: uuid.UUID, since: datetime
+    ) -> list[models.AgentDecision]:
         return list(
             self.db.scalars(
                 select(models.AgentDecision)
-                .where(models.AgentDecision.user_id == user_id, models.AgentDecision.created_at >= since)
+                .where(
+                    models.AgentDecision.user_id == user_id,
+                    models.AgentDecision.created_at >= since,
+                )
                 .order_by(desc(models.AgentDecision.created_at))
                 .limit(10)
             )
         )
 
-    def _workout_logs_between(self, user_id: uuid.UUID, start: datetime, end: datetime) -> list[models.WorkoutLog]:
+    def _workout_logs_between(
+        self, user_id: uuid.UUID, start: datetime, end: datetime
+    ) -> list[models.WorkoutLog]:
         return list(
             self.db.scalars(
                 select(models.WorkoutLog)
-                .where(models.WorkoutLog.user_id == user_id, models.WorkoutLog.performed_at >= start, models.WorkoutLog.performed_at <= end)
+                .where(
+                    models.WorkoutLog.user_id == user_id,
+                    models.WorkoutLog.performed_at >= start,
+                    models.WorkoutLog.performed_at <= end,
+                )
                 .order_by(desc(models.WorkoutLog.performed_at))
             )
         )
 
-    def _exercise_logs_between(self, user_id: uuid.UUID, start: datetime, end: datetime) -> list[models.ExerciseLog]:
+    def _exercise_logs_between(
+        self, user_id: uuid.UUID, start: datetime, end: datetime
+    ) -> list[models.ExerciseLog]:
         return list(
             self.db.scalars(
                 select(models.ExerciseLog)
-                .where(models.ExerciseLog.user_id == user_id, models.ExerciseLog.created_at >= start, models.ExerciseLog.created_at <= end)
+                .where(
+                    models.ExerciseLog.user_id == user_id,
+                    models.ExerciseLog.created_at >= start,
+                    models.ExerciseLog.created_at <= end,
+                )
                 .order_by(desc(models.ExerciseLog.created_at))
             )
         )
 
-    def _nutrition_summaries_between(self, user_id: uuid.UUID, start: date, end: date) -> list[models.NutritionDailySummary]:
+    def _nutrition_summaries_between(
+        self, user_id: uuid.UUID, start: date, end: date
+    ) -> list[models.NutritionDailySummary]:
         return list(
             self.db.scalars(
                 select(models.NutritionDailySummary)
-                .where(models.NutritionDailySummary.user_id == user_id, models.NutritionDailySummary.summary_date >= start, models.NutritionDailySummary.summary_date <= end)
+                .where(
+                    models.NutritionDailySummary.user_id == user_id,
+                    models.NutritionDailySummary.summary_date >= start,
+                    models.NutritionDailySummary.summary_date <= end,
+                )
                 .order_by(desc(models.NutritionDailySummary.summary_date))
             )
         )
 
-    def _recovery_logs_between(self, user_id: uuid.UUID, start: date, end: date) -> list[models.RecoveryLog]:
+    def _recovery_logs_between(
+        self, user_id: uuid.UUID, start: date, end: date
+    ) -> list[models.RecoveryLog]:
         return list(
             self.db.scalars(
                 select(models.RecoveryLog)
-                .where(models.RecoveryLog.user_id == user_id, models.RecoveryLog.log_date >= start, models.RecoveryLog.log_date <= end)
+                .where(
+                    models.RecoveryLog.user_id == user_id,
+                    models.RecoveryLog.log_date >= start,
+                    models.RecoveryLog.log_date <= end,
+                )
                 .order_by(desc(models.RecoveryLog.log_date))
             )
         )
 
-    def _symptom_logs_between(self, user_id: uuid.UUID, start: date, end: date) -> list[models.SymptomLog]:
+    def _symptom_logs_between(
+        self, user_id: uuid.UUID, start: date, end: date
+    ) -> list[models.SymptomLog]:
         return list(
             self.db.scalars(
                 select(models.SymptomLog)
-                .where(models.SymptomLog.user_id == user_id, models.SymptomLog.symptom_date >= start, models.SymptomLog.symptom_date <= end)
+                .where(
+                    models.SymptomLog.user_id == user_id,
+                    models.SymptomLog.symptom_date >= start,
+                    models.SymptomLog.symptom_date <= end,
+                )
                 .order_by(desc(models.SymptomLog.symptom_date))
             )
         )
 
-    def _agent_decisions_between(self, user_id: uuid.UUID, start: datetime, end: datetime) -> list[models.AgentDecision]:
+    def _agent_decisions_between(
+        self, user_id: uuid.UUID, start: datetime, end: datetime
+    ) -> list[models.AgentDecision]:
         return list(
             self.db.scalars(
                 select(models.AgentDecision)
-                .where(models.AgentDecision.user_id == user_id, models.AgentDecision.created_at >= start, models.AgentDecision.created_at <= end)
+                .where(
+                    models.AgentDecision.user_id == user_id,
+                    models.AgentDecision.created_at >= start,
+                    models.AgentDecision.created_at <= end,
+                )
                 .order_by(desc(models.AgentDecision.created_at))
                 .limit(20)
             )
@@ -262,8 +367,12 @@ class ReflectionService:
         evidence += self._evidence_for(risk_notes, "risk_notes")
         if not evidence:
             return None
-        avg_sleep = self._average([log.sleep_hours for log in recovery_logs if log.sleep_hours is not None])
-        avg_fatigue = self._average([log.fatigue_score for log in recovery_logs if log.fatigue_score is not None])
+        avg_sleep = self._average(
+            [log.sleep_hours for log in recovery_logs if log.sleep_hours is not None]
+        )
+        avg_fatigue = self._average(
+            [log.fatigue_score for log in recovery_logs if log.fatigue_score is not None]
+        )
         symptom_count = len(symptom_logs)
         workout_count = len(workout_logs)
         parts = [f"Recent 7-day pattern: workouts={workout_count}, symptoms={symptom_count}."]
@@ -271,7 +380,9 @@ class ReflectionService:
         if avg_sleep is not None or avg_fatigue is not None:
             category = "recovery"
             parts.append(f"Average sleep={avg_sleep if avg_sleep is not None else 'unknown'}h.")
-            parts.append(f"Average fatigue={avg_fatigue if avg_fatigue is not None else 'unknown'}.")
+            parts.append(
+                f"Average fatigue={avg_fatigue if avg_fatigue is not None else 'unknown'}."
+            )
         if risk_notes:
             category = "risk"
             parts.append("Active risk notes are present, so coaching should stay conservative.")
@@ -292,7 +403,9 @@ class ReflectionService:
         evidence += self._evidence_for(memories, "long_term_memories")
         if not evidence:
             return None
-        avg_fatigue = self._average([log.fatigue_score for log in recovery_logs if log.fatigue_score is not None])
+        avg_fatigue = self._average(
+            [log.fatigue_score for log in recovery_logs if log.fatigue_score is not None]
+        )
         if risk_notes or symptom_logs or (avg_fatigue is not None and avg_fatigue >= 7):
             content = (
                 "Based on recent recovery, symptoms, and risk evidence, the agent should prefer conservative "
@@ -314,12 +427,19 @@ class ReflectionService:
         week_start: date,
         week_end: date,
     ) -> dict[str, Any] | None:
-        evidence = self._evidence_for(workout_logs, "workout_logs") + self._evidence_for(exercise_logs, "exercise_logs")
+        evidence = self._evidence_for(workout_logs, "workout_logs") + self._evidence_for(
+            exercise_logs, "exercise_logs"
+        )
         if not evidence:
             return None
         avg_rpe = self._average([log.rpe for log in workout_logs if log.rpe is not None])
         content = f"Weekly training observation {week_start} to {week_end}: workouts={len(workout_logs)}, exercise_sets={len(exercise_logs)}, avg_rpe={avg_rpe if avg_rpe is not None else 'unknown'}."
-        return {"fact_kind": "weekly_training_observation", "category": "training", "content": content, "evidence": evidence[:30]}
+        return {
+            "fact_kind": "weekly_training_observation",
+            "category": "training",
+            "content": content,
+            "evidence": evidence[:30],
+        }
 
     def _build_weekly_nutrition_observation(
         self,
@@ -330,10 +450,27 @@ class ReflectionService:
         evidence = self._evidence_for(summaries, "nutrition_daily_summaries")
         if not evidence:
             return None
-        avg_adherence = self._average([summary.adherence_score for summary in summaries if summary.adherence_score is not None])
-        avg_protein = self._average([summary.total_protein_g for summary in summaries if summary.total_protein_g is not None])
+        avg_adherence = self._average(
+            [
+                summary.adherence_score
+                for summary in summaries
+                if summary.adherence_score is not None
+            ]
+        )
+        avg_protein = self._average(
+            [
+                summary.total_protein_g
+                for summary in summaries
+                if summary.total_protein_g is not None
+            ]
+        )
         content = f"Weekly nutrition observation {week_start} to {week_end}: nutrition_days={len(summaries)}, avg_adherence={avg_adherence if avg_adherence is not None else 'unknown'}, avg_protein_g={avg_protein if avg_protein is not None else 'unknown'}."
-        return {"fact_kind": "weekly_nutrition_observation", "category": "nutrition", "content": content, "evidence": evidence[:30]}
+        return {
+            "fact_kind": "weekly_nutrition_observation",
+            "category": "nutrition",
+            "content": content,
+            "evidence": evidence[:30],
+        }
 
     def _build_weekly_recovery_observation(
         self,
@@ -342,13 +479,24 @@ class ReflectionService:
         week_start: date,
         week_end: date,
     ) -> dict[str, Any] | None:
-        evidence = self._evidence_for(recovery_logs, "recovery_logs") + self._evidence_for(symptom_logs, "symptom_logs")
+        evidence = self._evidence_for(recovery_logs, "recovery_logs") + self._evidence_for(
+            symptom_logs, "symptom_logs"
+        )
         if not evidence:
             return None
-        avg_sleep = self._average([log.sleep_hours for log in recovery_logs if log.sleep_hours is not None])
-        avg_fatigue = self._average([log.fatigue_score for log in recovery_logs if log.fatigue_score is not None])
+        avg_sleep = self._average(
+            [log.sleep_hours for log in recovery_logs if log.sleep_hours is not None]
+        )
+        avg_fatigue = self._average(
+            [log.fatigue_score for log in recovery_logs if log.fatigue_score is not None]
+        )
         content = f"Weekly recovery observation {week_start} to {week_end}: recovery_days={len(recovery_logs)}, symptoms={len(symptom_logs)}, avg_sleep={avg_sleep if avg_sleep is not None else 'unknown'}h, avg_fatigue={avg_fatigue if avg_fatigue is not None else 'unknown'}."
-        return {"fact_kind": "weekly_recovery_observation", "category": "recovery", "content": content, "evidence": evidence[:30]}
+        return {
+            "fact_kind": "weekly_recovery_observation",
+            "category": "recovery",
+            "content": content,
+            "evidence": evidence[:30],
+        }
 
     def _build_weekly_opinion(
         self,
@@ -367,10 +515,14 @@ class ReflectionService:
             + self._evidence_for(symptom_logs, "symptom_logs")
             + self._evidence_for(decisions, "agent_decisions")
         )
-        enough_evidence = len(workout_logs) >= 3 and len(nutrition_summaries) >= 4 and len(recovery_logs) >= 4
+        enough_evidence = (
+            len(workout_logs) >= 3 and len(nutrition_summaries) >= 4 and len(recovery_logs) >= 4
+        )
         if not enough_evidence or not evidence:
             return None
-        avg_fatigue = self._average([log.fatigue_score for log in recovery_logs if log.fatigue_score is not None])
+        avg_fatigue = self._average(
+            [log.fatigue_score for log in recovery_logs if log.fatigue_score is not None]
+        )
         if symptom_logs or (avg_fatigue is not None and avg_fatigue >= 7):
             content = f"Weekly coach opinion {week_start} to {week_end}: favor conservative progression next week because recovery or symptom evidence is elevated."
         else:
@@ -390,14 +542,30 @@ class ReflectionService:
         ]
 
     def _evidence_summary(self, row: Any) -> str:
-        for attr in ("summary_text", "notes", "description", "reason", "decision_result", "workout_name", "symptom_type", "exercise_name"):
+        for attr in (
+            "summary_text",
+            "notes",
+            "description",
+            "reason",
+            "decision_result",
+            "workout_name",
+            "symptom_type",
+            "exercise_name",
+        ):
             value = getattr(row, attr, None)
             if value:
                 return str(value)[:180]
         return row.__class__.__name__
 
     def _evidence_time(self, row: Any) -> str:
-        for attr in ("performed_at", "summary_date", "log_date", "symptom_date", "created_at", "updated_at"):
+        for attr in (
+            "performed_at",
+            "summary_date",
+            "log_date",
+            "symptom_date",
+            "created_at",
+            "updated_at",
+        ):
             value = getattr(row, attr, None)
             if value:
                 return value.isoformat() if hasattr(value, "isoformat") else str(value)

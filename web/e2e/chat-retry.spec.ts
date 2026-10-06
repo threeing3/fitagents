@@ -33,7 +33,7 @@ for (const outcome of ["completed", "unconfirmed"] as const) {
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
     });
     await page.goto("/");
-    await page.locator("textarea").fill("我刚完成跑步30分钟，帮我记录");
+    await page.getByLabel("训练需求或问题").fill("我刚完成跑步30分钟，帮我记录");
     await page.locator(".send-btn").click();
     await expect(page.getByText(outcome === "completed" ? "已保存的完整回复" : /已确认保存：跑步 30 分钟/)).toBeVisible();
     expect(executions).toBe(1);
@@ -65,7 +65,7 @@ test("reload keeps failed chat identity; completed new send gets a new identity"
   });
 
   const send = async () => {
-    await page.locator("textarea").fill("我刚完成30分钟哑铃训练，帮我记录");
+    await page.getByLabel("训练需求或问题").fill("我刚完成30分钟哑铃训练，帮我记录");
     await page.locator(".send-btn").click();
   };
   await page.goto("/");

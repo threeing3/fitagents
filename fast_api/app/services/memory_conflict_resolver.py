@@ -18,6 +18,20 @@ class MemoryConflictResolver:
     superseded instead of silently coexisting with the corrected profile.
     """
 
+    PROFILE_FIELDS = (
+        "age",
+        "sex",
+        "height_cm",
+        "weight_kg",
+        "activity_level",
+        "experience_level",
+        "workout_frequency",
+        "workout_duration",
+        "dietary_preferences",
+        "allergies",
+        "equipment_available",
+    )
+
     def __init__(self, db: Session):
         self.db = db
 
@@ -36,6 +50,9 @@ class MemoryConflictResolver:
         }
         if self.db is None:
             return results
+        from fast_api.app.services.plan_writes import lock_plan_owner
+
+        lock_plan_owner(self.db, user_id)
         affected_categories: set[str] = set()
         for index, correction in enumerate(corrections):
             if not isinstance(correction, dict):
@@ -56,6 +73,9 @@ class MemoryConflictResolver:
                 targets = [str(correction.get("value") or "")]
                 memory_ids = self._supersede_goal_memories(user_id, correction, message)
                 categories.add("profile")
+            elif field in self.PROFILE_FIELDS and action == "set":
+                memory_ids = self._supersede_profile_field_memories(user_id, correction, message)
+                categories.add("profile")
             else:
                 continue
             applied = {**correction, "targets": targets}
@@ -73,7 +93,104 @@ class MemoryConflictResolver:
                 }
             )
         results["affected_categories"] = sorted(affected_categories)
+        if results["corrections_applied"]:
+            from fast_api.app.services.memory_dependencies import invalidate_derived_memories
+
+            results["derived_memory_ids"] = invalidate_derived_memories(
+                self.db,
+                user_id,
+                [
+                    {"table": "long_term_memories", "id": value}
+                    for value in results["superseded_memory_ids"]
+                ]
+                + [
+                    {"table": "risk_notes", "id": value}
+                    for value in results["corrected_risk_note_ids"]
+                ],
+                "user_correction",
+            )
+            from fast_api.app.services.decision_dependencies import DecisionDependencyService
+            from fast_api.app.services.plan_adjustment_policy import PlanAdjustmentPolicy
+
+            DecisionDependencyService(self.db).invalidate_changed(
+                user_id,
+                results["superseded_memory_ids"] + results["corrected_risk_note_ids"],
+            )
+            PlanAdjustmentPolicy(self.db).invalidate_changed(user_id)
+            if results["superseded_memory_ids"]:
+                from fast_api.app.services.memory_system import MemoryManager
+
+                revoked_ids = [uuid.UUID(value) for value in results["superseded_memory_ids"]]
+                root_categories = self.db.scalars(
+                    select(models.LongTermMemory.category).where(
+                        models.LongTermMemory.user_id == user_id,
+                        models.LongTermMemory.id.in_(revoked_ids),
+                    )
+                ).all()
+                manager = MemoryManager(self.db)
+                for category in sorted({value for value in root_categories if value}):
+                    manager.update_memory_catalog(user_id, category)
         return results
+
+    def apply_profile_changes(
+        self,
+        user_id: uuid.UUID,
+        *,
+        old_goal: str | None,
+        new_goal: str | None,
+        old_injuries: list[str],
+        new_injuries: list[str],
+        old_fields: dict[str, Any] | None = None,
+        new_fields: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Use confirmed canonical field changes, never semantic retrieval targets."""
+        corrections: list[dict[str, Any]] = []
+        if new_goal is not None and old_goal != new_goal:
+            corrections.append({"field": "goal", "action": "set", "value": new_goal})
+        for injury in old_injuries:
+            if injury not in new_injuries:
+                # Empty or wildcard legacy values cannot authorize broad risk removal.
+                if not injury.strip() or injury.lower() in {"*", "all", "全部"}:
+                    continue
+                corrections.append({"field": "injuries", "action": "remove", "value": injury})
+        for field in self.PROFILE_FIELDS:
+            if old_fields is not None and new_fields is not None:
+                if (
+                    field in old_fields
+                    and field in new_fields
+                    and old_fields[field] != new_fields[field]
+                ):
+                    corrections.append(
+                        {"field": field, "action": "set", "value": new_fields[field]}
+                    )
+        return self.apply_corrections(user_id, corrections, "用户显式更新档案字段")
+
+    def _supersede_profile_field_memories(
+        self, user_id: uuid.UUID, correction: dict[str, Any], message: str
+    ) -> list[str]:
+        field = correction["field"]
+        changed = []
+        for memory in self.db.scalars(
+            select(models.LongTermMemory).where(
+                models.LongTermMemory.user_id == user_id,
+                models.LongTermMemory.status == "active",
+            )
+        ):
+            metadata = memory.memory_metadata or {}
+            scoped_fields = metadata.get("profile_fields")
+            matches = metadata.get("field") == field or metadata.get("profile_field") == field
+            if isinstance(scoped_fields, dict):
+                matches = matches or field in scoped_fields
+            if not matches or memory.memory_type == "correction":
+                continue
+            memory.status = "superseded"
+            memory.valid_until = datetime.utcnow()
+            memory.memory_metadata = {
+                **metadata,
+                "superseded_by_correction": {**correction, "evidence": message[:500]},
+            }
+            changed.append(str(memory.id))
+        return changed
 
     def _injury_targets(self, value: str, message: str) -> list[str]:
         lowered = f"{value} {message}".lower()
@@ -225,6 +342,14 @@ class MemoryConflictResolver:
             memory.status = "superseded"
             memory.valid_until = datetime.utcnow()
             superseded.append(str(memory.id))
+        from fast_api.app.services.memory_dependencies import invalidate_derived_memories
+
+        invalidate_derived_memories(
+            self.db,
+            user_id,
+            [{"table": "long_term_memories", "id": value} for value in superseded],
+            reason,
+        )
         return superseded
 
     def link_memory_revision(

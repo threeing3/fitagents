@@ -149,6 +149,10 @@ async function mockApi(page: Page) {
       return;
     }
     if (path === "/v1/workouts/logs") {
+      if (request.method() === "GET") {
+        await route.fulfill({ status: 200, contentType: "application/json", body: "[]" });
+        return;
+      }
       const payload = request.postDataJSON();
       expect(request.headers()["idempotency-key"]).toBeTruthy();
       expect(payload.workout_name).toBe("力量训练");
@@ -200,16 +204,21 @@ test("public demo covers registration, chat, plan, check-in, workout and algorit
   await page.getByPlaceholder("密码").fill("safe-password-123");
   await page.getByRole("button", { name: "创建账号" }).click();
 
-  await expect(page.getByText("今日在线模型额度已用完", { exact: false })).toBeVisible();
-  const composer = page.getByPlaceholder("告诉教练你的目标、今天的状态，或提出问题……");
+  await expect(page.getByText("当前不提供在线模型调用", { exact: false })).toBeVisible();
+  const composer = page.getByRole("textbox", { name: "训练需求或问题" });
   await composer.fill("我今天很疲劳，应该怎么练？");
   await page.locator(".send-btn").click();
   await expect(page.getByText("先从可执行的小目标开始。")).toBeVisible();
+  if (process.env.CAPTURE_REPOSITORY_SHOWCASE === "1") {
+    await page.evaluate(() => document.fonts.ready);
+    await page.screenshot({ path: "../docs/assets/fitagent-chat-20261006.png", fullPage: true });
+  }
 
-  await page.getByRole("button", { name: "概览" }).click();
-  await page.getByRole("button", { name: "生成计划" }).click();
+  await page.getByRole("button", { name: "今日概览" }).click();
+  await page.getByRole("button", { name: "说明训练需求" }).click();
+  await expect(page.getByRole("textbox", { name: "训练需求或问题" })).toBeVisible();
 
-  await page.getByRole("button", { name: "打卡" }).click();
+  await page.getByRole("button", { name: "状态打卡" }).click();
   await page.getByRole("button", { name: "提交打卡" }).click();
   await expect(page.getByRole("button", { name: "已记录" })).toBeVisible();
 
@@ -218,7 +227,8 @@ test("public demo covers registration, chat, plan, check-in, workout and algorit
   await page.getByRole("button", { name: "保存训练" }).click();
   await expect(page.getByRole("button", { name: "已保存" })).toBeVisible();
 
-  await page.getByRole("button", { name: "算法实验" }).click();
+  await page.getByRole("button", { name: "设置", exact: true }).click();
+  await page.getByRole("tab", { name: "开发诊断" }).click();
   await expect(page.getByText("20/120")).toBeVisible();
   await expect(page.getByRole("heading", { name: "意图算法批量对照" })).toBeVisible();
   await expect(page.getByText("Rules v2")).toBeVisible();

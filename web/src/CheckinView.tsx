@@ -68,8 +68,15 @@ export function CheckinView({ session, busy, setBusy, setNotice, onRefresh }: Pr
       );
       pendingRequest.current = null;
       setNotice(result.auto_adjusted
-        ? (isZh ? "打卡已记录，计划已自动调整。" : "Check-in recorded & plan auto-adjusted.")
-        : (isZh ? "打卡已记录。" : "Check-in recorded."));
+        ? (isZh ? "打卡已记录，服务返回了旧版自动调整结果，请刷新计划核对。"
+          : "Check-in saved. Server reported a legacy automatic adjustment; refresh and verify the plan.")
+        : result.adjustment_proposal?.status === "waiting_approval"
+        ? (isZh ? "打卡已记录，计划尚未修改。请到长期跟踪查看并确认调整草案。"
+          : "Check-in saved. Plan unchanged; review the proposal in Responsibilities.")
+        : result.invalidated_approvals?.length
+          ? (isZh ? "打卡已更新，旧调整草案已失效，计划未修改。"
+            : "Check-in updated. Previous proposals are stale; plan unchanged.")
+          : (isZh ? "打卡已记录，计划未自动修改。" : "Check-in saved. Plan not automatically changed."));
       setSubmitted(true);
       onRefresh();
       setTimeout(() => setSubmitted(false), 2500);
@@ -84,7 +91,7 @@ export function CheckinView({ session, busy, setBusy, setNotice, onRefresh }: Pr
     <div className="checkin-view">
       <div className="checkin-header">
         <h2>{isZh ? "每日状态打卡" : "Daily Check-in"}</h2>
-        <p>{isZh ? "记录今天的状态，帮助教练安全地调整训练计划。" : "How are you feeling today? This helps your coach adjust your training plan."}</p>
+        <p>{isZh ? "记录你自己的感受，为下一次训练选择提供依据；计划调整仍需你确认。" : "Record how you feel to inform your next training choice. Plan changes still need your approval."}</p>
       </div>
 
       <div className="checkin-grid">

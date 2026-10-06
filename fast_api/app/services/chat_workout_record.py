@@ -3,6 +3,7 @@
 import re
 from datetime import datetime, time, timedelta, timezone
 
+from fast_api.app.services.exercise_constraints import exercise_exclusions
 from fast_api.app.services.workout_history_query import history_query
 
 RECORD_REQUEST = re.compile(r"帮我记录|帮我记下|请记录|记下来|记录下来")
@@ -16,12 +17,26 @@ def record_task_text(message: str) -> str:
     """
     retained = []
     for clause in re.split(r"[，,。！？!?；;]|再(?=(?:帮我)?(?:查|看看|看一下))", message):
+        if (
+            exercise_exclusions(clause)
+            and not RECORD_REQUEST.search(clause)
+            and not re.search(r"完成|做完|练完|跑完|记录|记下", clause)
+        ):
+            continue
         negated_plan_only = (
             re.search(r"(?:不要|不需要|不用|别|先别).*?(?:训练计划|健身计划|计划)", clause)
             and not RECORD_REQUEST.search(clause)
             and not re.search(r"(?:不要|别|不用).*?(?:记录|记下)", clause)
         )
         if negated_plan_only:
+            continue
+        future_plan_only = (
+            re.search(r"明天|后天|下周", clause)
+            and re.search(r"安排|计划", clause)
+            and not RECORD_REQUEST.search(clause)
+            and not re.search(r"完成|做完|练完|跑完|(?:不要|别|不用).*?(?:记录|记下)", clause)
+        )
+        if future_plan_only:
             continue
         if history_query(clause) is not None and not re.search(
             r"帮我记录|帮我记下|记下来|记录下来|(?:不要|别|不用).*记录"
@@ -133,26 +148,41 @@ def merge_workout_followup(original: str, missing: list[str], answer: str) -> st
     return None
 
 
-def parse_workout_record(message: str) -> dict:
+def _minute_count(token: str) -> int | None:
+    if token.isdigit():
+        return int(token)
+    digits = {character: value for value, character in enumerate("零一二三四五六七八九")}
+    digits["两"] = 2
+    if token in digits:
+        return digits[token]
+    if re.fullmatch(r"[二三四五六七八九]?十[一二三四五六七八九]?", token):
+        tens, units = token.split("十")
+        return digits.get(tens, 1) * 10 + digits.get(units, 0)
+    return None
+
+
+def parse_workout_record(message: str, *, now: datetime | None = None) -> dict:
     if not RECORD_REQUEST.search(message):
         return {"status": "not_requested"}
     message = record_task_text(message)
     if re.search(r"不要|别|不用|朋友|他|她|如果|假如|打算|准备", message):
         return {"status": "blocked", "reply": "这条消息的记录归属或授权不明确，未写入训练记录。"}
     missing = []
-    if not re.search(r"我(?:今天|刚刚|刚|已经|刚才)?(?:完成|做完|练完|跑完)", message):
+    if not re.search(r"我(?:今天|昨天|昨晚|刚刚|刚|已经|刚才)?(?:完成|做完|练完|跑完)", message):
         missing.append("本人已完成训练的确认")
-    if not any(word in message for word in ("刚", "今天")) or any(
-        word in message for word in ("昨天", "前天", "上周")
-    ):
-        missing.append("训练时间（当前支持今天或刚完成）")
+    yesterday = any(word in message for word in ("昨天", "昨晚"))
+    today = "今天" in message or (not yesterday and "刚" in message)
+    unsupported_date = re.search(r"前天|明天|后天|上周|下周|上个月|20\d{2}[年/-]", message)
+    if not (yesterday or today) or (yesterday and today) or unsupported_date:
+        missing.append("一种明确的训练时间（当前支持今天或昨天）")
     activities = [
-        word for word in ("哑铃训练", "力量训练", "跑步", "骑行", "游泳") if word in message
+        word for word in ("哑铃训练", "力量训练", "跑步", "骑行", "游泳", "跳绳") if word in message
     ]
     if len(activities) != 1:
         missing.append("一种明确的训练类型")
-    durations = re.findall(r"([-+]?\d+(?:\.\d+)?)\s*分钟", message)
-    if len(durations) != 1 or not durations[0].isdigit() or not 1 <= int(durations[0]) <= 1440:
+    durations = re.findall(r"([-+]?\d+(?:\.\d+)?|[零一二三四五六七八九十两]+)\s*分钟", message)
+    duration = _minute_count(durations[0]) if len(durations) == 1 else None
+    if duration is None or not 1 <= duration <= 1440:
         missing.append("有效的训练时长（分钟）")
     intensity = re.search(r"(?:主观强度|RPE)\s*([-+]?\d+(?:\.\d+)?)\s*分?", message, re.I)
     if intensity and (not intensity[1].isdigit() or not 1 <= int(intensity[1]) <= 10):
@@ -163,7 +193,15 @@ def parse_workout_record(message: str) -> dict:
             "missing": missing,
             "reply": "尚未记录，请补充：" + "、".join(missing) + "。",
         }
-    fields = {"workout_name": activities[0], "duration_minutes": int(durations[0])}
+    fields = {"workout_name": activities[0], "duration_minutes": duration}
+    if yesterday:
+        reference = now or datetime.now(timezone.utc)
+        if reference.tzinfo is None:
+            raise ValueError("Date reference must include a timezone")
+        tz = timezone(timedelta(hours=8))
+        session_day = reference.astimezone(tz).date() - timedelta(days=1)
+        fields["performed_at"] = datetime.combine(session_day, time.min, tzinfo=tz)
+        fields["notes"] = "用户称昨天，具体时刻未提供；时间戳仅为日期锚点。"
     if intensity:
         fields["rpe"] = int(intensity[1])
     return {"status": "ready", "fields": fields}
