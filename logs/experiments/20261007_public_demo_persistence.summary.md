@@ -30,4 +30,6 @@
 12. 浏览器实际登录合成账号并展开完整执行追踪，显示 69 条合并时间线记录；发现 journal.end 投影未读取 state，误显示 outcome_unknown。修正仅在明确记录结束状态时使用该状态，增加 completed/cancelled/interrupted/unknown 回归，相关测试 30 passed。
 13. 修正邀请制部署中的无效共享演示按钮，增加 VITE_PUBLIC_DEMO_ENABLED 构建开关，容器默认 false；前端 typecheck、93 项组件测试、18 项端到端测试及构建通过。额度、模型回执、子调用和写入回执回归另有 33 passed。
 
-最终显示修正将再次部署。完整背景定时执行器和在线向量嵌入没有上线；全量 Python CI 超时边界仍保留，不冒充全门禁通过。
+14. 最终显示修正 9d5e7c5 在 Render 显示 Deploy succeeded|Live。刷新公共页面后确认邀请制提示可见、共享演示按钮已隐藏；历史运行完整时间线显示 69 条记录，末项 journal.end 显示 completed。再次执行只读验收通过，12 条流式记录、两次成功模型调用、当日使用量 2 与账号隔离均保持；记录：logs/public_demo_final_read_20261007.json。页面证据：output/fitagent-public-live-20261007.png、output/fitagent-public-login-20261007.png。
+
+公共演示已交付。完整背景定时执行器和在线向量嵌入没有上线；全量 Python CI 超时边界仍保留，不冒充全门禁通过。仅提交本次所属文件，未修改或提交另行出现的 agent_verifier.py 与对应测试改动。
