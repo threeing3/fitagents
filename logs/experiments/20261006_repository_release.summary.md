@@ -37,3 +37,11 @@ Windows full-suite rerun still hits the 30-second process-startup timeout in
 crash tests under coverage. Keep CI's original gate unchanged; use an explicitly
 labelled 90-second local diagnostic rerun and await both Linux CI matrices.
 Current screenshots were visually inspected and use synthetic fixtures only.
+
+First updated CI: frontend, lint and mypy passed; runtime and frontend dependency
+audits passed. Secret scan flagged the literal synthetic test password in
+`tests/test_subagent_catalog_api.py:17`. Added a path-and-line-scoped allowlist,
+not a broad test-folder exclusion; full history scanning stays enabled.
+After stopping only this turn's owned preview, npm installation recovered;
+Vitest 4.1.11 component tests passed (92). Both dependency audits now report zero
+known vulnerabilities. OpenAPI schema export passed (80 paths).
