@@ -3,25 +3,25 @@ title = "FitAgent synthetic evaluation identifiers"
 [extend]
 useDefault = true
 
-[[allowlists]]
+[[rules]]
+id = "generic-api-key"
+
+[[rules.allowlists]]
 description = "Fixed synthetic password for isolated catalog HTTP test, not a live credential"
-targetRules = ["generic-api-key"]
 condition = "AND"
 regexTarget = "secret"
 paths = ['''^tests/test_subagent_catalog_api\.py$''']
 regexes = ['''^synthetic1234$''']
 
-[[allowlists]]
+[[rules.allowlists]]
 description = "Synthetic passwords used only to bootstrap isolated restart evaluations"
-targetRules = ["generic-api-key"]
 condition = "AND"
 regexTarget = "line"
 paths = ['''^algorithm/evaluation/fitagent_(http_process_restart|postgres_proxy_restart)_eval\.py$''']
 regexes = ['''password\s*=\s*"synthetic-pass-[A-Za-z0-9_-]+"''']
 
-[[allowlists]]
+[[rules.allowlists]]
 description = "UUID request identifiers in frozen offline replay reports are not credentials"
-targetRules = ["generic-api-key"]
 condition = "AND"
 regexTarget = "line"
 paths = ['''^algorithm/evaluation/reports/intent_(full_chat_replay|recorded_business_replay)_[^/]+/[^/]+\.json$''']

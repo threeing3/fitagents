@@ -16,8 +16,18 @@ from fast_api.app.services.model_call_records import model_origin, model_recordi
 
 def settings():
     return Settings(
-        _env_file=None, llm_provider="offline", embedding_provider="offline", vector_dimension=3
+        _env_file=None, LLM_PROVIDER="offline", EMBEDDING_PROVIDER="offline", VECTOR_DIMENSION=3
     )
+
+
+def test_auxiliary_fixture_settings_override_inherited_environment(monkeypatch):
+    monkeypatch.setenv("VECTOR_DIMENSION", "1024")
+    monkeypatch.setenv("LLM_PROVIDER", "deepseek")
+    monkeypatch.setenv("EMBEDDING_PROVIDER", "qwen")
+    config = settings()
+    assert config.vector_dimension == 3
+    assert config.llm_provider == "offline"
+    assert config.embedding_provider == "offline"
 
 
 def test_vision_factory_records_public_result_but_omits_image_bytes(tmp_path, monkeypatch):

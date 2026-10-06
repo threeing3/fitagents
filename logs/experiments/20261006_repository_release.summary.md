@@ -51,3 +51,15 @@ finding representation. Use an exact secret-value match (`synthetic1234`)
 AND the single fixture path instead. No other passwords or files are exempted.
 Updated frontend rerun: 92 component and 18 browser tests passed; build passed.
 Linux CI frontend and Docker build passed before the scanner-only adjustment.
+
+Corrected root cause: CI uses Gitleaks 8.24.3, while global `[[allowlists]]`
+requires 8.25.0. The initial regex diagnosis was incomplete. Official upstream
+README documents that version boundary. Convert existing narrowly scoped
+exceptions to inherited `generic-api-key` rule-specific allowlists, supported
+since 8.21.0; retain default detection and AND conditions. Do not upgrade the
+scanner or disable any rules.
+
+Windows full diagnostic completed: 1607 passed, 2 skipped, 1 failed; coverage
+80.36%. Failure: auxiliary embedding fixture's lowercase Settings fields allowed
+inherited VECTOR_DIMENSION=1024 to override intended 3. Use explicit aliases and
+add an adversarial inherited-environment regression. Do not alter local .env.
