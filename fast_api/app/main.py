@@ -31,6 +31,7 @@ from fast_api.app.api.eval_api import eval_router
 from fast_api.app.api.feedback_api import feedback_router
 from fast_api.app.api.memory_api import memory_router
 from fast_api.app.api.nutrition_api import nutrition_router
+from fast_api.app.api.responsibility_api import responsibility_router
 from fast_api.app.api.usage_api import usage_router
 from fast_api.app.core.config import get_settings
 from fast_api.app.core.errors import register_exception_handlers
@@ -196,6 +197,7 @@ app.include_router(nutrition_router)
 app.include_router(eval_router, prefix="/v1", tags=["evaluation"])
 app.include_router(feedback_router)
 app.include_router(approval_router)
+app.include_router(responsibility_router)
 app.include_router(usage_router)
 app.include_router(algorithm_router)
 

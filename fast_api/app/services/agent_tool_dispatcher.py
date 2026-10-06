@@ -134,7 +134,7 @@ class ToolInputBuilder:
                 },
             )
         if tool_name == "guardrail.check":
-            return ToolInput(tool_name, {"assistant_message": self.state.assistant_message[:4000]})
+            return ToolInput(tool_name, {"assistant_message": self.state.assistant_message})
         if tool_name == "response.persist":
             return ToolInput(tool_name, {"assistant_message": self.state.assistant_message})
         return ToolInput(tool_name, {})

@@ -101,14 +101,32 @@ class FollowupResolver:
             )
 
         option = self._match_option(message, pending.options_json or [])
+        if pending.question_type == "profile_measurements":
+            compact = message.strip().strip("。.!！ ")
+            if compact in {"对的", "是的", "确认", "没错"}:
+                option = {"key": "yes", "label": "yes", "meaning": "确认身体数据"}
+            if option is not None and option.get("key") == "yes":
+                candidate = pending.answer_json.get("profile_candidate", {})
+                normalized = (
+                    f"我的身高{candidate['height_cm']:g}cm，体重{candidate['weight_kg']:g}kg。"
+                )
+            elif option is not None and option.get("key") == "no":
+                normalized = "我否定上一轮身体数据候选，请重新询问身高和体重。"
+            else:
+                # A correction/new topic must not leave a stale candidate confirmable.
+                pending.status = "cancelled"
+                self.db.flush()
+                return FollowupResolution(False, message, reason="profile_candidate_cancelled")
+        else:
+            normalized = self._normalized_message(pending, option, message) if option else message
         if option is None:
             return FollowupResolution(
                 False, message, pending.id, pending.question_type, reason="no_option_match"
             )
 
-        normalized = self._normalized_message(pending, option, message)
         pending.status = "answered"
         pending.answer_json = {
+            **pending.answer_json,
             "raw_message": message,
             "selected_option": option,
             "normalized_message": normalized,
@@ -159,7 +177,10 @@ class FollowupResolver:
             return active
         options = self.extract_options(assistant_text)
         question_type = self._infer_question_type(assistant_text, options)
-        if not options and question_type != "yes_no":
+        candidate = self._profile_measurement_candidate(user_id, session_id, assistant_text)
+        if candidate:
+            question_type = "profile_measurements"
+        if not options and question_type not in {"yes_no", "profile_measurements"}:
             return None
 
         self.expire_open_questions(user_id, session_id)
@@ -175,12 +196,47 @@ class FollowupResolver:
                 {"key": "no", "label": "no", "meaning": "用户否定"},
             ],
             status="pending",
-            answer_json={},
+            answer_json={"profile_candidate": candidate} if candidate else {},
             expires_at=datetime.utcnow() + timedelta(minutes=self.DEFAULT_TTL_MINUTES),
         )
         self.db.add(question)
         self.db.flush()
         return question
+
+    def _profile_measurement_candidate(
+        self, user_id: uuid.UUID, session_id: uuid.UUID, reply: str
+    ) -> dict[str, float] | None:
+        """Only bind a narrowly supported pair, never arbitrary assistant assertions."""
+        if not re.search(r"确认|对吗", reply) or not all(
+            word in reply for word in ("身高", "体重")
+        ):
+            return None
+        source = self.db.scalar(
+            select(models.ChatMessage)
+            .where(
+                models.ChatMessage.user_id == user_id,
+                models.ChatMessage.session_id == session_id,
+                models.ChatMessage.role == "user",
+            )
+            .order_by(desc(models.ChatMessage.created_at))
+            .limit(1)
+        )
+        if source is None or re.search(r"例如|比如|朋友|他|她|不是|不对", source.content):
+            return None
+        pair = re.search(
+            r"\d{2}\s*岁\s*[,， ]+\s*(\d{3})\s+([0-9]{2,3}(?:\.[0-9]+)?)(?=\s|$)", source.content
+        )
+        if pair is None:
+            return None
+        height, weight = map(float, pair.groups())
+        clean = reply.replace("**", "")
+        if not (100 <= height <= 240 and 25 <= weight <= 300):
+            return None
+        if not re.search(rf"身高[：:\s]*{height:g}\s*cm", clean, re.I):
+            return None
+        if not re.search(rf"体重[：:\s]*{weight:g}\s*kg", clean, re.I):
+            return None
+        return {"height_cm": height, "weight_kg": weight}
 
     def expire_open_questions(self, user_id: uuid.UUID, session_id: uuid.UUID) -> int:
         questions = list(

@@ -22,6 +22,8 @@ def test_fixed_journeys_complete_every_declared_task_check():
     report = evaluate_journeys()
 
     assert report["dataset"]["independent_unit"] == "isolated_synthetic_user_journey"
+    assert report["schema_version"] == "fitagent-journey-eval/v2"
+    assert report["execution_protocol"] == "explicit_delegation_dated_proposal_approval_v2"
     assert report["summary"]["cases"] == 8
     assert report["summary"]["passed"] == 8
     assert report["summary"]["task_success_rate"] == 1.0

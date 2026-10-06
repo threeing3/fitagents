@@ -8,6 +8,7 @@ from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
 from fast_api.app.db import models
+from fast_api.app.services.decision_dependencies import DecisionDependencyService
 from fast_api.app.services.outcome_reflection_service import (
     OutcomeReflectionService,
     baseline_recovery_log_id,
@@ -108,11 +109,23 @@ class DecisionEvaluationService:
         trigger_type: str,
         now: datetime | None = None,
     ) -> dict[str, Any]:
+        from fast_api.app.services.plan_writes import lock_plan_owner
+
+        lock_plan_owner(self.db, plan.user_id)
+        if not self.db.is_modified(plan, include_collections=True):
+            self.db.refresh(plan)
         now = _aligned_now(plan.window_end, now)
-        decision = self.db.get(models.AgentDecision, plan.decision_id)
+        decision = self.db.get(models.AgentDecision, plan.decision_id, populate_existing=True)
         if decision is None:
             plan.status = "cancelled"
             return self._plan_payload(plan, reason="decision_not_found")
+
+        dependencies = DecisionDependencyService(self.db)
+        dependencies.invalidate_changed(plan.user_id)
+        if dependencies.invalidated(decision):
+            return self._plan_payload(plan, reason="dependencies_changed")
+        if plan.status not in ACTIVE_STATUSES:
+            return self._plan_payload(plan, reason="evaluation_not_active")
 
         evidence = self._collect_evidence(plan, decision)
         plan.evidence_snapshot = evidence
@@ -127,7 +140,9 @@ class DecisionEvaluationService:
             return self._plan_payload(plan, reason="safety_escalation")
 
         enough_objective = self._has_minimum_evidence(plan, evidence)
-        needs_confirmation = bool((plan.expected_action or {}).get("requires_user_confirmation"))
+        needs_confirmation = bool(
+            (plan.expected_action or {}).get("requires_user_confirmation")
+        ) or plan.evaluation_type in {"plan", "nutrition"}
         if enough_objective and (
             not needs_confirmation or implementation in {"implemented", "partially_implemented"}
         ):
@@ -141,7 +156,11 @@ class DecisionEvaluationService:
             plan.completed_at = now
             return self._plan_payload(plan, reason="evaluation_window_expired")
 
-        if needs_confirmation and plan.followup_count < 2:
+        if (
+            needs_confirmation
+            and plan.followup_count < 2
+            and not (plan.expected_action or {}).get("followup_declined")
+        ):
             self._ensure_followup(plan, "strategy_execution", trigger_type)
             plan.status = "waiting_user"
             plan.next_check_at = min(plan.window_end, now + timedelta(days=2))
@@ -157,9 +176,23 @@ class DecisionEvaluationService:
         user_id: uuid.UUID,
         answer: dict[str, Any],
     ) -> dict[str, Any]:
-        followup = self.db.get(models.DecisionFollowup, followup_id)
-        if followup is None or followup.user_id != user_id:
+        from fast_api.app.services.plan_writes import lock_plan_owner
+
+        lock_plan_owner(self.db, user_id)
+        followup = self.db.scalar(
+            select(models.DecisionFollowup)
+            .where(
+                models.DecisionFollowup.id == followup_id,
+                models.DecisionFollowup.user_id == user_id,
+            )
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if followup is None:
             raise ValueError("Decision follow-up not found")
+        DecisionDependencyService(self.db).invalidate_changed(user_id)
+        if followup.status in {"cancelled", "declined"}:
+            raise ValueError("Decision follow-up is no longer applicable")
         if followup.status == "answered":
             return self._followup_payload(followup)
         followup.answer_json = answer
@@ -190,6 +223,52 @@ class DecisionEvaluationService:
         self.db.flush()
         return self._followup_payload(followup)
 
+    def decline_followup(self, followup_id: uuid.UUID, user_id: uuid.UUID) -> dict[str, Any]:
+        """Stop questions for this evaluation without inventing an outcome or recovery."""
+        from fast_api.app.services.plan_writes import lock_plan_owner
+
+        lock_plan_owner(self.db, user_id)
+        followup = self.db.scalar(
+            select(models.DecisionFollowup)
+            .where(
+                models.DecisionFollowup.id == followup_id,
+                models.DecisionFollowup.user_id == user_id,
+            )
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if followup is None:
+            raise ValueError("Decision follow-up not found")
+        DecisionDependencyService(self.db).invalidate_changed(user_id)
+        if followup.status == "declined":
+            return self._followup_payload(followup)
+        if followup.status != "pending":
+            raise ValueError("Decision follow-up is no longer pending")
+        plan = self.db.get(
+            models.DecisionEvaluationPlan, followup.evaluation_plan_id, populate_existing=True
+        )
+        if plan is None or plan.user_id != user_id:
+            raise ValueError("Decision evaluation plan not found")
+        plan.expected_action = {**(plan.expected_action or {}), "followup_declined": True}
+        pending = self.db.scalars(
+            select(models.DecisionFollowup)
+            .where(
+                models.DecisionFollowup.user_id == user_id,
+                models.DecisionFollowup.evaluation_plan_id == plan.id,
+                models.DecisionFollowup.status == "pending",
+            )
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        ).all()
+        for item in pending:
+            item.status = "declined"
+            item.answer_json = {"followup_declined": True}
+            item.answered_at = _aligned_now(item.scheduled_at)
+        if plan.status == "waiting_user":
+            plan.status = "collecting"
+        self.db.flush()
+        return self._followup_payload(followup)
+
     def list_plans(self, user_id: uuid.UUID, limit: int = 50) -> list[dict[str, Any]]:
         plans = list(
             self.db.scalars(
@@ -216,6 +295,7 @@ class DecisionEvaluationService:
         return [self._followup_payload(item) for item in followups]
 
     def next_followup_for_delivery(self, user_id: uuid.UUID) -> dict[str, Any] | None:
+        DecisionDependencyService(self.db).invalidate_changed(user_id)
         followup = self.db.scalar(
             select(models.DecisionFollowup)
             .where(
@@ -225,6 +305,8 @@ class DecisionEvaluationService:
                 models.DecisionFollowup.scheduled_at <= _aligned_now(),
             )
             .order_by(models.DecisionFollowup.scheduled_at)
+            .with_for_update()
+            .execution_options(populate_existing=True)
         )
         if followup is None:
             return None
@@ -344,12 +426,12 @@ class DecisionEvaluationService:
         answered = self._latest_implementation_answer(plan.id)
         if answered:
             return answered
+        if plan.evaluation_type in {"plan", "nutrition"}:
+            # Activity is observable; adopting this particular advice is not.
+            # Historical inference-only cached implementation is not proof either.
+            return "unknown"
         if plan.implementation_status != "unknown":
             return plan.implementation_status
-        if plan.evaluation_type == "plan":
-            return "implemented" if evidence["workout_count"] >= 1 else "unknown"
-        if plan.evaluation_type == "nutrition":
-            return "partially_implemented" if evidence["nutrition_days"] >= 2 else "unknown"
         return "unknown"
 
     def _has_minimum_evidence(
@@ -368,7 +450,9 @@ class DecisionEvaluationService:
         question_type: str,
         trigger_type: str,
         urgent: bool = False,
-    ) -> models.DecisionFollowup:
+    ) -> models.DecisionFollowup | None:
+        if (plan.expected_action or {}).get("followup_declined"):
+            return None
         existing = self.db.scalar(
             select(models.DecisionFollowup).where(
                 models.DecisionFollowup.evaluation_plan_id == plan.id,
@@ -501,7 +585,7 @@ class DecisionEvaluationService:
             "evaluation_type": "plan",
             "window_days": 14,
             "first_check_days": 3,
-            "expected_action": {"requires_user_confirmation": False},
+            "expected_action": {"requires_user_confirmation": True},
             "objective_metrics": ["workout_count", "avg_completion_rate", "avg_fatigue_score"],
             "minimum_evidence": {"workout_count": 2},
             "subjective_questions": [self._execution_question("这份计划是否容易执行并愿意继续？")],

@@ -99,8 +99,8 @@ def test_recorded_prediction_enters_existing_gate_without_live_model(tmp_path):
 def test_recorded_prediction_does_not_override_refinement_gate(tmp_path):
     case = {
         "case_id": "gated-off",
-        "message": "我刚完成30分钟跑步，请记下来。",
-        "expected": {"workout_log_delta": 1, "plan_delta": 0},
+        "message": "你好",
+        "expected": {"workout_log_delta": 0, "plan_delta": 0},
     }
     prediction = {
         "primary_intent": "training_log",
@@ -112,6 +112,10 @@ def test_recorded_prediction_does_not_override_refinement_gate(tmp_path):
     assert outcome["recorded_prediction_supplied"]
     assert not outcome["recorded_prediction_consumed"]
     assert not outcome["runtime_route"]["intent_decision"]["provenance"]["local_model_used"]
+    assert (
+        outcome["runtime_route"]["intent_decision"]["provenance"]["cascade"]["outcome"] == "accept"
+    )
+    assert outcome["state_delta"]["workout_log"] == 0
 
 
 def test_profile_unchanged_expectation_reads_final_state(tmp_path):

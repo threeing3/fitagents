@@ -1,3 +1,4 @@
+import copy
 import hashlib
 import inspect
 import json
@@ -24,6 +25,10 @@ class ToolSchemaValidationError(ValueError):
     def __init__(self, errors: list[str]):
         self.errors = errors
         super().__init__("; ".join(errors))
+
+
+class ToolPreconditionError(ValueError):
+    """A checked write was rejected before its business mutation occurred."""
 
 
 @dataclass
@@ -120,16 +125,44 @@ class ToolRegistry:
     logged before their outputs affect the next agent step.
     """
 
-    def __init__(self):
+    def __init__(self, *, read_only: bool = False):
+        self._read_only = read_only
         self._specs: dict[str, ToolSpec] = {}
         self._handlers: dict[str, ToolHandler] = {}
         self._repair_handlers: dict[str, ToolRepairHandler] = {}
+        self._execution_guards: dict[str, Callable[[dict[str, Any]], None]] = {}
+        self._successful_calls: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {}
+
+    def successful_call(self, name: str) -> tuple[dict[str, Any], dict[str, Any]] | None:
+        """Host-only receipt; never accept a receipt supplied as tool arguments."""
+        return copy.deepcopy(self._successful_calls.get(name))
+
+    def consume_successful_call(self, name: str) -> None:
+        self._successful_calls.pop(name, None)
+
+    def read_only_view(self, allowed_names: frozenset[str]) -> "ToolRegistry":
+        """Host-selected capabilities, isolated from the workflow registry and repairs."""
+        view = ToolRegistry(read_only=True)
+        for name in allowed_names:
+            spec = self._specs.get(name)
+            if spec is not None and spec.permission_level == "read" and not spec.side_effects:
+                view.register(copy.deepcopy(spec), self._handlers[name])
+        return view
 
     def register(
-        self, spec: ToolSpec, handler: ToolHandler, repair_handler: ToolRepairHandler | None = None
+        self,
+        spec: ToolSpec,
+        handler: ToolHandler,
+        repair_handler: ToolRepairHandler | None = None,
+        *,
+        execution_guard: Callable[[dict[str, Any]], None] | None = None,
     ) -> None:
         self._specs[spec.name] = spec
         self._handlers[spec.name] = handler
+        self._successful_calls.pop(spec.name, None)
+        self._execution_guards.pop(spec.name, None)
+        if execution_guard is not None:
+            self._execution_guards[spec.name] = execution_guard
         if repair_handler is not None:
             self._repair_handlers[spec.name] = repair_handler
 
@@ -197,6 +230,11 @@ class ToolRegistry:
         name: str,
         input_json: dict[str, Any] | None = None,
         approval_manager: "ApprovalManager | None" = None,
+        *,
+        user_id: uuid.UUID | None = None,
+        session_id: uuid.UUID | None = None,
+        approval_id: str | None = None,
+        job_id: uuid.UUID | None = None,
     ) -> tuple[ToolExecutionResult, bool]:
         """Execute with approval gate. Returns (result, was_approved).
 
@@ -209,20 +247,47 @@ class ToolRegistry:
             raise ValueError(f"Tool not registered: {name}")
         spec = self._specs[name]
 
+        if approval_manager is None and (spec.side_effects or spec.permission_level != "read"):
+            raise ValueError("Write approval execution requires an explicit approval manager")
+
+        if approval_id:
+            if approval_manager is None or user_id is None:
+                raise ValueError("Approval execution requires an explicit owner")
+            from fast_api.app.services.plan_writes import lock_plan_owner
+
+            lock_plan_owner(approval_manager.db, user_id)
+            row = approval_manager.claim_action(
+                approval_id, user_id, name, input_json or {}, job_id
+            )
+            result = await self.execute(name, row.input_json)
+            row.status = (
+                "executed"
+                if result.status == "success"
+                else "stale"
+                if result.status == "blocked"
+                else "outcome_unknown"
+            )
+            approval_manager.db.flush()
+            return result, result.status == "success"
+
         # Check if approval is needed
         needs_approval = approval_manager is not None and approval_manager.requires_approval(
             name, spec.permission_level, spec.side_effects
         )
         if needs_approval:
+            if user_id is None:
+                raise ValueError("Approval creation requires an explicit owner")
             from fast_api.app.services.approval_manager import summarize_tool_for_approval
 
             approval = approval_manager.create_approval(
-                user_id=approval_manager._last_user_id,
-                session_id=approval_manager._last_session_id,
+                user_id=user_id,
+                session_id=session_id,
                 tool_name=name,
                 tool_description=spec.description,
                 permission_level=spec.permission_level,
                 input_summary=summarize_tool_for_approval(name, input_json or {}),
+                input_json=input_json or {},
+                job_id=job_id,
             )
             return ToolExecutionResult(
                 tool_name=name,
@@ -246,6 +311,18 @@ class ToolRegistry:
             raise ValueError(f"Tool not registered: {name}")
         spec = self._specs[name]
         payload = input_json or {}
+        self._successful_calls.pop(name, None)
+        if self._read_only and (spec.side_effects or spec.permission_level != "read"):
+            return ToolExecutionResult(
+                tool_name=name,
+                status="blocked",
+                latency_ms=0,
+                input_json=payload,
+                output_json={},
+                attempts=0,
+                error="Read-only model runtime cannot execute state-changing tools",
+                contract=spec.to_contract(),
+            )
         start = time.perf_counter()
         attempts = 0
         validation_errors: list[str] = []
@@ -290,6 +367,22 @@ class ToolRegistry:
                     repair_actions=repair_actions,
                     contract=contract,
                     idempotency_key=idempotency_key,
+                )
+
+        guard = self._execution_guards.get(name)
+        if guard is not None:
+            try:
+                guard(payload)
+            except ValueError as exc:
+                return ToolExecutionResult(
+                    tool_name=name,
+                    status="blocked",
+                    latency_ms=round((time.perf_counter() - start) * 1000),
+                    input_json=payload,
+                    output_json={},
+                    error=str(exc),
+                    attempts=0,
+                    contract=contract,
                 )
 
         last_error: str | None = None
@@ -342,6 +435,8 @@ class ToolRegistry:
                             )
                         await self._sleep_backoff(spec)
                         continue
+                    if not repaired:
+                        self._successful_calls[name] = copy.deepcopy((payload, output_json))
                     return ToolExecutionResult(
                         tool_name=name,
                         status="success",
@@ -354,6 +449,17 @@ class ToolRegistry:
                         repair_actions=repair_actions,
                         contract=contract,
                         idempotency_key=idempotency_key,
+                    )
+                except ToolPreconditionError as exc:
+                    return ToolExecutionResult(
+                        tool_name=name,
+                        status="blocked",
+                        latency_ms=round((time.perf_counter() - start) * 1000),
+                        input_json=payload,
+                        output_json={},
+                        error=str(exc),
+                        attempts=attempts,
+                        contract=contract,
                     )
                 except Exception as exc:
                     last_error = str(exc)
@@ -419,6 +525,10 @@ class ToolRegistry:
             if key not in payload or payload.get(key) is None:
                 errors.append(f"{label}.{key}: required")
         properties = schema.get("properties") or {}
+        if schema.get("additionalProperties") is False:
+            for key in payload:
+                if key not in properties:
+                    errors.append(f"{label}.{key}: additional property not allowed")
         for key, rules in properties.items():
             if key not in payload or payload.get(key) is None:
                 continue
@@ -441,13 +551,10 @@ class ToolRegistry:
         if isinstance(value, list) and "items" in rules:
             for index, item in enumerate(value):
                 errors.extend(self._validate_value(item, rules["items"], f"{path}[{index}]"))
-        if isinstance(value, dict) and rules.get("properties"):
-            nested_schema = {
-                "type": "object",
-                "required": rules.get("required", []),
-                "properties": rules.get("properties", {}),
-            }
-            errors.extend(self._validate_schema(value, nested_schema, path))
+        if isinstance(value, dict) and any(
+            key in rules for key in ("properties", "required", "additionalProperties")
+        ):
+            errors.extend(self._validate_schema(value, rules, path))
         return errors
 
     def _matches_type(self, value: Any, expected_type: str | list[str]) -> bool:
@@ -1258,7 +1365,13 @@ class AgentPlanner:
                 else "low"
             ),
             plan_generation_allowed=plan_allowed,
-            reasoning_summary="Rule planner fallback selected a conservative current-message-first tool plan.",
+            reasoning_summary=(
+                "Reuse current-turn task dispatch; deterministic host control selects guarded tools."
+                if intent_decision
+                and intent_decision.get("provenance", {}).get("routing_mode")
+                == "lightweight_delegation_v1"
+                else "Rule planner fallback selected a conservative current-message-first tool plan."
+            ),
         )
 
     def classify_intent(self, message: str) -> str:

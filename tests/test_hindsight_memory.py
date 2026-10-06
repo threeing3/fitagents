@@ -3,14 +3,16 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import sessionmaker
 
 from fast_api.app.db import models
 from fast_api.app.db.database import Base
-from fast_api.app.services.context_builder import ContextBuilder
 from fast_api.app.services.coach_agent import CoachAgentService
+from fast_api.app.services.context_builder import ContextBuilder
+from fast_api.app.services.decision_evaluation import DecisionEvaluationService
 from fast_api.app.services.fitness_knowledge import FitnessKnowledgeService
 from fast_api.app.services.memory_system import MemoryManager
 from fast_api.app.services.reflection_service import ReflectionService
@@ -45,8 +47,12 @@ def test_search_memory_by_network():
     db = make_db()
     user_id = uuid.uuid4()
     manager = MemoryManager(db)
-    manager.retain_memory(user_id, "用户喜欢外卖减脂方案。", "world", "nutrition_event", category="nutrition")
-    manager.retain_memory(user_id, "Agent 曾建议保守进阶。", "experience", "agent_action", category="decision")
+    manager.retain_memory(
+        user_id, "用户喜欢外卖减脂方案。", "world", "nutrition_event", category="nutrition"
+    )
+    manager.retain_memory(
+        user_id, "Agent 曾建议保守进阶。", "experience", "agent_action", category="decision"
+    )
 
     results = manager.search_memories(user_id, "建议", memory_network="experience")
 
@@ -176,7 +182,9 @@ def test_keyword_candidates_prefers_postgres_fts_sql():
     fake_db = FakeDB()
     manager = MemoryManager(fake_db)  # type: ignore[arg-type]
 
-    candidates, scores = manager._keyword_candidates("bench keyword", [models.LongTermMemory.user_id == memory.user_id], 3)
+    candidates, scores = manager._keyword_candidates(
+        "bench keyword", [models.LongTermMemory.user_id == memory.user_id], 3
+    )
 
     sql = str(fake_db.statement.compile(dialect=postgresql.dialect()))
     assert candidates == [memory]
@@ -285,17 +293,25 @@ def test_search_memory_risk_priority_beats_generic_high_importance():
 def test_reflection_creates_observation_and_opinion():
     db = make_db()
     user_id = uuid.uuid4()
-    db.add(models.RecoveryLog(user_id=user_id, log_date=date.today(), sleep_hours=5, fatigue_score=8))
-    db.add(models.SymptomLog(user_id=user_id, symptom_date=date.today(), symptom_type="pain", status="active"))
-    db.add(models.AgentDecision(
-        user_id=user_id,
-        decision_type="progression",
-        input_summary="用户疲劳高",
-        context_used={},
-        decision_result="hold_load",
-        reason="sleep poor and fatigue high",
-        confidence_score=0.8,
-    ))
+    db.add(
+        models.RecoveryLog(user_id=user_id, log_date=date.today(), sleep_hours=5, fatigue_score=8)
+    )
+    db.add(
+        models.SymptomLog(
+            user_id=user_id, symptom_date=date.today(), symptom_type="pain", status="active"
+        )
+    )
+    db.add(
+        models.AgentDecision(
+            user_id=user_id,
+            decision_type="progression",
+            input_summary="用户疲劳高",
+            context_used={},
+            decision_result="hold_load",
+            reason="sleep poor and fatigue high",
+            confidence_score=0.8,
+        )
+    )
     db.flush()
 
     result = ReflectionService(db).reflect_user_memory(user_id)
@@ -304,7 +320,10 @@ def test_reflection_creates_observation_and_opinion():
     networks = {item["memory_network"] for item in result["memories"]}
     assert networks == {"observation", "opinion"}
     assert all(item["evidence"] for item in result["memories"])
-    assert all({"table", "id", "summary", "time"}.issubset(item["evidence"][0]) for item in result["memories"])
+    assert all(
+        {"table", "id", "summary", "time"}.issubset(item["evidence"][0])
+        for item in result["memories"]
+    )
 
 
 def test_opinion_memory_without_evidence_is_rejected():
@@ -385,7 +404,14 @@ def test_context_builder_adds_opinion_evidence_summary():
                 {
                     "memory_network": "opinion",
                     "summary": "coach judgment",
-                    "evidence": [{"table": "recovery_logs", "id": "r1", "summary": "fatigue high", "time": "2026-06-11"}],
+                    "evidence": [
+                        {
+                            "table": "recovery_logs",
+                            "id": "r1",
+                            "summary": "fatigue high",
+                            "time": "2026-06-11",
+                        }
+                    ],
                 }
             ]
 
@@ -399,13 +425,20 @@ def test_context_builder_adds_opinion_evidence_summary():
     assert "recovery_logs: fatigue high" in packet["opinion_memories"][0]["evidence_summary"]
 
 
-def test_correction_goal_fat_loss_to_muscle_gain_creates_link_and_supersedes_old():
+def test_correction_preference_change_creates_link_and_supersedes_old():
     db = make_db()
     user_id = uuid.uuid4()
     manager = MemoryManager(db)
-    old = manager.retain_memory(user_id, "用户目标是减脂。", "world", "user_profile_fact", category="profile")
+    old = manager.retain_memory(
+        user_id, "用户喜欢晨练。", "world", "user_preference", category="preference"
+    )
 
-    result = manager.handle_correction_flow(user_id, "不对，我目标改了，现在不是减脂，是增肌。", category="profile")
+    result = manager.handle_correction_flow(
+        user_id,
+        "不对，我的训练时间偏好改了，现在喜欢晚练。",
+        category="preference",
+        corrected_memory_ids=[old.id],
+    )
 
     assert result["correction_detected"] is True
     assert result["memory"].memory_network == "world"
@@ -421,48 +454,72 @@ def test_add_memory_enters_correction_flow_on_correction_signal():
     db = make_db()
     user_id = uuid.uuid4()
     manager = MemoryManager(db)
-    old = manager.retain_memory(user_id, "用户目标是减脂。", "world", "user_profile_fact", category="profile")
+    old = manager.retain_memory(
+        user_id, "用户喜欢晨练。", "world", "user_preference", category="preference"
+    )
 
     memory = manager.add_memory(
         user_id,
         {
-            "memory_type": "user_profile_fact",
-            "category": "profile",
-            "content": "不对，现在不是减脂，目标改了是增肌。",
+            "memory_type": "user_preference",
+            "category": "preference",
+            "content": "不对，现在不是晨练，偏好改了是晚练。",
+            "corrected_memory_ids": [old.id],
         },
     )
 
     assert memory.fact_kind == "correction"
     assert old.status == "superseded"
-    assert db.scalar(select(models.MemoryLink).where(models.MemoryLink.target_memory_id == old.id)) is not None
+    assert (
+        db.scalar(select(models.MemoryLink).where(models.MemoryLink.target_memory_id == old.id))
+        is not None
+    )
 
 
-def test_correction_risk_active_to_resolved_supersedes_old_risk():
+def test_direct_risk_correction_requires_verified_chat_flow():
     db = make_db()
     user_id = uuid.uuid4()
     manager = MemoryManager(db)
-    old = manager.retain_memory(user_id, "用户膝盖疼痛风险 active。", "world", "health_fact", category="risk")
+    old = manager.retain_memory(
+        user_id, "用户膝盖疼痛风险 active。", "world", "health_fact", category="risk"
+    )
 
-    result = manager.handle_correction_flow(user_id, "已经好了，医生说膝盖疼痛风险现在不是 active。", category="risk")
-
-    assert result["memory"].category == "risk"
-    assert old.status == "superseded"
-    link = db.scalar(select(models.MemoryLink).where(models.MemoryLink.target_memory_id == old.id))
-    assert link is not None
-    assert link.link_type == "contradicts"
+    with pytest.raises(ValueError, match="verified chat flow"):
+        manager.handle_correction_flow(
+            user_id,
+            "已经好了，医生说膝盖疼痛风险现在不是 active。",
+            category="risk",
+            corrected_memory_ids=[old.id],
+        )
+    assert old.status == "active"
 
 
 def test_correction_nutrition_preference_change_updates_old_memory():
     db = make_db()
     user_id = uuid.uuid4()
     manager = MemoryManager(db)
-    old = manager.retain_memory(user_id, "用户饮食偏好是素食。", "world", "nutrition_event", category="nutrition")
+    old = manager.retain_memory(
+        user_id, "用户饮食偏好是素食。", "world", "nutrition_event", category="nutrition"
+    )
 
-    result = manager.handle_correction_flow(user_id, "饮食偏好改了，现在不是素食了，可以吃鱼。", category="nutrition")
+    result = manager.handle_correction_flow(
+        user_id,
+        "饮食偏好改了，现在不是素食了，可以吃鱼。",
+        category="nutrition",
+        corrected_memory_ids=[old.id],
+    )
 
     assert result["memory"].category == "nutrition"
     assert old.status == "superseded"
-    assert db.scalar(select(models.MemoryCatalog).where(models.MemoryCatalog.user_id == user_id, models.MemoryCatalog.category == "nutrition")) is not None
+    assert (
+        db.scalar(
+            select(models.MemoryCatalog).where(
+                models.MemoryCatalog.user_id == user_id,
+                models.MemoryCatalog.category == "nutrition",
+            )
+        )
+        is not None
+    )
 
 
 def test_weekly_reflection_full_week_creates_observations_and_opinion():
@@ -472,15 +529,31 @@ def test_weekly_reflection_full_week_creates_observations_and_opinion():
     week_end = date(2026, 6, 7)
     for index in range(4):
         day = week_start + timedelta(days=index)
-        db.add(models.WorkoutLog(user_id=user_id, performed_at=datetime.combine(day, datetime.min.time()), workout_name=f"Workout {index}", rpe=7))
-        db.add(models.NutritionDailySummary(user_id=user_id, summary_date=day, total_protein_g=120 + index, adherence_score=0.8))
+        db.add(
+            models.WorkoutLog(
+                user_id=user_id,
+                performed_at=datetime.combine(day, datetime.min.time()),
+                workout_name=f"Workout {index}",
+                rpe=7,
+            )
+        )
+        db.add(
+            models.NutritionDailySummary(
+                user_id=user_id, summary_date=day, total_protein_g=120 + index, adherence_score=0.8
+            )
+        )
         db.add(models.RecoveryLog(user_id=user_id, log_date=day, sleep_hours=7, fatigue_score=4))
     db.flush()
 
     result = ReflectionService(db).reflect_weekly(user_id, week_start, week_end)
 
     fact_kinds = {item["fact_kind"] for item in result["memories"]}
-    assert {"weekly_training_observation", "weekly_nutrition_observation", "weekly_recovery_observation", "coach_opinion"}.issubset(fact_kinds)
+    assert {
+        "weekly_training_observation",
+        "weekly_nutrition_observation",
+        "weekly_recovery_observation",
+        "coach_opinion",
+    }.issubset(fact_kinds)
     assert all(item["evidence"] for item in result["memories"])
     assert all({"summary", "time"}.issubset(item["evidence"][0]) for item in result["memories"])
 
@@ -490,7 +563,14 @@ def test_weekly_reflection_insufficient_data_does_not_create_opinion():
     user_id = uuid.uuid4()
     week_start = date(2026, 6, 1)
     week_end = date(2026, 6, 7)
-    db.add(models.WorkoutLog(user_id=user_id, performed_at=datetime.combine(week_start, datetime.min.time()), workout_name="One workout", rpe=7))
+    db.add(
+        models.WorkoutLog(
+            user_id=user_id,
+            performed_at=datetime.combine(week_start, datetime.min.time()),
+            workout_name="One workout",
+            rpe=7,
+        )
+    )
     db.flush()
 
     result = ReflectionService(db).reflect_weekly(user_id, week_start, week_end)
@@ -499,9 +579,40 @@ def test_weekly_reflection_insufficient_data_does_not_create_opinion():
     assert any(item["fact_kind"] == "weekly_training_observation" for item in result["memories"])
 
 
-def test_reflect_decision_outcomes_creates_strategy_experience_memory():
+def add_execution_confirmation(db, decision, implementation_status):
+    plan = DecisionEvaluationService(db).create_for_decision(decision)
+    db.add(
+        models.DecisionFollowup(
+            evaluation_plan_id=plan.id,
+            user_id=decision.user_id,
+            question_type="implementation_check",
+            question_payload={},
+            status="answered",
+            answered_at=datetime.utcnow(),
+            answer_json={"implementation_status": implementation_status},
+        )
+    )
+    db.flush()
+    return plan
+
+
+@pytest.mark.parametrize(
+    "implementation_status",
+    [
+        "implemented",
+        "partially_implemented",
+        "unknown",
+        "not_started",
+        "abandoned",
+        "no_answer",
+        "missing_plan",
+    ],
+)
+def test_reflect_decision_outcomes_requires_execution_evidence(implementation_status):
     db = make_db()
     user_id = uuid.uuid4()
+    db.add(models.User(id=user_id, email=f"{user_id}@example.test", password_hash="synthetic"))
+    db.flush()
     decision_time = datetime.utcnow() - timedelta(days=3)
     decision = models.AgentDecision(
         user_id=user_id,
@@ -515,32 +626,54 @@ def test_reflect_decision_outcomes_creates_strategy_experience_memory():
     )
     db.add(decision)
     db.flush()
-    db.add(models.WorkoutLog(
-        user_id=user_id,
-        performed_at=decision_time + timedelta(days=1),
-        workout_name="Pain-free lower body",
-        rpe=6,
-        completion_rate=0.9,
-        notes="Completed reduced-load session without pain.",
-    ))
-    db.add(models.RecoveryLog(
-        user_id=user_id,
-        log_date=(decision_time + timedelta(days=1)).date(),
-        sleep_hours=7.5,
-        fatigue_score=4,
-    ))
-    db.add(models.SymptomLog(
-        user_id=user_id,
-        symptom_date=(decision_time + timedelta(days=1)).date(),
-        symptom_type="pain",
-        severity_score=2,
-        status="monitoring",
-    ))
+    db.add(
+        models.WorkoutLog(
+            user_id=user_id,
+            performed_at=decision_time + timedelta(days=1),
+            workout_name="Pain-free lower body",
+            rpe=6,
+            completion_rate=0.9,
+            notes="Completed reduced-load session without pain.",
+        )
+    )
+    db.add(
+        models.RecoveryLog(
+            user_id=user_id,
+            log_date=(decision_time + timedelta(days=1)).date(),
+            sleep_hours=7.5,
+            fatigue_score=4,
+        )
+    )
+    db.add(
+        models.SymptomLog(
+            user_id=user_id,
+            symptom_date=(decision_time + timedelta(days=1)).date(),
+            symptom_type="pain",
+            severity_score=2,
+            status="monitoring",
+        )
+    )
     db.flush()
 
+    if implementation_status == "no_answer":
+        DecisionEvaluationService(db).create_for_decision(decision)
+    elif implementation_status != "missing_plan":
+        add_execution_confirmation(db, decision, implementation_status)
     result = ReflectionService(db).reflect_decision_outcomes(user_id)
 
+    if implementation_status not in {"implemented", "partially_implemented"}:
+        assert result["created_count"] == 0
+        assert result["memories"] == []
+        assert db.scalar(select(models.DecisionOutcome)) is None
+        expected = (
+            "missing_evaluation_plan"
+            if implementation_status == "missing_plan"
+            else "waiting_for_user_confirmation"
+        )
+        assert result["skipped"][0]["reason"] == expected
+        return
     assert result["created_count"] == 1
+    assert result["outcomes"][0]["metrics"]["implementation_status"] == implementation_status
     assert result["outcomes"][0]["outcome_status"] == "improved"
     assert result["outcomes"][0]["metrics"]["avg_completion_rate"] == 0.9
     assert result["memories"][0]["memory_network"] == "experience"
@@ -551,10 +684,13 @@ def test_reflect_decision_outcomes_creates_strategy_experience_memory():
     assert "Outcome-aware coaching experience" in memory.content
 
 
-def test_reflect_decision_outcomes_is_idempotent_for_existing_outcome():
+@pytest.mark.parametrize("nutrition_days", [1, 3])
+def test_reflect_decision_outcomes_is_idempotent_for_existing_outcome(nutrition_days):
     db = make_db()
     user_id = uuid.uuid4()
-    decision_time = datetime.utcnow() - timedelta(days=2)
+    db.add(models.User(id=user_id, email=f"{user_id}@example.test", password_hash="synthetic"))
+    db.flush()
+    decision_time = datetime.utcnow() - timedelta(days=4)
     decision = models.AgentDecision(
         user_id=user_id,
         decision_type="nutrition_strategy",
@@ -567,20 +703,42 @@ def test_reflect_decision_outcomes_is_idempotent_for_existing_outcome():
     )
     db.add(decision)
     db.flush()
-    db.add(models.NutritionDailySummary(
-        user_id=user_id,
-        summary_date=(decision_time + timedelta(days=1)).date(),
-        total_protein_g=135,
-        target_protein_g=140,
-        adherence_score=0.82,
-        summary_text="Hit the takeout protein target.",
-    ))
+    db.add(
+        models.NutritionDailySummary(
+            user_id=user_id,
+            summary_date=(decision_time + timedelta(days=1)).date(),
+            total_protein_g=135,
+            target_protein_g=140,
+            adherence_score=0.82,
+            summary_text="Hit the takeout protein target.",
+        )
+    )
     db.flush()
     service = ReflectionService(db)
+    add_execution_confirmation(db, decision, "implemented")
+    for offset in range(2, nutrition_days + 1):
+        db.add(
+            models.NutritionDailySummary(
+                user_id=user_id,
+                summary_date=(decision_time + timedelta(days=offset)).date(),
+                total_protein_g=135,
+                target_protein_g=140,
+                adherence_score=0.82,
+            )
+        )
+    db.flush()
 
     first = service.reflect_decision_outcomes(user_id)
     second = service.reflect_decision_outcomes(user_id)
 
+    if nutrition_days < 3:
+        assert first["created_count"] == second["created_count"] == 0
+        assert first["skipped"][0]["reason"] == "waiting_for_user_confirmation"
+        plan = db.scalar(select(models.DecisionEvaluationPlan))
+        assert plan.implementation_status == "implemented"
+        assert plan.evidence_snapshot["nutrition_days"] == 1
+        assert db.scalar(select(models.DecisionOutcome)) is None
+        return
     assert first["created_count"] == 1
     assert first["outcomes"][0]["outcome_type"] == "nutrition_outcome"
     assert first["memories"][0]["fact_kind"] == "strategy_experience"
@@ -655,7 +813,10 @@ def test_local_coaching_reply_includes_strategy_memory_guidance():
     reply = service._local_coaching_fallback(profile, plan, context_packet)
 
     assert "Strategy memory guidance:" in reply
-    assert "Do not reuse any strategy that conflicts with active risk notes or decision rules." in reply
+    assert (
+        "Do not reuse any strategy that conflicts with active risk notes or decision rules."
+        in reply
+    )
     assert "Reuse prior successful strategy only if similar" in reply
     assert "Reduced-load training improved completion" in reply
     assert "Avoid repeating prior failed strategy" in reply

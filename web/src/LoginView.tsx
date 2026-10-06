@@ -87,8 +87,8 @@ export function LoginView() {
         </button>
         <div className="login-brand">
           <Dumbbell size={28} />
-          <h1>AI Fitness Coach</h1>
-          <p>{isZh ? "一个账号，一套隔离的私人教练记忆" : "One account, one private coaching memory space"}</p>
+          <h1>FitAgent</h1>
+          <p>{isZh ? "你的训练，你来决定。记录、计划与长期记忆都属于你。" : "Your training. Your decisions. Your records, plans and memory."}</p>
         </div>
 
         <form className="login-form" onSubmit={handleSubmit}>
@@ -193,7 +193,7 @@ export function LoginView() {
           <p className="login-hint">
             {mode === "login"
               ? (isZh ? "可使用邮箱或用户名登录。" : "You can sign in with either your email address or username.")
-              : (isZh ? "训练记录、记忆和计划会隔离在你的账号下。" : "Your coach history, memory, plans, and logs are isolated under this account.")}
+              : (isZh ? "训练记录、记忆和计划会隔离在你的账号下。" : "Your history, memory, plans and logs are isolated under this account.")}
           </p>
 
           <button type="submit" className="login-submit" disabled={busy}>
@@ -215,7 +215,7 @@ export function LoginView() {
 
         {busy && (
           <p className="cold-start-copy">
-            {isZh ? "免费服务可能正在唤醒，首次请求可能需要约一分钟。" : "The free service may be waking up; the first request can take about a minute."}
+            {isZh ? "正在连接服务并验证账号……" : "Connecting and verifying your account…"}
           </p>
         )}
 

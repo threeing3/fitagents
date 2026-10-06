@@ -2,7 +2,7 @@ from datetime import date, datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class UserProfileInput(BaseModel):
@@ -43,6 +43,8 @@ class ChatHistoryMessageResponse(BaseModel):
     role: str
     content: str
     created_at: datetime
+    execution_events: list[dict[str, Any]] = Field(default_factory=list)
+    agent_run_id: UUID | None = None
 
 
 class ChatMessageRequest(BaseModel):
@@ -90,12 +92,39 @@ class WorkoutLogRequest(BaseModel):
     notes: str | None = None
 
 
+class WorkoutFactPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    duration_minutes: int | None = Field(default=None, ge=1, le=1440)
+    rpe: int | None = Field(default=None, ge=1, le=10)
+    completion_rate: float | None = Field(default=None, ge=0, le=1)
+
+
+class WorkoutCorrectionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    idempotency_key: str = Field(min_length=1, max_length=128)
+    expected_revision: int = Field(ge=0)
+    expected: WorkoutFactPatch
+    changes: WorkoutFactPatch
+    reason: str = Field(min_length=1, max_length=1000)
+
+    @model_validator(mode="after")
+    def require_matching_fields(self):
+        if not self.idempotency_key.strip() or not self.reason.strip():
+            raise ValueError("Correction key and reason cannot be blank")
+        if not self.changes.model_fields_set:
+            raise ValueError("Specify at least one corrected fact")
+        if self.expected.model_fields_set != self.changes.model_fields_set:
+            raise ValueError("Expected values must cover exactly the corrected fields")
+        return self
+
+
 class PlanGenerateRequest(BaseModel):
     user_id: UUID | None = None
     force: bool = False
     plan_days: int = Field(default=7, ge=1, le=14)
     target_date: date | None = None
     exercise_type: str | None = None
+    replace_date: date | None = None
 
 
 class PlanAdjustRequest(BaseModel):
@@ -130,6 +159,8 @@ class DashboardResponse(BaseModel):
     profile: dict[str, Any]
     missing_slots: list[str]
     today_plan: dict[str, Any]
+    active_plan: dict[str, Any] | None = None
+    timezone: str = "Asia/Shanghai"
     latest_checkin: dict[str, Any] | None
     recent_memories: list[dict[str, Any]]
     active_tasks: list[dict[str, Any]] = Field(default_factory=list)
@@ -168,6 +199,7 @@ class EvalRunResponse(BaseModel):
 
 class MemoryItemCreate(BaseModel):
     user_id: UUID | None = None
+    corrected_memory_ids: list[UUID] = Field(default_factory=list)
     memory_type: str = "episodic"
     memory_network: str = "world"
     fact_kind: str = "unknown"

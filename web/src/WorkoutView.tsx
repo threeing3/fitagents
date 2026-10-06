@@ -3,6 +3,7 @@ import { AlertTriangle, CheckCircle, Dumbbell, Plus, RotateCcw, Send, Trash2 } f
 
 import { logWorkout } from "./api";
 import { useLanguage } from "./LanguageContext";
+import { WorkoutCorrectionPanel } from "./WorkoutCorrectionPanel";
 import type { SessionState } from "./types";
 
 type Props = {
@@ -71,6 +72,7 @@ export function WorkoutView({ session, busy, setBusy, setNotice, onRefresh }: Pr
   const [exercises, setExercises] = useState<ExerciseRow[]>([exerciseRow()]);
   const [pending, setPending] = useState<PendingWorkout | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const [correctionRefresh, setCorrectionRefresh] = useState(0);
 
   useEffect(() => {
     if (!session) {
@@ -137,6 +139,7 @@ export function WorkoutView({ session, busy, setBusy, setNotice, onRefresh }: Pr
             : "Workout saved.",
       );
       onRefresh();
+      setCorrectionRefresh((value) => value + 1);
       setTimeout(() => setSubmitted(false), 2500);
     } catch (error: any) {
       setNotice(
@@ -313,6 +316,7 @@ export function WorkoutView({ session, busy, setBusy, setNotice, onRefresh }: Pr
           </button>
         )}
       </div>
+      {session && <WorkoutCorrectionPanel key={session.user_id} userId={session.user_id} refreshKey={correctionRefresh} onRefresh={onRefresh} />}
     </div>
   );
 }

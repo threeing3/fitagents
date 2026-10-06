@@ -15,7 +15,6 @@ Design principles:
 - Never silently drop safety-critical context (risk notes, guardrail output)
 """
 
-import hashlib
 import json
 import logging
 from dataclasses import dataclass, field
@@ -48,14 +47,14 @@ MODEL_WINDOWS: dict[str, int] = {
 }
 
 # Budget allocation (fractions of total context window)
-SYSTEM_PROMPT_BUDGET = 0.05      # System prompt gets 5% of window
-PROFILE_BUDGET = 0.03            # User profile gets 3%
-PLAN_BUDGET = 0.10               # Active plan gets 10%
-RISK_NOTES_BUDGET = 0.02         # Risk notes always included (safety-critical)
-MEMORY_BUDGET = 0.20             # Retrieved memories get 20%
-KNOWLEDGE_BUDGET = 0.15          # Knowledge base gets 15%
-HISTORY_BUDGET = 0.30            # Conversation history gets 30%
-OUTPUT_RESERVE = 0.15            # Reserve 15% for model output
+SYSTEM_PROMPT_BUDGET = 0.05  # System prompt gets 5% of window
+PROFILE_BUDGET = 0.03  # User profile gets 3%
+PLAN_BUDGET = 0.10  # Active plan gets 10%
+RISK_NOTES_BUDGET = 0.02  # Risk notes always included (safety-critical)
+MEMORY_BUDGET = 0.20  # Retrieved memories get 20%
+KNOWLEDGE_BUDGET = 0.15  # Knowledge base gets 15%
+HISTORY_BUDGET = 0.30  # Conversation history gets 30%
+OUTPUT_RESERVE = 0.15  # Reserve 15% for model output
 
 # Safety-critical context that should never be trimmed
 SAFETY_KEYS = {"active_risk_notes", "current_request_policy", "guardrail_flags"}
@@ -127,12 +126,8 @@ class ContextWindowManager:
         self.budgets["profile"] = TokenBudget(
             "user_profile", int(self.total_tokens * PROFILE_BUDGET)
         )
-        self.budgets["plan"] = TokenBudget(
-            "active_plan", int(self.total_tokens * PLAN_BUDGET)
-        )
-        self.budgets["risk"] = TokenBudget(
-            "risk_notes", int(self.total_tokens * RISK_NOTES_BUDGET)
-        )
+        self.budgets["plan"] = TokenBudget("active_plan", int(self.total_tokens * PLAN_BUDGET))
+        self.budgets["risk"] = TokenBudget("risk_notes", int(self.total_tokens * RISK_NOTES_BUDGET))
         self.budgets["memory"] = TokenBudget(
             "retrieved_memories", int(self.total_tokens * MEMORY_BUDGET)
         )
@@ -163,7 +158,8 @@ class ContextWindowManager:
         if tokens > budget.max_tokens:
             logger.warning(
                 "System prompt (%d tokens) exceeds budget (%d tokens). Consider trimming.",
-                tokens, budget.max_tokens,
+                tokens,
+                budget.max_tokens,
             )
         budget.used_tokens = tokens
 
@@ -181,7 +177,61 @@ class ContextWindowManager:
 
     def set_memories(self, memories: list[dict[str, Any]]) -> None:
         self._memories = memories
-        self._fit_to_budget("memory", self._memories, "summary")
+        self._fit_memory_records(memories)
+
+    @staticmethod
+    def _protected_memory(memory: dict[str, Any]) -> bool:
+        return memory.get("category") == "risk" or "risk_facts" in (
+            memory.get("retrieval_plan_labels") or []
+        )
+
+    def _fit_memory_records(self, memories: list[dict[str, Any]]) -> None:
+        """Account for full records; never truncate protected risk or provenance fields."""
+        budget = self.budgets["memory"]
+        diagnostics: dict[str, list[str]] = {"unfit_ids": [], "protected_overflow_ids": []}
+        self.memory_budget_diagnostics = diagnostics
+        selected: list[dict[str, Any]] = []
+        ordered = sorted(memories, key=lambda item: not self._protected_memory(item))
+        for item in ordered:
+            protected = self._protected_memory(item)
+            if estimate_dict_tokens([*selected, item]) <= budget.max_tokens or protected:
+                selected.append(item)
+                if protected and estimate_dict_tokens(selected) > budget.max_tokens:
+                    diagnostics["protected_overflow_ids"].append(str(item.get("id", "unknown")))
+            else:
+                diagnostics["unfit_ids"].append(str(item.get("id", "unknown")))
+
+        # If no complete ordinary record fits, retain an explicitly partial text view.
+        # Evidence and metadata remain untouched: if those cannot fit, do not fake a fit.
+        if not selected and ordered:
+            item = ordered[0]
+            fields = [key for key in ("summary", "content") if isinstance(item.get(key), str)]
+            low, high = 0, max((len(item[key]) for key in fields), default=0)
+            fitted = None
+            while low <= high:
+                length = (low + high) // 2
+                candidate = dict(item)
+                candidate["_context_text_truncated"] = True
+                for key in fields:
+                    text = item[key]
+                    candidate[key] = text[:length] + (
+                        "\n...[truncated]" if len(text) > length else ""
+                    )
+                if estimate_dict_tokens([candidate]) <= budget.max_tokens:
+                    fitted = candidate
+                    low = length + 1
+                else:
+                    high = length - 1
+            if fitted is not None:
+                selected = [fitted]
+                diagnostics["unfit_ids"] = diagnostics["unfit_ids"][1:]
+
+        budget.items = selected
+        budget.used_tokens = estimate_dict_tokens(selected)
+        budget.truncated = selected != memories
+        if budget.truncated:
+            self.total_trimmed_items += max(0, len(memories) - len(selected))
+            self.compaction_count += 1
 
     def set_knowledge(self, knowledge: dict[str, Any]) -> None:
         """Set knowledge context, compacting if needed."""
@@ -202,9 +252,7 @@ class ContextWindowManager:
 
     # ---- Compaction ----
 
-    def _fit_to_budget(
-        self, budget_name: str, items: list[dict[str, Any]], text_key: str
-    ) -> None:
+    def _fit_to_budget(self, budget_name: str, items: list[dict[str, Any]], text_key: str) -> None:
         """Fit items into the budget, trimming oldest/least-relevant first.
 
         Strategy (mirrors Claude Code's approach):
@@ -264,14 +312,19 @@ class ContextWindowManager:
 
         budget.used_tokens = used
         budget.items = kept
-        budget.truncated = trimmed > 0
+        budget.truncated = trimmed > 0 or kept != items
 
-        if trimmed > 0:
+        if budget.truncated:
             self.total_trimmed_items += trimmed
             self.compaction_count += 1
             logger.info(
                 "Context compaction: %s kept %d/%d items (%d trimmed), using %d/%d tokens",
-                budget_name, len(kept), len(items), trimmed, used, budget.max_tokens,
+                budget_name,
+                len(kept),
+                len(items),
+                trimmed,
+                used,
+                budget.max_tokens,
             )
 
     def _compact_knowledge(self, knowledge: dict[str, Any]) -> dict[str, Any]:
@@ -307,7 +360,8 @@ class ContextWindowManager:
         # Keep debug info compact
         if "debug" in knowledge:
             compacted["debug"] = {
-                k: v for k, v in knowledge["debug"].items()
+                k: v
+                for k, v in knowledge["debug"].items()
                 if k in {"matched_rule_ids", "matched_template_ids", "memory_top_k"}
             }
 
@@ -353,14 +407,15 @@ class ContextWindowManager:
                 summary = mem.get("summary") or mem.get("content", "")[:200]
                 memory_text += f"- {summary}\n"
             if self.budgets["memory"].truncated:
-                memory_text += f"... ({self.total_trimmed_items} items trimmed for context limits)\n"
+                memory_text += (
+                    f"... ({self.total_trimmed_items} items trimmed for context limits)\n"
+                )
             sections.append(memory_text)
 
         # 6. Knowledge base
         if self._knowledge:
             sections.append(
-                "Knowledge Context:\n"
-                + json.dumps(self._knowledge, ensure_ascii=False, indent=2)
+                "Knowledge Context:\n" + json.dumps(self._knowledge, ensure_ascii=False, indent=2)
             )
 
         # 7. Conversation history
@@ -405,6 +460,9 @@ class ContextWindowManager:
         """Return compaction and budget statistics."""
         return {
             "model_name": self.model_name,
+            "memory_budget_diagnostics": getattr(
+                self, "memory_budget_diagnostics", {"unfit_ids": [], "protected_overflow_ids": []}
+            ),
             "total_window_tokens": self.total_tokens,
             "budgets": {
                 name: {
@@ -467,6 +525,35 @@ def build_context_packet_with_budget(
     if manager.budgets["memory"].truncated:
         compacted_packet["relevant_memories"] = manager.budgets["memory"].items
         compacted_packet["_memory_truncated"] = True
+        selected = manager.budgets["memory"].items
+        by_id = {str(item["id"]): item for item in selected if item.get("id") is not None}
+        networks = {
+            "world_memories": "world",
+            "experience_memories": "experience",
+            "observation_memories": "observation",
+            "opinion_memories": "opinion",
+        }
+        for key, network in networks.items():
+            if key in compacted_packet:
+                compacted_packet[key] = [
+                    item for item in selected if item.get("memory_network", "world") == network
+                ]
+        guidance = context_packet.get("strategy_memory_guidance")
+        if isinstance(guidance, dict):
+            projected = dict(guidance)
+            for key in ("successful_strategies", "failed_strategies"):
+                if key not in guidance:
+                    continue
+                projected[key] = [
+                    {
+                        **item,
+                        "summary": by_id[str(item["id"])].get("summary"),
+                        "content": by_id[str(item["id"])].get("content"),
+                    }
+                    for item in guidance[key]
+                    if isinstance(item, dict) and str(item.get("id")) in by_id
+                ]
+            compacted_packet["strategy_memory_guidance"] = projected
 
     if manager.budgets["knowledge"].truncated:
         compacted_packet["knowledge_context"] = manager._knowledge

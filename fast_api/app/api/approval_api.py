@@ -6,10 +6,10 @@ write operations, the user sees what will happen, and explicitly approves or den
 
 import logging
 from typing import Any
-from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from fast_api.app.core.auth import get_current_user
@@ -17,8 +17,8 @@ from fast_api.app.db import models
 from fast_api.app.db.database import get_db
 from fast_api.app.services.approval_manager import (
     ApprovalManager,
-    ApprovalAction,
 )
+from fast_api.app.services.background_trace_reference import background_trace_reference
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +40,7 @@ class PendingApprovalResponse(BaseModel):
     context: dict[str, Any]
     status: str
     created_at: str
+    expires_at: str
 
 
 class ApprovalStatsResponse(BaseModel):
@@ -48,18 +49,9 @@ class ApprovalStatsResponse(BaseModel):
     total_decisions: int
 
 
-# ---- In-memory approval manager (per-request lifecycle) ----
-# In production, this would be backed by Redis or a DB table for multi-process support.
-_approval_managers: dict[str, ApprovalManager] = {}
-
-
 def _get_manager(db: Session = Depends(get_db)) -> ApprovalManager:
-    """Get or create an ApprovalManager for the current session context."""
-    # Simple strategy: one manager per db session for the request lifecycle
-    key = str(id(db))
-    if key not in _approval_managers:
-        _approval_managers[key] = ApprovalManager(db)
-    return _approval_managers[key]
+    """Each request reads the same durable approval records."""
+    return ApprovalManager(db)
 
 
 @approval_router.get("/pending", response_model=list[PendingApprovalResponse])
@@ -69,6 +61,7 @@ def list_pending_approvals(
 ) -> list[dict[str, Any]]:
     """List all pending approval requests for the current user."""
     pending = manager.get_pending(current_user.id)
+    manager.db.commit()
     return [
         {
             "approval_id": a.approval_id,
@@ -79,9 +72,52 @@ def list_pending_approvals(
             "context": a.context,
             "status": a.status,
             "created_at": a.created_at,
+            "expires_at": a.expires_at,
         }
         for a in pending
     ]
+
+
+@approval_router.get("/history")
+def approval_history(
+    limit: int = Query(default=30, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+) -> list[dict[str, Any]]:
+    """Owner-scoped action history; approval is not execution confirmation."""
+    manager = ApprovalManager(db)
+    rows = db.scalars(
+        select(models.PendingApproval)
+        .where(models.PendingApproval.user_id == current_user.id)
+        .order_by(models.PendingApproval.created_at.desc(), models.PendingApproval.id.desc())
+        .limit(limit)
+    ).all()
+    result = []
+    for row in rows:
+        approval = manager.get(str(row.id))
+        job = db.get(models.BackgroundTask, row.job_id) if row.job_id else None
+        if job is not None and job.user_id != current_user.id:
+            job = None
+        result.append(
+            {
+                "approval_id": approval.approval_id,
+                "tool_name": approval.tool_name,
+                "tool_description": approval.tool_description,
+                "input_preview": approval.input_summary,
+                "context": approval.context,
+                "status": approval.status,
+                "created_at": approval.created_at,
+                "expires_at": approval.expires_at,
+                "job_id": str(job.id) if job else None,
+                "job_status": job.status if job else None,
+                "job_attempts": job.attempts if job else None,
+                "execution_trace_run_id": background_trace_reference(db, job),
+                "result": job.result_json if job else {},
+                "error": job.error if job else None,
+            }
+        )
+    db.commit()
+    return result
 
 
 @approval_router.post("/decide", response_model=dict[str, str])
@@ -97,17 +133,20 @@ def decide_approval(
     if approval.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not your approval request")
     if approval.status != "pending":
+        manager.db.commit()
         raise HTTPException(status_code=409, detail=f"Approval already {approval.status}")
 
     if body.action == "approve":
         result = manager.approve(body.approval_id)
         if result is None:
             raise HTTPException(status_code=500, detail="Failed to approve")
+        manager.db.commit()
         return {"status": "approved", "approval_id": body.approval_id}
     else:
         result = manager.deny(body.approval_id, reason=body.reason)
         if result is None:
             raise HTTPException(status_code=500, detail="Failed to deny")
+        manager.db.commit()
         return {"status": "denied", "approval_id": body.approval_id}
 
 
@@ -120,6 +159,7 @@ def approval_stats(
 ) -> dict[str, Any]:
     """Get approval statistics for the current user."""
     from datetime import datetime, timedelta
+
     cutoff = datetime.utcnow() - timedelta(days=days)
 
     total = (
@@ -132,20 +172,11 @@ def approval_stats(
         .count()
     )
 
-    # Find tools that have been auto-approved
-    approved_tools = (
-        db.query(models.AgentDecision.decision_type)
-        .filter(
-            models.AgentDecision.user_id == current_user.id,
-            models.AgentDecision.accepted_by_user == True,
-            models.AgentDecision.decision_type.like("approve_tool:%"),
-        )
-        .distinct()
-        .all()
-    )
-    auto_tools = [t[0].replace("approve_tool:", "") for t in approved_tools]
+    # Past approvals do not confer standing permission.
+    auto_tools: list[str] = []
 
     pending_count = len(manager.get_pending(current_user.id))
+    db.commit()
 
     return {
         "pending_count": pending_count,

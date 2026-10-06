@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import uuid
 from datetime import date, datetime, timedelta
@@ -20,22 +21,28 @@ from fast_api.app.schemas.agent import (
     PlanGenerateRequest,
     WorkoutLogRequest,
 )
+from fast_api.app.services.approval_manager import ApprovalManager
+from fast_api.app.services.background_tasks import run_one_background_task
 from fast_api.app.services.coach_agent import CoachAgentService
 from fast_api.app.services.context_builder import ContextBuilder
 from fast_api.app.services.decision_evaluation import DecisionEvaluationService
 from fast_api.app.services.memory_system import MemoryManager
 from fast_api.app.services.model_provider import ModelProvider
+from fast_api.app.services.responsibilities import ResponsibilityService
 
 DEFAULT_DATASET = (
     Path(__file__).resolve().parents[1] / "datasets" / "fixtures" / "fitagent_journey_v1.json"
 )
-DEFAULT_REPORT = Path(__file__).resolve().parent / "reports" / "fitagent_journey_v1.summary.json"
+DEFAULT_REPORT = Path(__file__).resolve().parent / "reports" / "fitagent_journey_v2.summary.json"
 
 CHECK_NAMES = [
     "profile_corrected",
     "stale_memory_inactive",
     "stale_memory_not_retrieved",
     "checkin_replayed_once",
+    "checkin_plan_unchanged",
+    "approval_required",
+    "approved_scope_verified",
     "single_active_plan",
     "workout_replayed_once",
     "evaluation_evidence_collected",
@@ -191,7 +198,16 @@ def evaluate_journey_case(case: dict[str, Any]) -> dict[str, Any]:
             )
             relevant_ids = {item["id"] for item in context["relevant_memories"]}
 
-            service.generate_plan(PlanGenerateRequest(user_id=user.id, force=True, plan_days=7))
+            plan = service.generate_plan(
+                PlanGenerateRequest(user_id=user.id, force=True, plan_days=7)
+            )
+            dated = copy.deepcopy(plan.plan_json)
+            for index, day in enumerate(dated["training_days"]):
+                day["date"] = (date.today() + timedelta(days=index + 1)).isoformat()
+            plan.plan_json = dated
+            ResponsibilityService(db).create_weekly(user.id, "每周复盘，调整先询问")
+            db.commit()
+            baseline = copy.deepcopy(plan.plan_json)
             checkin_request = DailyCheckinRequest(
                 user_id=user.id,
                 idempotency_key=f"{case['case_id']}-checkin",
@@ -203,19 +219,39 @@ def evaluate_journey_case(case: dict[str, Any]) -> dict[str, Any]:
             )
             first_checkin = service.record_daily_checkin(checkin_request)
             replayed_checkin = service.record_daily_checkin(checkin_request)
+            checkin_plan_unchanged = (
+                plan.plan_json == baseline and not first_checkin["auto_adjusted"]
+            )
+            proposal = first_checkin["adjustment_proposal"]
+            approval_required = (
+                proposal["status"] == "waiting_approval" and run_one_background_task(db) is None
+            )
+            if not approval_required:
+                raise RuntimeError("Check-in did not produce an approval-only dated proposal")
+            ApprovalManager(db).approve(proposal["approval_id"])
+            db.commit()
+            job = run_one_background_task(db)
+            expected = copy.deepcopy(baseline)
+            for day in expected["training_days"]:
+                if day["date"] == proposal["day_date"]:
+                    for exercise in day["exercises"]:
+                        exercise["sets"] -= 1
+            approved_scope_verified = (
+                job is not None
+                and job.result_json.get("verified") is True
+                and plan.plan_json == expected
+            )
 
             adjustment_decision = db.scalar(
                 select(models.AgentDecision)
                 .where(
                     models.AgentDecision.user_id == user.id,
-                    models.AgentDecision.decision_type == "plan_adjustment",
+                    models.AgentDecision.decision_type == "approved_plan_adjustment",
                 )
                 .order_by(models.AgentDecision.created_at.desc())
             )
             if adjustment_decision is None:
-                raise RuntimeError(
-                    "High-fatigue check-in did not create a plan adjustment decision"
-                )
+                raise RuntimeError("Approved execution did not create a plan adjustment decision")
             evaluation_plan = db.scalar(
                 select(models.DecisionEvaluationPlan).where(
                     models.DecisionEvaluationPlan.decision_id == adjustment_decision.id
@@ -289,6 +325,9 @@ def evaluate_journey_case(case: dict[str, Any]) -> dict[str, Any]:
                 else profile.goal == "muscle_gain"
             )
             checks = {
+                "checkin_plan_unchanged": checkin_plan_unchanged,
+                "approval_required": approval_required,
+                "approved_scope_verified": approved_scope_verified,
                 "profile_corrected": expected_profile and bool(written),
                 "stale_memory_inactive": stale_memory.status == "superseded",
                 "stale_memory_not_retrieved": str(stale_memory.id) not in relevant_ids,
@@ -378,7 +417,8 @@ def evaluate_journeys(dataset_path: Path = DEFAULT_DATASET) -> dict[str, Any]:
         name: sum(1 for item in results if item["checks"][name]) / total for name in CHECK_NAMES
     }
     return {
-        "schema_version": "fitagent-journey-eval/v1",
+        "schema_version": "fitagent-journey-eval/v2",
+        "execution_protocol": "explicit_delegation_dated_proposal_approval_v2",
         "dataset": {
             "name": dataset_path.name,
             "source": dataset["source"],
@@ -395,6 +435,7 @@ def evaluate_journeys(dataset_path: Path = DEFAULT_DATASET) -> dict[str, Any]:
         },
         "cases": results,
         "limitations": [
+            "Protocol v2 adds explicit approval; not directly comparable to automatic-adjustment v1 reports.",
             "Synthetic fixed journeys only; no real-user or online outcome claim.",
             "SQLite isolated execution; PostgreSQL concurrency is evaluated separately.",
             "Follow-up answers are scripted simulated outcomes, not human feedback.",

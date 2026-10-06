@@ -115,7 +115,7 @@ def test_engine_skips_model_when_rule_decision_is_confident_and_simple():
 
     assert provider.model.calls == 0
     assert result.decision.primary_intent == "training_plan"
-    assert result.decision.provenance["final_source"] == "rule_fallback"
+    assert result.decision.provenance["final_source"] == "rule_dispatch"
     assert result.decision.provenance["model_fallback_reason"] == "refinement_not_required"
 
 

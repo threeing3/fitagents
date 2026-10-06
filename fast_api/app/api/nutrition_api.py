@@ -16,6 +16,7 @@ from fast_api.app.db import models
 from fast_api.app.db.database import get_db
 from fast_api.app.services.model_provider import ModelProvider
 from fast_api.app.services.nutrition_service import NutritionService
+from fast_api.app.services.standalone_operation_trace import StandaloneOperationTrace
 
 nutrition_router = APIRouter(prefix="/v1/nutrition", tags=["nutrition"])
 settings = get_settings()
@@ -41,6 +42,7 @@ async def recognize_food_photo(
     request: Request,
     service: NutritionService = Depends(get_nutrition_service),
     current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> dict[str, Any]:
     """Analyze a food photo using a vision model (GPT-4o).
 
@@ -99,12 +101,12 @@ async def recognize_food_photo(
     except (UnidentifiedImageError, OSError, SyntaxError, Image.DecompressionBombWarning):
         raise HTTPException(status_code=400, detail="Image could not be safely decoded.") from None
 
-    result = await service.analyze_food_photo(
-        current_user.id,
-        image_bytes,
-        media_type,
-    )
-    return result
+    trace = StandaloneOperationTrace(db, current_user.id, "nutrition.recognize")
+    with trace.recording():
+        result = await service.analyze_food_photo(current_user.id, image_bytes, media_type)
+        # Unavailable/invalid output does not prove the transport was never attempted.
+        trace.finish("completed" if result.get("status") == "ok" else "unconfirmed")
+        return {**result, "agent_run_id": str(trace.id)}
 
 
 # ---- Save meal from analysis ----

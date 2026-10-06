@@ -42,6 +42,7 @@ class AgentRunLogger:
         event = {
             "node": name,
             "event_id": str(uuid.uuid4()),
+            "sequence": len(self.events) + 1,
             "request_id": self.request_id,
             "status": status,
             "latency_ms": round((time.perf_counter() - start) * 1000),
@@ -57,6 +58,7 @@ class AgentRunLogger:
         item = {
             "node": name,
             "event_id": str(uuid.uuid4()),
+            "sequence": len(self.events) + 1,
             "request_id": self.request_id,
             "status": "completed",
             "latency_ms": 0,
@@ -156,7 +158,9 @@ class AgentRunLogger:
             file.write("\n")
         return str(path)
 
-    def _legacy_write_run_log(self, path: Path, payload: dict[str, Any], run_id: uuid.UUID | str, status: str) -> str:
+    def _legacy_write_run_log(
+        self, path: Path, payload: dict[str, Any], run_id: uuid.UUID | str, status: str
+    ) -> str:
         with path.open("w", encoding="utf-8") as file:
             file.write(f"AI 私教 Agent 运行日志：{run_id}\n")
             file.write(f"请求 ID：{self.request_id}\n")
@@ -263,7 +267,9 @@ class AgentRunLogger:
                 "planner_fallback": value.get("planner_fallback", False),
                 "intent": raw.get("intent") if isinstance(raw, dict) else None,
                 "tool_order": raw.get("tool_order") if isinstance(raw, dict) else [],
-                "reasoning_summary": self._truncate(raw.get("reasoning_summary") if isinstance(raw, dict) else None),
+                "reasoning_summary": self._truncate(
+                    raw.get("reasoning_summary") if isinstance(raw, dict) else None
+                ),
             }
         if node == "PlannerVerifier":
             plan = value.get("verified_plan") or {}

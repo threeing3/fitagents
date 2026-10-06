@@ -87,7 +87,10 @@ class AgentTaskStateService:
                         "description": "如果连续两次后续动作质量仍差，继续降低主项总组数或调整动作顺序。",
                     },
                 ],
-                progress_patch={"last_training_issue_message": message[:800], "last_intent": intent},
+                progress_patch={
+                    "last_training_issue_message": message[:800],
+                    "last_intent": intent,
+                },
                 agent_run_id=agent_run_id,
             )
             updates.append(self._task_payload(task))
@@ -133,7 +136,9 @@ class AgentTaskStateService:
     def list_active(self, user_id: uuid.UUID, limit: int = 10) -> list[dict[str, Any]]:
         tasks = self.db.scalars(
             select(models.AgentTaskState)
-            .where(models.AgentTaskState.user_id == user_id, models.AgentTaskState.status == "active")
+            .where(
+                models.AgentTaskState.user_id == user_id, models.AgentTaskState.status == "active"
+            )
             .order_by(desc(models.AgentTaskState.updated_at))
             .limit(max(1, min(limit, 50)))
         ).all()
@@ -203,12 +208,19 @@ class AgentTaskStateService:
         progress_patch: dict[str, Any],
         agent_run_id: uuid.UUID | None,
     ) -> models.AgentTaskState:
+        from fast_api.app.services.plan_writes import lock_plan_owner
+
+        # Serialize the read-then-create path across chat and check-in writers.
+        lock_plan_owner(self.db, user_id)
         task = self.db.scalar(
-            select(models.AgentTaskState).where(
+            select(models.AgentTaskState)
+            .where(
                 models.AgentTaskState.user_id == user_id,
                 models.AgentTaskState.task_type == task_type,
                 models.AgentTaskState.status == "active",
             )
+            .with_for_update()
+            .execution_options(populate_existing=True)
         )
         if task is None:
             task = models.AgentTaskState(
@@ -229,7 +241,10 @@ class AgentTaskStateService:
         task.success_metrics = success_metrics
         task.constraints = constraints
         task.next_actions = next_actions
-        task.progress_json = {**(task.progress_json or {}), **{k: v for k, v in progress_patch.items() if v is not None}}
+        task.progress_json = {
+            **(task.progress_json or {}),
+            **{k: v for k, v in progress_patch.items() if v is not None},
+        }
         task.source_run_id = agent_run_id or task.source_run_id
         task.last_observed_at = datetime.utcnow()
         self.db.flush()
@@ -263,19 +278,36 @@ class AgentTaskStateService:
 
     def _next_actions_for_goal(self, profile: models.UserProfile) -> list[dict[str, Any]]:
         actions = [
-            {"action": "log_workout", "description": "每次训练后记录动作、重量、次数、RPE 和完成度。"},
+            {
+                "action": "log_workout",
+                "description": "每次训练后记录动作、重量、次数、RPE 和完成度。",
+            },
             {"action": "daily_checkin", "description": "每天记录睡眠、疲劳、酸痛和饮食执行。"},
         ]
         if profile.goal in {"fat_loss", "muscle_gain"}:
-            actions.append({"action": "weekly_review", "description": "每周复盘体重趋势、训练表现和饮食执行。"})
+            actions.append(
+                {"action": "weekly_review", "description": "每周复盘体重趋势、训练表现和饮食执行。"}
+            )
         return actions
 
     def _looks_like_training_experiment(self, message: str, intent: str) -> bool:
         lowered = message.lower()
-        issue_terms = ["没力", "没有力量", "质量不好", "疲劳", "卡住", "瓶颈", "rpe", "力竭", "没劲"]
+        issue_terms = [
+            "没力",
+            "没有力量",
+            "质量不好",
+            "疲劳",
+            "卡住",
+            "瓶颈",
+            "rpe",
+            "力竭",
+            "没劲",
+        ]
         training_terms = ["卧推", "深蹲", "硬拉", "训练", "练胸", "bench", "squat", "deadlift"]
-        return intent == "training_log" and any(term in lowered for term in issue_terms) and any(
-            term in lowered for term in training_terms
+        return (
+            intent == "training_log"
+            and any(term in lowered for term in issue_terms)
+            and any(term in lowered for term in training_terms)
         )
 
     def _task_payload(self, task: models.AgentTaskState) -> dict[str, Any]:
@@ -292,5 +324,7 @@ class AgentTaskStateService:
             "next_actions": task.next_actions or [],
             "progress": task.progress_json or {},
             "source_run_id": str(task.source_run_id) if task.source_run_id else None,
-            "last_observed_at": task.last_observed_at.isoformat() if task.last_observed_at else None,
+            "last_observed_at": task.last_observed_at.isoformat()
+            if task.last_observed_at
+            else None,
         }

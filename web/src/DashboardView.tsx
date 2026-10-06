@@ -1,37 +1,37 @@
-import React, { useMemo } from "react";
+import React from "react";
 import {
   Activity, Moon, Utensils, Dumbbell, Target, RefreshCw,
   TrendingUp, Battery, Gauge, Flame, Apple, Heart,
 } from "lucide-react";
-import type { SessionState, Dashboard } from "./types";
+import type { SessionState, Dashboard, ViewName } from "./types";
 import { generatePlan } from "./api";
 import { useLanguage } from "./LanguageContext";
+import { goalLabel } from "./goalLabel";
+import { PendingProposalPreview } from "./PendingProposalPreview";
+import { accountDate } from "./PlanReview";
 
 type Props = {
   dashboard: Dashboard | null;
   session: SessionState | null;
   busy: boolean;
   onRefresh: () => void;
+  onNavigate?: (view: ViewName) => void;
 };
 
-export function DashboardView({ dashboard, session, busy, onRefresh }: Props) {
+export function DashboardView({ dashboard, session, busy, onRefresh, onNavigate }: Props) {
   const { isZh } = useLanguage();
   const profile = dashboard?.profile;
   const checkin = dashboard?.latest_checkin;
   const todayPlan = dashboard?.today_plan;
 
-  // Compute a simple readiness score (0-100)
-  const readiness = useMemo(() => {
-    if (!checkin) return null;
-    let score = 70;
-    if (checkin.sleep_hours) score += (checkin.sleep_hours - 7) * 8;
-    if (checkin.fatigue) score -= (checkin.fatigue - 3) * 5;
-    if (checkin.soreness) score -= (checkin.soreness - 3) * 5;
-    if (checkin.stress) score -= (checkin.stress - 3) * 4;
-    return Math.max(10, Math.min(100, Math.round(score)));
-  }, [checkin]);
-
-  const readinessColor = !readiness ? "#3a3a4a" : readiness >= 70 ? "#22c55e" : readiness >= 40 ? "#f59e0b" : "#ef4444";
+  const today = new Date(`${accountDate(dashboard?.timezone)}T12:00:00Z`);
+  const monday = new Date(today);
+  monday.setUTCDate(monday.getUTCDate() - (monday.getUTCDay() + 6) % 7);
+  const week = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(monday);
+    date.setUTCDate(monday.getUTCDate() + index);
+    return date;
+  });
 
   async function handleGeneratePlan() {
     if (!session) return;
@@ -44,37 +44,38 @@ export function DashboardView({ dashboard, session, busy, onRefresh }: Props) {
   return (
     <div className="dashboard-view">
       <div className="dash-header">
-        <h2>{isZh ? "训练概览" : "Dashboard"}</h2>
-        <button className="icon-btn" onClick={onRefresh} disabled={busy}>
+        <div><p className="workspace-eyebrow">{isZh ? "你的训练工作台" : "Your training workspace"}</p><h2>{isZh ? "今天，按自己的节奏来" : "Today, at your own pace"}</h2></div>
+        <button className="icon-btn" aria-label={isZh ? "刷新概览" : "Refresh dashboard"} onClick={onRefresh} disabled={busy}>
           <RefreshCw size={18} className={busy ? "spin" : ""} />
         </button>
       </div>
 
+      <div className="training-week" aria-label={isZh ? "本周日期，仅日历，不表示训练完成" : "Current week calendar, not workout completion"}>
+        {week.map(date => <div key={date.toISOString()} aria-current={date.toISOString() === today.toISOString() ? "date" : undefined}>
+          <span>{date.toLocaleDateString(isZh ? "zh-CN" : "en-US", { weekday: "short", timeZone: "UTC" })}</span>
+          <strong>{date.toLocaleDateString(isZh ? "zh-CN" : "en-US", { month: "numeric", day: "numeric", timeZone: "UTC" })}</strong>
+        </div>)}
+      </div>
+      {onNavigate && <section className="today-action" aria-label={isZh ? "今天的下一步" : "Today's next step"}>
+        <div><p className="workspace-eyebrow">{isZh ? "下一步，由你选择" : "Choose your next step"}</p>
+          <h3>{todayPlan?.name ? (isZh ? "记录实际完成的训练" : "Record what you actually did") : (isZh ? "先确定今天的安排" : "Choose today's plan")}</h3>
+          <p>{isZh ? "你可以继续当前计划，也可以说明新的日期、运动类型和限制。调整先审阅，再决定是否批准。" : "Keep your plan or specify a date, activity and constraints. Review changes before approving them."}</p>
+          <button className="pill-btn" onClick={() => onNavigate(todayPlan?.name ? "workout" : "chat")}>{todayPlan?.name ? (isZh ? "记录训练" : "Record workout") : (isZh ? "说明训练需求" : "Describe training needs")}</button>
+          <PendingProposalPreview userId={session?.user_id} onReview={() => onNavigate("responsibilities")} />
+        </div>
+        <aside><Target size={20} /><h3>{isZh ? "目标与调整" : "Goals and changes"}</h3>
+          <p>{goalLabel(profile?.goal, isZh)}</p>
+          <button onClick={() => onNavigate("responsibilities")}>{isZh ? "审阅待批准调整与长期跟踪" : "Review changes and ongoing goals"}</button>
+        </aside>
+      </section>}
+
       <div className="dash-grid">
         {/* ---- Readiness Gauge ---- */}
         <div className="dash-card readiness-card">
-          <div className="card-label">{isZh ? "今日准备度" : "Readiness"}</div>
-          <div className="readiness-gauge" style={{ borderColor: readinessColor }}>
-            <div className="gauge-inner">
-              <span className="gauge-value" style={{ color: readinessColor }}>{readiness ?? "--"}</span>
-              <span className="gauge-label">/100</span>
-            </div>
-            <svg className="gauge-ring" viewBox="0 0 120 120">
-              <circle cx="60" cy="60" r="52" fill="none" stroke="#2a2a3a" strokeWidth="8" />
-              {readiness != null && (
-                <circle
-                  cx="60" cy="60" r="52" fill="none"
-                  stroke={readinessColor} strokeWidth="8"
-                  strokeLinecap="round"
-                  strokeDasharray={`${(readiness / 100) * 327} 327`}
-                  transform="rotate(-90 60 60)"
-                  style={{ transition: "stroke-dasharray 0.8s ease" }}
-                />
-              )}
-            </svg>
-          </div>
+          <div className="card-label">{isZh ? "最近一次状态记录" : "Latest reported state"}</div>
+          <p className="reported-state-note">{isZh ? "保留你记录的感受，不换算成未经验证的准备度评分。" : "Your reported feedback, not an unvalidated readiness score."}</p>
           <div className="readiness-breakdown">
-            <MiniStat icon={<Moon size={14} />} label={isZh ? "睡眠" : "Sleep"} value={checkin?.sleep_hours ? `${checkin.sleep_hours}h` : "--"} />
+            <MiniStat icon={<Moon size={14} />} label={isZh ? "睡眠" : "Sleep"} value={checkin?.sleep_hours != null ? `${checkin.sleep_hours}h` : "--"} />
             <MiniStat icon={<Battery size={14} />} label={isZh ? "疲劳" : "Fatigue"} value={checkin?.fatigue != null ? `${checkin.fatigue}/10` : "--"} />
             <MiniStat icon={<Gauge size={14} />} label={isZh ? "酸痛" : "Soreness"} value={checkin?.soreness != null ? `${checkin.soreness}/10` : "--"} />
           </div>
@@ -122,8 +123,12 @@ export function DashboardView({ dashboard, session, busy, onRefresh }: Props) {
                 {(todayPlan.exercises || []).slice(0, 6).map((ex: any, i: number) => (
                   <div key={i} className="exercise-row">
                     <span className="ex-name">{ex.name}</span>
-                    <span className="ex-prescription">{ex.sets} × {ex.reps}</span>
-                    <span className="ex-rest">{isZh ? `休息 ${ex.rest_seconds} 秒` : `${ex.rest_seconds}s rest`}</span>
+                    <span className="ex-prescription">{ex.duration_minutes != null
+                      ? (isZh ? `${ex.duration_minutes} 分钟` : `${ex.duration_minutes} min`)
+                      : `${ex.sets} × ${ex.reps}`}</span>
+                    <span className="ex-rest">{ex.duration_minutes != null
+                      ? (isZh ? "按该次训练提示进行" : "Follow session guidance")
+                      : (isZh ? `休息 ${ex.rest_seconds} 秒` : `${ex.rest_seconds}s rest`)}</span>
                   </div>
                 ))}
               </div>
@@ -131,10 +136,12 @@ export function DashboardView({ dashboard, session, busy, onRefresh }: Props) {
           ) : (
             <div className="empty-card">
               <Dumbbell size={32} />
-              <p>{isZh ? "完善档案后可生成今日训练计划。" : "Complete your profile to see today's workout plan."}</p>
-              <button className="pill-btn" onClick={handleGeneratePlan} disabled={busy || !session}>
+              <p>{dashboard?.profile_complete
+                ? (isZh ? "今天暂无训练安排；其他日期的已保存计划仍保留。需要新增时，可在聊天中指定日期。" : "No workout scheduled today. Saved sessions on other dates remain; request a date in chat to add one.")
+                : (isZh ? "完善档案后可生成今日训练计划。" : "Complete your profile to see today's workout plan.")}</p>
+              <button className="pill-btn" onClick={onNavigate ? () => onNavigate("chat") : handleGeneratePlan} disabled={busy || (!onNavigate && !session)}>
                 <Target size={14} />
-                {isZh ? "生成计划" : "Generate Plan"}
+                {onNavigate ? (isZh ? "在对话中说明安排" : "Describe a plan in chat") : (isZh ? "生成计划" : "Generate Plan")}
               </button>
             </div>
           )}
@@ -142,7 +149,7 @@ export function DashboardView({ dashboard, session, busy, onRefresh }: Props) {
 
         {/* ---- Coach Suggestions ---- */}
         <div className="dash-card">
-          <div className="card-label">{isZh ? "教练建议" : "Coach Suggestions"}</div>
+          <div className="card-label">{isZh ? "可供参考的建议" : "Options to consider"}</div>
           {dashboard?.coach_suggestions?.length ? (
             <ul className="suggestion-list">
               {dashboard.coach_suggestions.map((s, i) => (
@@ -151,7 +158,7 @@ export function DashboardView({ dashboard, session, busy, onRefresh }: Props) {
             </ul>
           ) : (
             <div className="empty-card small">
-              <p>{isZh ? "与教练对话后会生成个性化建议。" : "Chat with your coach to get personalized suggestions."}</p>
+              <p>{isZh ? "说明你的需求后，再一起比较可选方案。" : "Describe your needs to compare available options."}</p>
             </div>
           )}
         </div>
@@ -169,7 +176,7 @@ export function DashboardView({ dashboard, session, busy, onRefresh }: Props) {
               ))}
             </div>
           ) : (
-            <div className="empty-card small"><p>{isZh ? "暂无记忆；通过对话逐步建立长期记忆。" : "No memories yet. Chat with your coach to build long-term memory."}</p></div>
+            <div className="empty-card small"><p>{isZh ? "暂无记忆；通过对话逐步建立长期记忆。" : "No memories yet. Build your context through conversation."}</p></div>
           )}
         </div>
       </div>

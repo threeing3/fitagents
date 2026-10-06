@@ -149,6 +149,10 @@ async function mockApi(page: Page) {
       return;
     }
     if (path === "/v1/workouts/logs") {
+      if (request.method() === "GET") {
+        await route.fulfill({ status: 200, contentType: "application/json", body: "[]" });
+        return;
+      }
       const payload = request.postDataJSON();
       expect(request.headers()["idempotency-key"]).toBeTruthy();
       expect(payload.workout_name).toBe("力量训练");

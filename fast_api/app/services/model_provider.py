@@ -1,6 +1,7 @@
 import base64
 import json
 import logging
+import time
 import uuid
 from typing import Iterable
 
@@ -11,6 +12,8 @@ from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from fast_api.app.core.config import Settings, get_settings
 from fast_api.app.core.prompts import registry
 from fast_api.app.core.retry import retry_with_backoff
+from fast_api.app.services.model_call_records import ModelCallRecorder, record_auxiliary_call
+from fast_api.app.services.prompt_budget import enforce_prompt_budget
 from fast_api.app.services.usage_quota import UsageQuotaService
 
 logger = logging.getLogger(__name__)
@@ -61,6 +64,9 @@ class ModelProvider:
             "timeout": 90,
             "max_retries": 0,
             "max_tokens": 1200,
+            "callbacks": [
+                ModelCallRecorder(self.settings.llm_provider, self.settings.chat_model, "chat")
+            ],
             "http_client": httpx.Client(trust_env=False, timeout=90),
             "http_async_client": httpx.AsyncClient(trust_env=False, timeout=90),
         }
@@ -80,6 +86,9 @@ class ModelProvider:
             "timeout": 45,
             "max_retries": 0,
             "max_tokens": 500,
+            "callbacks": [
+                ModelCallRecorder(self.settings.llm_provider, self.settings.chat_model, "intent")
+            ],
             "http_client": httpx.Client(trust_env=False, timeout=45),
             "http_async_client": httpx.AsyncClient(trust_env=False, timeout=45),
         }
@@ -130,6 +139,7 @@ class ModelProvider:
             "timeout": 30,
             "max_retries": 0,
             "max_tokens": 800,
+            "callbacks": [ModelCallRecorder(self.settings.llm_provider, model_name, "vision")],
             "http_client": httpx.Client(trust_env=False, timeout=30),
             "http_async_client": httpx.AsyncClient(trust_env=False, timeout=30),
         }
@@ -155,6 +165,16 @@ class ModelProvider:
         """
         model = self.vision_model()
         if model is None:
+            record_auxiliary_call(
+                "model.skipped",
+                "skipped",
+                {
+                    "purpose": "vision",
+                    "model_called": False,
+                    "reason": "vision_unavailable_or_quota_exhausted",
+                    "media_omitted": True,
+                },
+            )
             return None
 
         image_b64 = base64.b64encode(image_bytes).decode("ascii")
@@ -205,16 +225,18 @@ class ModelProvider:
 
     @retry_with_backoff(max_retries=3, base_delay=1.0)
     async def coach_reply(self, system_prompt: str, user_prompt: str) -> str | None:
+        messages = [SystemMessage(content=system_prompt), HumanMessage(content=user_prompt)]
+        enforce_prompt_budget(self.settings.chat_model, messages)
         model = self.chat_model()
         if model is None:
             return None
-        message = await model.ainvoke(
-            [SystemMessage(content=system_prompt), HumanMessage(content=user_prompt)]
-        )
+        message = await model.ainvoke(messages)
         return str(message.content)
 
     async def stream_coach_reply(self, system_prompt: str, user_prompt: str):
         """Stream coach reply with retry on initial connection."""
+        messages = [SystemMessage(content=system_prompt), HumanMessage(content=user_prompt)]
+        enforce_prompt_budget(self.settings.chat_model, messages)
         model = self.chat_model()
         if model is None:
             return
@@ -223,9 +245,7 @@ class ModelProvider:
         last_exc = None
         for attempt in range(max_retries + 1):
             try:
-                stream = model.astream(
-                    [SystemMessage(content=system_prompt), HumanMessage(content=user_prompt)]
-                )
+                stream = model.astream(messages)
                 async for chunk in stream:
                     content = getattr(chunk, "content", "")
                     if content:
@@ -268,11 +288,59 @@ class ModelProvider:
 
         model = self.embeddings_model()
         if model is not None:
+            call_id = str(uuid.uuid4())
+            details = {
+                "model_call_id": call_id,
+                "purpose": "embedding",
+                "provider": self.settings.embedding_provider,
+                "model": self.settings.embedding_model,
+                "logical_call": True,
+            }
+            record_auxiliary_call(
+                "embedding.start",
+                "running",
+                details,
+                {"input_chars": len(text), "text_omitted": True},
+            )
+            started = time.perf_counter()
             try:
                 vector = model.embed_query(text)
-                return self._fit_dimension(vector)
+                fitted = self._fit_dimension(vector)
             except Exception as exc:
-                logger.warning("Embedding provider unavailable; using BM25 fallback: %s", exc)
+                record_auxiliary_call(
+                    "embedding.end",
+                    "failed",
+                    {**details, "error_type": type(exc).__name__, "vector_available": False},
+                    latency_ms=round((time.perf_counter() - started) * 1000),
+                )
+                logger.warning(
+                    "Embedding provider unavailable; using BM25 fallback: %s", type(exc).__name__
+                )
+            else:
+                record_auxiliary_call(
+                    "embedding.end",
+                    "completed",
+                    {
+                        **details,
+                        "returned_dimension": len(vector),
+                        "fitted_dimension": len(fitted),
+                        "vector_available": True,
+                        "vector_omitted": True,
+                    },
+                    latency_ms=round((time.perf_counter() - started) * 1000),
+                )
+                return fitted
+        else:
+            record_auxiliary_call(
+                "embedding.skipped",
+                "skipped",
+                {
+                    "purpose": "embedding",
+                    "model_called": False,
+                    "reason": "embedding_unavailable",
+                    "vector_available": False,
+                },
+            )
         return None
 
     def _fit_dimension(self, vector: Iterable[float]) -> list[float]:

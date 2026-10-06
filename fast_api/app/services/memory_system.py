@@ -31,11 +31,15 @@ class MemoryManager:
         payload: dict[str, Any],
     ) -> models.LongTermMemory:
         content = payload["content"]
-        if self.is_correction_message(content) and not payload.get("skip_correction_flow"):
+        corrected_ids = payload.get("corrected_memory_ids") or []
+        if (corrected_ids or self.is_correction_message(content)) and not payload.get(
+            "skip_correction_flow"
+        ):
             result = self.handle_correction_flow(
                 user_id=user_id,
                 message=content,
                 category=payload.get("category"),
+                corrected_memory_ids=corrected_ids,
             )
             if result.get("memory") is not None:
                 return result["memory"]
@@ -205,17 +209,40 @@ class MemoryManager:
         message: str,
         category: str | None = None,
         link_type: str | None = None,
+        corrected_memory_ids: list[uuid.UUID] | None = None,
     ) -> dict[str, Any]:
-        if not self.is_correction_message(message):
+        if not self.is_correction_message(message) and not corrected_memory_ids:
             return {
                 "correction_detected": False,
                 "memory": None,
                 "updated_memories": [],
                 "links": [],
             }
-        old_memories = self.search_memories(
-            user_id, message, top_k=5, category=category, include_expired=False
+        if not corrected_memory_ids:
+            raise ValueError("Correction requires explicit corrected_memory_ids")
+        unique_ids = list(dict.fromkeys(corrected_memory_ids))
+        # Production corrections share the owner lock with decision/plan writers.
+        # Legacy isolated memory fixtures have no User row and no domain writes.
+        owner_exists = self.db.get(models.User, user_id) is not None
+        if owner_exists:
+            from fast_api.app.services.plan_writes import lock_plan_owner
+
+            lock_plan_owner(self.db, user_id)
+        old_memories = list(
+            self.db.scalars(
+                select(models.LongTermMemory).where(
+                    models.LongTermMemory.user_id == user_id,
+                    models.LongTermMemory.id.in_(unique_ids),
+                    models.LongTermMemory.status == "active",
+                )
+            )
         )
+        if len(old_memories) != len(unique_ids) or any(
+            category is not None and item.category != category for item in old_memories
+        ):
+            raise ValueError("Correction targets must be active memories owned by this user")
+        if any(item.category in {"profile", "risk"} for item in old_memories):
+            raise ValueError("Profile and risk corrections require the verified chat flow")
         new_memory = self.retain_memory(
             user_id=user_id,
             content=message,
@@ -255,8 +282,23 @@ class MemoryManager:
             if old_memory.category:
                 self.update_memory_catalog(user_id, old_memory.category)
         self.update_memory_catalog(user_id, new_memory.category or "correction")
+        from fast_api.app.services.memory_dependencies import invalidate_derived_memories
+
+        corrected_ids = [str(item.id) for item in old_memories if item.id != new_memory.id]
+        invalidate_derived_memories(
+            self.db,
+            user_id,
+            [{"table": "long_term_memories", "id": item_id} for item_id in corrected_ids],
+            "memory_correction",
+        )
         self.update_memory_blocks(user_id)
         self.db.flush()
+        if owner_exists and corrected_ids:
+            from fast_api.app.services.decision_dependencies import DecisionDependencyService
+            from fast_api.app.services.plan_adjustment_policy import PlanAdjustmentPolicy
+
+            DecisionDependencyService(self.db).invalidate_changed(user_id, corrected_ids)
+            PlanAdjustmentPolicy(self.db).invalidate_changed(user_id)
         return {
             "correction_detected": True,
             "memory": new_memory,

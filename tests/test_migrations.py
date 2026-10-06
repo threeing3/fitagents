@@ -35,9 +35,68 @@ def test_idempotency_migration_extends_current_head():
     assert mod.down_revision == "013_product_safety_and_usage"
 
 
+def test_pending_approval_migration_is_additive_and_preserves_audit(monkeypatch):
+    from importlib import util as import_util
+
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+
+    config = Config(os.path.join(os.path.dirname(__file__), "..", "alembic.ini"))
+    config.set_main_option(
+        "script_location", os.path.join(os.path.dirname(__file__), "..", "alembic")
+    )
+    assert ScriptDirectory.from_config(config).get_current_head() == "017_domain_jsonb_alignment"
+    path = os.path.join(
+        os.path.dirname(__file__), "..", "alembic", "versions", "015_pending_approvals.py"
+    )
+    spec = import_util.spec_from_file_location("approval_migration", path)
+    module = import_util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    statements = []
+    monkeypatch.setattr(module.op, "execute", statements.append)
+    module.upgrade()
+    module.downgrade()
+    assert len(statements) == 1
+    assert "UNIQUE (job_id)" in statements[0]
+    assert "DROP" not in statements[0]
+    assert module.down_revision == "014_idempotency_records"
+
+
+def test_json_alignment_rejects_duplicate_keys():
+    import json
+    from importlib import util
+    from pathlib import Path
+
+    import pytest
+
+    path = Path(__file__).parents[1] / "alembic/versions/017_domain_jsonb_alignment.py"
+    specification = util.spec_from_file_location("json_alignment", path)
+    module = util.module_from_spec(specification)
+    specification.loader.exec_module(module)
+    assert module.down_revision == "016_domain_schema_alignment"
+    assert json.loads('{"a":{"b":1}}', object_pairs_hook=module.unique_object) == {"a": {"b": 1}}
+    with pytest.raises(ValueError, match="Duplicate"):
+        json.loads('{"a":{"b":1,"b":2}}', object_pairs_hook=module.unique_object)
+
+
 def test_migration_script_template_exists():
     tmpl_path = os.path.join(os.path.dirname(__file__), "..", "alembic", "script.py.mako")
     assert os.path.exists(tmpl_path), "script.py.mako missing"
+
+
+def test_domain_alignment_is_frozen_and_preserves_legacy_data():
+    from pathlib import Path
+
+    path = Path(__file__).parents[1] / "alembic/versions/016_domain_schema_alignment.py"
+    content = path.read_text(encoding="utf-8")
+    assert 'down_revision = "015_pending_approvals"' in content
+    assert "Base.metadata" not in content
+    assert "DROP TABLE" not in content
+    assert "DROP COLUMN" not in content
+    assert "DELETE FROM" not in content
+    assert "legacy_unreviewed" in content
+    assert 'primary.get("constrained_columns") == ["user_id"]' in content
+    assert "settings.use_pgvector" in content
 
 
 # ---- Initial migration structure ----

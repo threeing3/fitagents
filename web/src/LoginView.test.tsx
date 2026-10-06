@@ -18,7 +18,7 @@ describe("LoginView", () => {
       </LanguageProvider>,
     );
 
-    expect(screen.getByRole("heading", { name: "AI Fitness Coach" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "FitAgent" })).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "登录" })).toHaveLength(2);
     expect(screen.getAllByRole("button", { name: "注册" })).toHaveLength(2);
     expect(screen.getByRole("button", { name: "进入公开演示账号" })).toBeInTheDocument();

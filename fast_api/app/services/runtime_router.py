@@ -187,9 +187,21 @@ class RuntimeRouter:
         intent_decision = self.intent_router.analyze(message)
         return self.route_decision(intent_decision, message=message)
 
-    def route_decision(self, intent_decision: IntentDecision, *, message: str = "") -> RuntimeRoute:
+    def route_decision(
+        self, intent_decision: IntentDecision, *, message: str = "", authoritative: bool = False
+    ) -> RuntimeRoute:
         """Choose runtime from an existing decision without classifying again."""
 
+        if authoritative:
+            intents = {intent_decision.primary_intent, *intent_decision.secondary_intents}
+            controlled = bool(intents & (self.CODE_DRIVEN_INTENTS | {"nutrition_advice"}))
+            return RuntimeRoute(
+                mode="code_driven" if controlled else "llm_driven",
+                reason="复用本轮任务分发结果；业务权限由主流程和工具检查，不再次按关键词推断。",
+                matched_rules=[f"intent:{intent}" for intent in sorted(intents)],
+                confidence=intent_decision.confidence,
+                intent_decision=intent_decision.to_dict(),
+            )
         text = (message or "").strip().lower()
         if self._is_pure_explanation(text):
             return RuntimeRoute(

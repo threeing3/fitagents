@@ -6,7 +6,10 @@ import { WorkoutView } from "./WorkoutView";
 
 const logWorkout = vi.fn();
 
-vi.mock("./api", () => ({ logWorkout: (...args: unknown[]) => logWorkout(...args) }));
+vi.mock("./api", () => ({
+  logWorkout: (...args: unknown[]) => logWorkout(...args),
+  workoutCorrectionApi: { list: async () => [], correct: vi.fn() },
+}));
 
 const session = { session_id: "session-1", user_id: "user-1" };
 

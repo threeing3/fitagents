@@ -2286,7 +2286,7 @@ button:disabled {
 
   .sidebar {
     flex-direction: row;
-    width: 100% !important;
+    width: 100%;
     height: 56px;
     border-right: none;
     border-bottom: 1px solid var(--border);
@@ -2362,3 +2362,73 @@ button:disabled {
     font-size: 13px;
   }
 }
+
+/* Long-term follow-up: review, authority and verified execution stay separate. */
+.responsibility-view { padding: 28px; overflow-y: auto; height: 100%; color: var(--text-primary); }
+.responsibility-view > section { margin-top: 24px; }
+.responsibility-view h3 { margin-bottom: 12px; font-size: 17px; }
+.responsibility-view p { margin: 8px 0; line-height: 1.65; color: var(--text-secondary); }
+.responsibility-view small { overflow-wrap: anywhere; color: var(--text-secondary); }
+.responsibility-subtitle { max-width: 760px; }
+.responsibility-banner { margin: 16px 0; padding: 14px; border: 1px solid var(--amber-dim); border-radius: var(--radius-sm); background: #251d12; line-height: 1.6; }
+.responsibility-banner button { margin-left: 12px; }
+.responsibility-error { color: #fca5a5 !important; overflow-wrap: anywhere; }
+.responsibility-create form { display: flex; flex-wrap: wrap; align-items: end; gap: 14px; }
+.responsibility-create label { display: grid; gap: 6px; font-size: 13px; }
+.responsibility-create input, .responsibility-create select { color: var(--text-primary); background: var(--bg-input); border: 1px solid var(--border-light); border-radius: 7px; padding: 9px 12px; min-height: 40px; }
+.responsibility-create input[type=number] { width: 110px; }
+.responsibility-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 16px; }
+.responsibility-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.responsibility-status { font-size: 12px; border: 1px solid var(--border-light); padding: 4px 8px; border-radius: 16px; }
+.responsibility-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+.responsibility-view details { margin: 12px 0; overflow-wrap: anywhere; }
+.responsibility-view summary { cursor: pointer; color: var(--text-primary); }
+.responsibility-proposal { margin-bottom: 12px; border-left: 3px solid var(--amber); }
+.responsibility-confirm { border: 1px solid var(--amber); }
+.responsibility-confirm button { margin-right: 12px; }
+.responsibility-history { margin-bottom: 10px; padding: 16px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.responsibility-demo-shell { height: 100dvh; max-width: 1180px; margin: 0 auto; }
+.execution-timeline { margin: 12px 0; padding: 12px; border: 1px solid var(--border-light); border-radius: 8px; background: var(--bg-card); overflow-wrap: anywhere; }
+.execution-timeline summary { cursor: pointer; color: var(--text-primary); }
+.execution-timeline .execution-disclaimer { font-size: 12px; color: var(--text-secondary); margin: 12px 0; line-height: 1.6; }
+.execution-timeline ol { list-style: none; padding: 0; }
+.execution-event { border-left: 2px solid var(--border-light); padding: 10px 14px; margin: 8px 0; }
+.execution-event.completed { border-color: var(--green); }
+.execution-event.failed, .execution-event.outcome_unknown { border-color: var(--red); }
+.execution-event.blocked { border-color: var(--amber); }
+.execution-event > div { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: 12px; }
+.execution-source { color: var(--text-secondary); border: 1px solid var(--border-light); border-radius: 6px; padding: 2px 6px; }
+.execution-event time { color: var(--text-secondary); }
+.execution-event p { line-height: 1.6; margin: 8px 0; }
+.execution-timeline pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; margin-top: 8px; color: var(--text-secondary); }
+.responsibility-view button:focus-visible, .responsibility-view summary:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+@media (max-width: 640px) {
+  .responsibility-view { padding: 16px; }
+  .responsibility-card-heading { align-items: flex-start; flex-direction: column; }
+  .responsibility-banner button { margin: 10px 0 0; }
+}
+.workout-correction { overflow-wrap: anywhere; }
+.workout-correction ul { padding-left: 1.25rem; }
+.workout-correction li { margin: .75rem 0; }
+.workout-correction fieldset { min-width: 0; display: grid; gap: .75rem; }
+.workout-correction label { display: grid; gap: .25rem; }
+.workout-correction input, .workout-correction textarea { width: 100%; min-width: 0; box-sizing: border-box; }
+.subagent-catalog { margin: 0 0 16px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 10px; color: var(--text-secondary); font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
+.subagent-catalog summary { cursor: pointer; }
+.subagent-catalog button { border: 1px solid var(--border); border-radius: 6px; padding: 5px 9px; background: transparent; color: inherit; cursor: pointer; }
+.subagent-catalog button:disabled { cursor: wait; opacity: .6; }
+.subagent-catalog section { border-top: 1px solid var(--border); padding-top: 8px; margin-top: 8px; }
+.subagent-catalog ul { padding-left: 18px; }
+.subagent-turn-form { display: grid; gap: 8px; padding: 8px 0; }
+.subagent-turn-form textarea, .subagent-turn-form select { box-sizing: border-box; width: 100%; max-width: 100%; border: 1px solid var(--border); border-radius: 6px; padding: 8px; background: transparent; color: var(--text-primary); font: inherit; }
+.subagent-turn-form textarea { min-height: 72px; resize: vertical; }
+.subagent-turn-form button { justify-self: start; }
+.recorded-trace { min-width: 0; margin: 8px 0; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 12px; color: var(--text-secondary); overflow-wrap: anywhere; }
+.recorded-trace summary { cursor: pointer; }
+.recorded-trace ol { padding-left: 20px; }
+.recorded-trace li { margin: 10px 0; }
+.recorded-trace pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 320px; overflow: auto; padding: 10px; background: var(--bg-secondary); border-radius: 6px; }
+.recorded-trace dl { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 4px 8px; }
+.recorded-trace dd { margin: 0; }
+.recorded-trace button { margin: 8px; border: 1px solid var(--border); background: transparent; color: inherit; border-radius: 5px; padding: 5px 8px; }
+.recorded-trace .trace-child { border-left: 2px solid var(--border); padding-left: 10px; }

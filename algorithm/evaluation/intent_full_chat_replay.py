@@ -160,6 +160,12 @@ def replay_case(case: dict, log_dir: Path, *, recorded_model_payload: dict | Non
                     )
                 )
                 if recorded_model_payload is not None:
+                    from fast_api.app.services.intent_inference_client import IntentInferenceClient
+
+                    # Recorded predictions explicitly opt into the auxiliary client.
+                    service.intent_decision_engine.inference_client = IntentInferenceClient(
+                        settings
+                    )
                     valid = service.intent_decision_engine.inference_client._valid_decision(
                         recorded_model_payload
                     )

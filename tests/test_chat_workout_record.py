@@ -27,7 +27,7 @@ from fast_api.app.services.model_provider import ModelProvider
         ("我朋友刚完成30分钟跑步，帮我记录", "blocked"),
         ("我刚完成30分钟跑步，不要帮我记录", "blocked"),
         ("如果我刚完成30分钟跑步，帮我记录", "blocked"),
-        ("我昨天完成30分钟跑步，帮我记录", "needs_clarification"),
+        ("我昨天完成30分钟跑步，帮我记录", "ready"),
         ("跑步30分钟该怎么记录？", "not_requested"),
     ],
 )

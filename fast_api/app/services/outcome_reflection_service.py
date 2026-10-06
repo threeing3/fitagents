@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from fast_api.app.db import models
+from fast_api.app.services.decision_dependencies import DecisionDependencyService
 from fast_api.app.services.memory_system import MemoryManager
 
 
@@ -48,17 +49,43 @@ class OutcomeReflectionService:
         created_outcomes: list[models.DecisionOutcome] = []
         created_memories: list[models.LongTermMemory] = []
         skipped: list[dict[str, str]] = []
+        # Reuse the authoritative evaluation lifecycle instead of inventing adoption.
+        from fast_api.app.services.decision_evaluation import DecisionEvaluationService
+
+        evaluator = DecisionEvaluationService(self.db)
         for decision in decisions:
-            result = self.reflect_decision(
-                decision.id,
-                implementation_status="implemented",
-                outcome_window_days=outcome_window_days,
-            )
-            if result.get("outcome") is None:
-                skipped.append({"decision_id": str(decision.id), "reason": result["reason"]})
+            if self._existing_outcome(decision.id):
+                skipped.append(
+                    {"decision_id": str(decision.id), "reason": "outcome_already_exists"}
+                )
                 continue
-            created_outcomes.append(result["outcome"])
-            created_memories.append(result["memory"])
+            plan = self.db.scalar(
+                select(models.DecisionEvaluationPlan).where(
+                    models.DecisionEvaluationPlan.decision_id == decision.id,
+                    models.DecisionEvaluationPlan.user_id == user_id,
+                )
+            )
+            if plan is None:
+                skipped.append(
+                    {"decision_id": str(decision.id), "reason": "missing_evaluation_plan"}
+                )
+                continue
+            # The persisted plan owns the observation window. Keep the legacy
+            # argument for callers, but never override a plan's evidence window.
+            result = evaluator.refresh_plan(plan, trigger_type="batch_reflection")
+            outcome = self._existing_outcome(decision.id)
+            if outcome is None:
+                skipped.append(
+                    {
+                        "decision_id": str(decision.id),
+                        "reason": str(result.get("reason") or "evaluation_not_completed"),
+                    }
+                )
+                continue
+            created_outcomes.append(outcome)
+            memory = self.db.get(models.LongTermMemory, outcome.reflected_memory_id)
+            if memory is not None:
+                created_memories.append(memory)
         self.db.flush()
         return {
             "created_count": len(created_outcomes),
@@ -80,6 +107,10 @@ class OutcomeReflectionService:
         decision = self.db.get(models.AgentDecision, decision_id)
         if decision is None:
             return {"outcome": None, "memory": None, "reason": "decision_not_found"}
+        dependencies = DecisionDependencyService(self.db)
+        dependencies.invalidate_changed(decision.user_id)
+        if dependencies.invalidated(decision):
+            return {"outcome": None, "memory": None, "reason": "dependencies_changed"}
         if self._existing_outcome(decision.id):
             return {"outcome": None, "memory": None, "reason": "outcome_already_exists"}
         if implementation_status not in {"implemented", "partially_implemented"}:

@@ -30,35 +30,21 @@ def get_chat_request_status(db, user_id, session_id, key: str) -> dict:
     if record is None or record.request_json.get("session_id") != str(session_id):
         return response
     response["status"] = "unconfirmed"
+    from fast_api.app.services.durable_stream_journal import read_stream_journal
+
+    journal = read_stream_journal(record.id, user_id, session_id)
+    if journal is not None:
+        response["trace_id"] = str(record.id)
+        response["trace_state"] = journal["state"]
+        response["trace_event_count"] = len(journal["entries"])
+        response["trace_liveness"] = "not_checked"
     payload = record.response_json or {}
-    execution = payload.get("execution", {})
-    message_id = _uuid(execution.get("user_message_id"))
-    message = db.get(models.ChatMessage, message_id) if message_id else None
-    if (
-        message is not None
-        and message.user_id == user_id
-        and message.session_id == session_id
-        and message.role == "user"
-    ):
-        write = db.scalar(
-            select(models.IdempotencyRecord).where(
-                models.IdempotencyRecord.user_id == user_id,
-                models.IdempotencyRecord.operation == "workout_log",
-                models.IdempotencyRecord.idempotency_key == "chat-workout:" + str(message.id),
-                models.IdempotencyRecord.status == "completed",
-            )
-        )
-        log_id = _uuid((write.response_json or {}).get("workout_log_id")) if write else None
-        log = db.get(models.WorkoutLog, log_id) if log_id else None
-        if log is not None and log.user_id == user_id:
-            response["confirmed_writes"].append(
-                {
-                    "kind": "workout_log",
-                    "record_id": str(log.id),
-                    "workout_name": log.workout_name,
-                    "duration_minutes": log.duration_minutes,
-                }
-            )
+    from fast_api.app.services.write_receipts import chat_workout_receipt
+
+    receipt = chat_workout_receipt(db, user_id, record.id, session_id)
+    response["write_receipts"] = [receipt]
+    if receipt["state"] == "committed":
+        response["confirmed_writes"].append(receipt)
 
     if record.status != "completed":
         return response

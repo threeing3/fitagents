@@ -1,4 +1,6 @@
 // ---- API response types (mirrors backend schemas) ----
+export type TrainingExercise = { name?: string; sets?: number; reps?: number | string; duration_minutes?: number };
+export type TrainingPlanData = { training_days?: Array<{ date?: string; day?: number; name?: string; exercises?: TrainingExercise[] }> };
 
 export type SessionState = {
   session_id: string;
@@ -12,6 +14,8 @@ export type Dashboard = {
   profile: Record<string, any>;
   missing_slots: string[];
   today_plan: Record<string, any>;
+  active_plan?: { plan_id: string; status: string; plan: TrainingPlanData } | null;
+  timezone?: string;
   latest_checkin: Record<string, any> | null;
   recent_memories: Array<Record<string, any>>;
   progress: Record<string, any>;
@@ -20,7 +24,7 @@ export type Dashboard = {
 
 export type AgentTraceItem = {
   id: string;
-  type: "status" | "step" | "tool_call" | "error" | "done";
+  type: "status" | "step" | "tool_call" | "error" | "done" | "execution_event";
   title: string;
   summary: string;
   latency_ms?: number;
@@ -47,6 +51,29 @@ export type ChatMessage = {
   role: "user" | "assistant";
   content: string;
   created_at?: string;
+  execution_events?: ExecutionEvent[];
+  agent_run_id?: string | null;
+};
+
+export type RecordedTrace = {
+  schema_version: string; run_id: string; status: string;
+  write_receipts?: Array<{ kind: string; state: string; verification?: string; record_id?: string; reason?: string }>;
+  events: Array<{
+    event_id: string; order: number; parent_id: string; child_id?: string | null;
+    step_id?: string | null; name: string; phase: string; status: string; source: string;
+    recorded_at: string; latency_ms: number; recorded_sequence?: number | null;
+    summary: string; input: unknown; output: unknown; error: unknown;
+  }>;
+  snapshot: unknown;
+  coverage: { saved_nodes: number; saved_tool_calls: number; snapshot_available: boolean;
+    exact_model_requests: boolean; ordering: string; limitations: string[];
+    damaged_tail?: boolean; liveness?: string };
+};
+
+export type ExecutionEvent = {
+  type: "execution_event"; name: string; status: "pending" | "running" | "completed" | "failed" | "blocked" | "skipped" | "outcome_unknown";
+  source: "runtime" | "rule" | "tool" | "user" | "model_summary";
+  recorded_at: string; summary: string; details: Record<string, unknown>;
 };
 
 export type AuthUser = {
@@ -69,11 +96,41 @@ export type CheckinResult = {
   checkin_id: string;
   auto_adjusted: boolean;
   idempotent_replay: boolean;
+  adjustment_proposal?: { status: string; reason?: string; approval_id?: string };
+  invalidated_approvals?: string[];
 };
 
 // ---- UI view state ----
 
-export type ViewName = "chat" | "dashboard" | "checkin" | "workout" | "account" | "algorithm";
+export type ViewName = "chat" | "dashboard" | "checkin" | "workout" | "plan" | "settings" | "account" | "algorithm" | "responsibilities";
+
+export type Responsibility = {
+  id: string; status: string; objective: string;
+  configuration: {
+    timezone: string; starts_at: string; ends_at: string; next_wake_at: string | null;
+    weekday: number; hour: number; minute: number; source_instruction: string;
+  };
+  progress: { reviews_completed?: number; last_review?: {
+    execution_events?: ExecutionEvent[];
+    scheduled_at: string; week_start: string; week_end: string;
+    memories?: Array<{ id: string; summary: string; evidence?: Array<{ table: string; id: string }> }>;
+    adjustment_proposal?: { status: string; reason?: string; approval_id?: string };
+  } };
+};
+export type ApprovalActivity = {
+  approval_id: string; tool_name: string; tool_description: string;
+  status: string; created_at: string; expires_at: string;
+  input_preview: { plan_id?: string; day_date?: string; reduce_by?: number; reason?: string };
+  context: { baseline_plan?: TrainingPlanData; candidate_plan?: TrainingPlanData; execution_events?: ExecutionEvent[]; responsibility_id?: string; review_signal?: { average_fatigue?: number; evidence?: Array<{ id: string; table: string }> } };
+  job_id: string | null; job_status: string | null;
+  execution_trace_run_id?: string | null;
+  job_attempts?: number | null;
+  result: { status?: string; verified?: boolean; reason?: string; day_date?: string };
+  error: string | null;
+};
+export type WeeklyResponsibilityInput = {
+  source_instruction: string; weeks: number; weekday: number; hour: number; minute: number;
+};
 
 export type UsageSummary = {
   event_date: string;

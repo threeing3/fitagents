@@ -1,13 +1,55 @@
 import uuid
 from datetime import date, datetime, timedelta, timezone
 
-from sqlalchemy import create_engine, select
+import pytest
+from sqlalchemy import create_engine, select, update
 from sqlalchemy.orm import sessionmaker
 
 from fast_api.app.db import models
 from fast_api.app.db.database import Base
 from fast_api.app.services.decision_evaluation import DecisionEvaluationService, _aligned_now
 from fast_api.app.services.decision_logger import DecisionLogger
+
+
+def test_declined_followup_is_durable_scoped_and_not_a_failed_strategy():
+    db = make_db()
+    user, other = add_user(db), add_user(db)
+    item = DecisionLogger(db).log_decision(
+        user.id,
+        {
+            "decision_type": "nutrition_strategy",
+            "decision_result": "synthetic",
+            "reason": "test",
+        },
+    )
+    service = DecisionEvaluationService(db)
+    plan = service.create_for_decision(item)
+    service.refresh_plan(plan, "test")
+    followup = db.scalar(
+        select(models.DecisionFollowup).where(models.DecisionFollowup.user_id == user.id)
+    )
+    with pytest.raises(ValueError, match="not found"):
+        service.decline_followup(followup.id, other.id)
+    assert followup.status == "pending"
+    result = service.decline_followup(followup.id, user.id)
+    db.commit()
+    followup_id, user_id, plan_id, decision_id = followup.id, user.id, plan.id, item.id
+    db.expunge_all()
+    plan = db.get(models.DecisionEvaluationPlan, plan_id)
+    assert result["status"] == "declined"
+    assert plan.expected_action["followup_declined"] is True
+    assert plan.implementation_status == "unknown"
+    service.refresh_plan(plan, "scheduled_scan")
+    assert service.next_followup_for_delivery(user_id) is None
+    assert service.decline_followup(followup_id, user_id)["status"] == "declined"
+    with pytest.raises(ValueError, match="no longer applicable"):
+        service.answer_followup(followup_id, user_id, {"implementation_status": "implemented"})
+    assert (
+        db.scalar(
+            select(models.DecisionOutcome).where(models.DecisionOutcome.decision_id == decision_id)
+        )
+        is None
+    )
 
 
 def test_evaluation_clock_matches_postgres_timezone_awareness():
@@ -63,6 +105,116 @@ def test_decision_logger_creates_evaluation_plan():
     assert plan.status == "scheduled"
     assert plan.expected_action["requires_user_confirmation"] is True
     assert plan.minimum_evidence == {"workout_count": 1, "recovery_count": 1}
+
+
+def test_refresh_plan_reloads_status_after_owner_lock():
+    db = make_db()
+    user = add_user(db)
+    decision = DecisionLogger(db).log_decision(
+        user.id,
+        {
+            "decision_type": "plan_adjustment",
+            "decision_result": "reduce load",
+            "reason": "synthetic",
+        },
+    )
+    plan = db.scalar(
+        select(models.DecisionEvaluationPlan).where(
+            models.DecisionEvaluationPlan.decision_id == decision.id
+        )
+    )
+    db.commit()
+    db.execute(
+        update(models.DecisionEvaluationPlan)
+        .where(models.DecisionEvaluationPlan.id == plan.id)
+        .values(status="completed")
+        .execution_options(synchronize_session=False)
+    )
+    assert plan.status == "scheduled"  # Simulate a stale ORM identity-map value.
+
+    result = DecisionEvaluationService(db).refresh_plan(plan, "scheduled_scan")
+
+    assert result["reason"] == "evaluation_not_active"
+    assert plan.status == "completed"
+
+
+def test_followup_answer_reloads_cancelled_row_before_writing():
+    db = make_db()
+    user = add_user(db)
+    decision = DecisionLogger(db).log_decision(
+        user.id,
+        {
+            "decision_type": "plan_adjustment",
+            "decision_result": "reduce load",
+            "reason": "synthetic",
+        },
+    )
+    plan = db.scalar(
+        select(models.DecisionEvaluationPlan).where(
+            models.DecisionEvaluationPlan.decision_id == decision.id
+        )
+    )
+    followup = models.DecisionFollowup(
+        user_id=user.id,
+        evaluation_plan_id=plan.id,
+        question_type="strategy_execution",
+        question_payload={},
+        scheduled_at=datetime.utcnow(),
+        status="pending",
+    )
+    db.add(followup)
+    db.commit()
+    db.execute(
+        update(models.DecisionFollowup)
+        .where(models.DecisionFollowup.id == followup.id)
+        .values(status="cancelled")
+        .execution_options(synchronize_session=False)
+    )
+    assert followup.status == "pending"
+
+    with pytest.raises(ValueError, match="no longer applicable"):
+        DecisionEvaluationService(db).answer_followup(
+            followup.id, user.id, {"implementation_status": "implemented"}
+        )
+    assert followup.status == "cancelled"
+    assert followup.answer_json == {}
+
+
+def test_followup_delivery_reloads_attempt_count_and_stops_at_limit():
+    db = make_db()
+    user = add_user(db)
+    decision = DecisionLogger(db).log_decision(
+        user.id,
+        {"decision_type": "plan_adjustment", "decision_result": "reduce load", "reason": "test"},
+    )
+    plan = db.scalar(
+        select(models.DecisionEvaluationPlan).where(
+            models.DecisionEvaluationPlan.decision_id == decision.id
+        )
+    )
+    followup = models.DecisionFollowup(
+        user_id=user.id,
+        evaluation_plan_id=plan.id,
+        question_type="strategy_execution",
+        question_payload={},
+        scheduled_at=datetime.utcnow() - timedelta(minutes=1),
+        status="pending",
+        attempt_count=0,
+    )
+    db.add(followup)
+    db.commit()
+    db.execute(
+        update(models.DecisionFollowup)
+        .where(models.DecisionFollowup.id == followup.id)
+        .values(attempt_count=1)
+        .execution_options(synchronize_session=False)
+    )
+    assert followup.attempt_count == 0
+
+    service = DecisionEvaluationService(db)
+    assert service.next_followup_for_delivery(user.id) is not None
+    assert followup.attempt_count == 2
+    assert service.next_followup_for_delivery(user.id) is None
 
 
 def test_event_evidence_creates_followup_then_answer_reflects_outcome():
@@ -148,6 +300,76 @@ def test_event_evidence_creates_followup_then_answer_reflects_outcome():
     assert memory.memory_metadata["last_confirmed_at"]
     assert memory.memory_metadata["review_due_at"]
     assert plan.status == "completed"
+
+
+@pytest.mark.parametrize("legacy", [False, True])
+def test_workout_records_do_not_prove_plan_adoption_or_strategy_gain(legacy):
+    db = make_db()
+    user = add_user(db)
+    decision_time = datetime.utcnow() - timedelta(days=3)
+    decision = models.AgentDecision(
+        user_id=user.id,
+        decision_type="plan_generation",
+        context_used={},
+        input_summary="合成计划",
+        decision_result="建议训练",
+        reason="用户请求",
+        confidence_score=0.8,
+        created_at=decision_time,
+    )
+    db.add(decision)
+    db.flush()
+    service = DecisionEvaluationService(db)
+    plan = service.create_for_decision(decision)
+    if legacy:
+        plan.expected_action = {"requires_user_confirmation": False}
+        plan.implementation_status = "implemented"
+    for offset in (1, 2):
+        db.add(
+            models.WorkoutLog(
+                user_id=user.id,
+                performed_at=decision_time + timedelta(days=offset),
+                workout_name="自主训练，没有说明采用建议",
+                completion_rate=1.0,
+                rpe=5,
+            )
+        )
+        db.add(
+            models.RecoveryLog(
+                user_id=user.id,
+                log_date=(decision_time + timedelta(days=offset)).date(),
+                fatigue_score=2,
+                sleep_hours=8,
+            )
+        )
+    db.flush()
+    result = service.refresh_plan(plan, trigger_type="workout_logged")
+    assert result["status"] == "waiting_user"
+    assert plan.evidence_snapshot["workout_count"] == 2
+    assert plan.implementation_status == "unknown"
+    assert (
+        db.scalar(
+            select(models.DecisionOutcome).where(models.DecisionOutcome.decision_id == decision.id)
+        )
+        is None
+    )
+    assert (
+        db.scalar(
+            select(models.LongTermMemory).where(
+                models.LongTermMemory.user_id == user.id,
+                models.LongTermMemory.fact_kind.in_(["strategy_experience", "failed_strategy"]),
+            )
+        )
+        is None
+    )
+    assert (
+        db.scalar(
+            select(models.DecisionFollowup).where(
+                models.DecisionFollowup.evaluation_plan_id == plan.id
+            )
+        )
+        is not None
+    )
 
 
 def test_not_started_followup_does_not_create_failed_strategy():

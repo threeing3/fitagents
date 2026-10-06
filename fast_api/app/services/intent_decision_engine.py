@@ -2,15 +2,21 @@
 
 from __future__ import annotations
 
+import asyncio
 import time
 from dataclasses import dataclass
 from typing import Any
 
 from fast_api.app.services.clarification_protocol import ClarificationProtocolValidator
+from fast_api.app.services.delegation_routing import DelegationRoutingPolicy
+from fast_api.app.services.domain_subagents import select_domains
 from fast_api.app.services.field_confidence_router import FieldConfidenceRouter
+from fast_api.app.services.intent_cascade import IntentCascadePolicy
 from fast_api.app.services.intent_contract import IntentDecisionV2
 from fast_api.app.services.intent_decision import IntentDecision, IntentRouter
 from fast_api.app.services.intent_inference_client import IntentInferenceClient
+from fast_api.app.services.jev_exit_policy import JevExitPolicy
+from fast_api.app.services.jev_intent_client import JevIntentClient
 from fast_api.app.services.llm_intent_classifier import LLMIntentClassifier
 from fast_api.app.services.model_provider import ModelProvider
 from fast_api.app.services.runtime_router import RuntimeMode, RuntimeRouter
@@ -50,16 +56,25 @@ class IntentDecisionEngine:
         inference_client: IntentInferenceClient | None = None,
         field_router: FieldConfidenceRouter | None = None,
         clarification_validator: ClarificationProtocolValidator | None = None,
+        cascade_policy: IntentCascadePolicy | DelegationRoutingPolicy | None = None,
+        jev_client: JevIntentClient | None = None,
+        jev_exit_policy: JevExitPolicy | None = None,
     ):
         self.model_provider = model_provider or ModelProvider()
         self.intent_router = intent_router or IntentRouter()
         self.classifier = LLMIntentClassifier(self.model_provider, self.intent_router)
-        self.inference_client = inference_client or IntentInferenceClient(
-            self.model_provider.settings
-        )
+        self.inference_client = inference_client
+        if self.inference_client is None and getattr(
+            self.model_provider.settings, "adapter_inference_url", None
+        ):
+            self.inference_client = IntentInferenceClient(self.model_provider.settings)
         self.field_router = field_router or FieldConfidenceRouter()
         self.clarification_validator = clarification_validator or ClarificationProtocolValidator()
         self.runtime_router = RuntimeRouter(self.intent_router)
+        self.cascade_policy = cascade_policy or DelegationRoutingPolicy()
+        self.semantic_assistance = isinstance(self.cascade_policy, IntentCascadePolicy)
+        self.jev_client = jev_client
+        self.jev_exit_policy = jev_exit_policy or JevExitPolicy()
 
     async def decide(self, message: str, profile: Any | None = None) -> IntentEngineResult:
         started = time.perf_counter()
@@ -68,14 +83,32 @@ class IntentDecisionEngine:
         rule_ms = round((time.perf_counter() - rule_started) * 1000)
 
         model_started = time.perf_counter()
-        should_refine = self.classifier.should_refine(rule_decision, message)
+        cascade = await asyncio.to_thread(self.cascade_policy.assess, message, rule_decision)
+        should_refine = cascade.outcome != "accept"
+        dispatch_decision = rule_decision
+        if cascade.intent and cascade.intent != rule_decision.primary_intent:
+            dispatch_decision = self.intent_router.from_intent(cascade.intent)
+            dispatch_decision.entities = dict(rule_decision.entities)
+        jev_result = None
+        jev_exit = None
+        jev_decision = None
+        jev_ms = 0
+        if should_refine and self.jev_client is not None:
+            jev_started = time.perf_counter()
+            jev_result = await self.jev_client.classify(message)
+            jev_ms = round((time.perf_counter() - jev_started) * 1000)
+            jev_exit = self.jev_exit_policy.assess(message, jev_result, rule_decision)
+            if jev_exit.outcome == "accept" and jev_exit.intent:
+                jev_decision = self.intent_router.from_intent(jev_exit.intent)
+                jev_decision.entities = dict(rule_decision.entities)
+                should_refine = False
         local_trace = (
             await self.inference_client.classify(
                 message,
                 rule_decision.to_dict(),
                 self._profile_summary(profile),
             )
-            if should_refine
+            if should_refine and self.inference_client is not None
             else None
         )
         safety_override_reasons: list[str] = []
@@ -86,12 +119,15 @@ class IntentDecisionEngine:
             "risk_level": "deterministic_rule_floor",
             "needs_clarification": "clarification_protocol",
         }
+        if jev_decision is not None:
+            field_sources["primary_intent"] = "jev"
+            field_sources["secondary_intents"] = "jev"
         if local_trace and local_trace.succeeded and local_trace.payload:
             safety_override_reasons = self._adapter_safety_override_reasons(
                 rule_decision, local_trace.payload
             )
             adapter_decision = self.classifier._merge_with_rule_decision(
-                local_trace.payload, rule_decision
+                local_trace.payload, rule_decision, authoritative_tasks=True
             )
             field_route_plan = self.field_router.plan(local_trace.payload)
             deepseek_decision = None
@@ -102,7 +138,12 @@ class IntentDecisionEngine:
             }
             if field_route_plan.requires_deepseek:
                 deepseek_decision, review_trace = await self.classifier.refine_with_trace(
-                    message, rule_decision, profile=profile, force_refine=True
+                    message,
+                    rule_decision,
+                    profile=profile,
+                    force_refine=True,
+                    semantic_candidates=cascade.candidates,
+                    authoritative_tasks=True,
                 )
                 if not review_trace.get("succeeded"):
                     deepseek_decision = None
@@ -112,6 +153,7 @@ class IntentDecisionEngine:
                 rule_decision,
                 field_route_plan,
                 self.intent_router,
+                authoritative_tasks=True,
             )
             model_trace = {
                 "attempted": bool(review_trace.get("attempted")),
@@ -120,29 +162,79 @@ class IntentDecisionEngine:
                 "usage": review_trace.get("usage") or {},
             }
         else:
-            final_decision, model_trace = await self.classifier.refine_with_trace(
-                message, rule_decision, profile=profile
-            )
+            if should_refine:
+                final_decision, model_trace = await self.classifier.refine_with_trace(
+                    message,
+                    rule_decision,
+                    profile=profile,
+                    force_refine=True,
+                    semantic_candidates=cascade.candidates,
+                    authoritative_tasks=True,
+                )
+            else:
+                final_decision, model_trace = (
+                    jev_decision or dispatch_decision,
+                    {
+                        "attempted": False,
+                        "succeeded": False,
+                        "fallback_reason": "refinement_not_required",
+                    },
+                )
             if model_trace.get("succeeded"):
                 field_sources["primary_intent"] = "deepseek"
                 field_sources["secondary_intents"] = "deepseek"
         model_ms = round((time.perf_counter() - model_started) * 1000)
         final_decision = self._enforce_rule_safety(rule_decision, final_decision)
+        if final_decision.primary_intent == "training_plan":
+            # Execution readiness stays host-owned even when task selection changed.
+            final_decision.missing_slots = self.intent_router._dedupe(
+                final_decision.missing_slots
+                + self.intent_router._missing_slots(
+                    "training_plan", final_decision.entities, profile
+                )
+            )
+            final_decision.needs_clarification |= bool(final_decision.missing_slots)
         clarification = self.clarification_validator.validate(message, final_decision, profile)
         final_decision = self.clarification_validator.apply(
             final_decision, clarification, self.intent_router
         )
 
-        route = self.runtime_router.route_decision(final_decision, message=message)
+        route = self.runtime_router.route_decision(
+            final_decision, message=message, authoritative=True
+        )
         provider = self.model_provider.settings.llm_provider
         model_succeeded = bool(model_trace.get("succeeded"))
         provenance = {
+            "routing_mode": "lightweight_delegation_v1",
+            "semantic_assistance_enabled": self.semantic_assistance,
+            "delegated_domains": select_domains(
+                {
+                    "intent": final_decision.primary_intent,
+                    "secondary_intents": final_decision.secondary_intents,
+                }
+            ),
+            "execution_authority": "host_policy_and_tool_guards_not_router",
+            "cascade": cascade.to_dict(),
+            "jev_candidate": jev_result.summary() if jev_result else None,
+            "jev_exit": jev_exit.to_dict() if jev_exit else None,
+            "jev_used": jev_decision is not None,
+            "jev_calibration_reference": (
+                self.jev_exit_policy.calibration.reference
+                if self.jev_exit_policy.calibration is not None
+                else None
+            ),
             "rule_used": True,
             "rule_version": "intent_rules_v2",
             "rule_risk_detected": rule_decision.risk_level in {"medium", "high", "critical"},
             "local_model_attempted": bool(local_trace and local_trace.attempted),
             "local_model_used": bool(local_trace and local_trace.succeeded),
-            "local_model_status": local_trace.status if local_trace else "refinement_not_required",
+            "local_model_status": (
+                local_trace.status
+                if local_trace
+                else "not_configured"
+                if self.inference_client is None
+                else "refinement_not_required"
+            ),
             "local_model_version": local_trace.model_version if local_trace else None,
             "local_model_usage": local_trace.usage if local_trace else {},
             "adapter_fallback_reason": (
@@ -180,12 +272,16 @@ class IntentDecisionEngine:
             "clarification_reason_codes": clarification.reason_codes,
             "clarification_blocked_actions": clarification.blocked_actions,
             "final_source": (
-                "field_fusion_with_rule_override"
+                "jev_with_policy_checks"
+                if jev_decision is not None
+                else "field_fusion_with_rule_override"
                 if local_trace and local_trace.succeeded and model_succeeded
                 else "adapter_with_rule_override"
                 if local_trace and local_trace.succeeded
                 else "model_with_rule_override"
                 if model_succeeded
+                else "rule_dispatch"
+                if cascade.outcome == "accept"
                 else "rule_fallback"
             ),
         }
@@ -196,6 +292,7 @@ class IntentDecisionEngine:
                 "rule": rule_ms,
                 "model": model_ms if model_trace.get("attempted") else 0,
                 "local_model": local_trace.latency_ms if local_trace else 0,
+                "jev": jev_ms,
                 "total": round((time.perf_counter() - started) * 1000),
             },
             candidate_tools=self._candidate_tools(final_decision),

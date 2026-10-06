@@ -159,6 +159,121 @@ def test_readiness_endpoint_checks_database_migration_and_model():
 # ============================================================
 
 
+def test_workout_correction_routes_bind_authenticated_owner_and_replay():
+    client, factory = _create_client_and_db()
+    assert client.get("/v1/workouts/logs").status_code == 401
+    owner = client.post(
+        "/v1/auth/register",
+        json={"email": "workout-correct-owner@example.com", "password": "secure1234"},
+    ).json()
+    other = client.post(
+        "/v1/auth/register",
+        json={"email": "workout-correct-other@example.com", "password": "secure1234"},
+    ).json()
+    client.cookies.clear()
+    owner_headers = {"Authorization": f"Bearer {owner['access_token']}"}
+    other_headers = {"Authorization": f"Bearer {other['access_token']}"}
+    created = client.post(
+        "/v1/workouts/logs",
+        headers=owner_headers,
+        json={"workout_name": "慢跑", "duration_minutes": 30, "rpe": 6},
+    )
+    assert created.status_code == 200
+    log_id = created.json()["workout_log_id"]
+    items = client.get("/v1/workouts/logs", headers=owner_headers).json()
+    assert len(items) == 1 and items[0]["id"] == log_id and items[0]["revision"] == 0
+    assert client.get("/v1/workouts/logs", headers=other_headers).json() == []
+    assert client.get("/v1/workouts/logs?limit=101", headers=owner_headers).status_code == 422
+    path = f"/v1/workouts/logs/{log_id}/corrections"
+    payload = {
+        "idempotency_key": "api-correction-one",
+        "expected_revision": 0,
+        "expected": {"duration_minutes": 30},
+        "changes": {"duration_minutes": 20},
+        "reason": "核对手表",
+    }
+    assert client.post(path, json=payload).status_code == 401
+    assert client.post(path, json=payload, headers=other_headers).status_code == 404
+    forged = {**payload, "user_id": owner["user_id"]}
+    assert client.post(path, json=forged, headers=other_headers).status_code == 422
+    result = client.post(path, json=payload, headers=owner_headers)
+    assert result.status_code == 200 and result.json()["revision"] == 1
+    replay = client.post(path, json=payload, headers=owner_headers)
+    assert replay.json()["idempotent_replay"]
+    assert replay.json()["audit_id"] == result.json()["audit_id"]
+    assert client.post(path, json=payload, headers=other_headers).status_code == 404
+    assert (
+        client.post(
+            path, json={**payload, "idempotency_key": "stale-api-request"}, headers=owner_headers
+        ).status_code
+        == 409
+    )
+    with factory() as db:
+        assert db.get(models.WorkoutLog, uuid.UUID(log_id)).duration_minutes == 20
+    assert client.get("/v1/workouts/logs", headers=owner_headers).json()[0]["revision"] == 1
+
+
+def test_followup_decline_endpoint_requires_owner_and_persists_stop():
+    from fast_api.app.services.decision_evaluation import DecisionEvaluationService
+    from fast_api.app.services.decision_logger import DecisionLogger
+
+    client, session_factory = _create_client_and_db()
+    assert client.post(f"/v1/agent/decision-followups/{uuid.uuid4()}/decline").status_code == 401
+    owner = client.post(
+        "/v1/auth/register",
+        json={
+            "email": "followup-owner@example.com",
+            "password": "secure1234",
+        },
+    ).json()
+    other = client.post(
+        "/v1/auth/register",
+        json={
+            "email": "followup-other@example.com",
+            "password": "secure1234",
+        },
+    ).json()
+    client.cookies.clear()
+    with session_factory() as db:
+        decision = DecisionLogger(db).log_decision(
+            uuid.UUID(owner["user_id"]),
+            {
+                "decision_type": "nutrition_strategy",
+                "decision_result": "synthetic",
+                "reason": "test",
+            },
+        )
+        service = DecisionEvaluationService(db)
+        plan = service.create_for_decision(decision)
+        service.refresh_plan(plan, "test")
+        db.commit()
+        followup = db.scalar(
+            select(models.DecisionFollowup).where(
+                models.DecisionFollowup.evaluation_plan_id == plan.id,
+            )
+        )
+        followup_id, plan_id = followup.id, plan.id
+    path = f"/v1/agent/decision-followups/{followup_id}/decline"
+    assert (
+        client.post(path, headers={"Authorization": f"Bearer {other['access_token']}"}).status_code
+        == 404
+    )
+    headers = {"Authorization": f"Bearer {owner['access_token']}"}
+    response = client.post(path, headers=headers)
+    assert response.status_code == 200
+    assert response.json()["status"] == "declined"
+    assert client.post(path, headers=headers).json()["status"] == "declined"
+    assert client.get("/v1/agent/decision-followups", headers=headers).json() == []
+    with session_factory() as db:
+        plan = db.get(models.DecisionEvaluationPlan, plan_id)
+        DecisionEvaluationService(db).refresh_plan(plan, "scheduled_scan")
+        assert plan.expected_action["followup_declined"] is True
+        assert (
+            DecisionEvaluationService(db).next_followup_for_delivery(uuid.UUID(owner["user_id"]))
+            is None
+        )
+
+
 def test_register_creates_user_and_returns_jwt():
     client, session_factory = _create_client_and_db()
 
@@ -597,6 +712,37 @@ def test_create_chat_session_with_valid_token():
     assert data["title"] == "My Session"
 
 
+def test_dashboard_exposes_only_owned_active_plan_and_timezone():
+    client, session_factory = _create_client_and_db()
+    registration = client.post(
+        "/v1/auth/register",
+        json={"email": "plan-reader@example.com", "password": "synthetic-password-1234"},
+    )
+    assert registration.status_code == 201
+    user_id = uuid.UUID(registration.json()["user_id"])
+    headers = {"Authorization": f"Bearer {registration.json()['access_token']}"}
+    plan_json = {
+        "training_days": [{"date": "2026-10-04", "name": "Synthetic jog", "exercises": []}]
+    }
+    with session_factory() as db:
+        user = db.get(models.User, user_id)
+        user.timezone = "America/Los_Angeles"
+        plan = models.TrainingPlan(user_id=user_id, status="active", plan_json=plan_json)
+        db.add(plan)
+        db.commit()
+        plan_id = str(plan.id)
+    response = client.get(f"/v1/users/{user_id}/dashboard", headers=headers)
+    assert response.status_code == 200
+    assert response.json()["timezone"] == "America/Los_Angeles"
+    assert response.json()["active_plan"] == {
+        "plan_id": plan_id,
+        "status": "active",
+        "plan": plan_json,
+    }
+    with session_factory() as db:
+        assert db.get(models.TrainingPlan, uuid.UUID(plan_id)).plan_json == plan_json
+
+
 def test_dashboard_returns_403_for_other_users_data():
     client, _ = _create_client_and_db()
 
@@ -748,6 +894,87 @@ def test_create_memory_item_with_valid_token():
     data = response.json()
     assert data["memory_type"] == "stable_preference"
     assert data["category"] == "preference"
+
+
+def test_memory_api_rejects_ambiguous_correction_without_target():
+    client, _ = _create_client_and_db()
+    token = client.post(
+        "/v1/auth/register",
+        json={"email": "memory-correction@example.com", "password": "secure1234"},
+    ).json()["access_token"]
+
+    response = client.post(
+        "/v1/memory/items",
+        json={"category": "profile", "content": "不对，我的目标改了，现在是增肌。"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 422
+    assert "corrected_memory_ids" in response.json()["error"]["message"]
+
+
+def test_memory_api_explicit_correction_replaces_only_selected_memory():
+    client, _ = _create_client_and_db()
+    token = client.post(
+        "/v1/auth/register",
+        json={"email": "memory-target@example.com", "password": "secure1234"},
+    ).json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+    old = client.post(
+        "/v1/memory/items",
+        json={"category": "preference", "content": "用户喜欢晨练。"},
+        headers=headers,
+    ).json()
+    unrelated = client.post(
+        "/v1/memory/items",
+        json={"category": "preference", "content": "用户偏好低强度训练。"},
+        headers=headers,
+    ).json()
+
+    corrected = client.post(
+        "/v1/memory/items",
+        json={
+            "category": "preference",
+            "content": "不对，训练时间偏好改了，现在是晚练。",
+            "corrected_memory_ids": [old["id"]],
+        },
+        headers=headers,
+    )
+
+    assert corrected.status_code == 200
+    active_ids = {item["id"] for item in client.get("/v1/memory/items", headers=headers).json()}
+    assert old["id"] not in active_ids
+    assert unrelated["id"] in active_ids
+    assert corrected.json()["id"] in active_ids
+
+
+def test_memory_api_rejects_profile_correction_that_would_leave_domain_state_stale():
+    client, _ = _create_client_and_db()
+    token = client.post(
+        "/v1/auth/register",
+        json={"email": "memory-domain@example.com", "password": "secure1234"},
+    ).json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+    old = client.post(
+        "/v1/memory/items",
+        json={"category": "profile", "content": "用户目标是减脂。"},
+        headers=headers,
+    ).json()
+
+    response = client.post(
+        "/v1/memory/items",
+        json={
+            "category": "profile",
+            "content": "不对，目标改了，现在是增肌。",
+            "corrected_memory_ids": [old["id"]],
+        },
+        headers=headers,
+    )
+
+    assert response.status_code == 422
+    assert "verified chat flow" in response.json()["error"]["message"]
+    active_ids = {item["id"] for item in client.get("/v1/memory/items", headers=headers).json()}
+    assert old["id"] in active_ids
 
 
 def test_list_memory_items_with_valid_token():

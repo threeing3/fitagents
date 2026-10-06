@@ -354,6 +354,11 @@ class IntentRouter:
             matched.append("recovery_check")
         if _has_any(text, self.MEMORY_TERMS) or history_query(message) is not None:
             matched.append("memory_query")
+        if re.fullmatch(
+            r"(?:帮我|请)?(?:查询|查看)(?:今天|昨天|上周|本周)的训练记录[。！？!? ]*",
+            text.strip(),
+        ):
+            matched.append("memory_query")
         if self._looks_like_profile_message(message):
             matched.append("profile_update")
 

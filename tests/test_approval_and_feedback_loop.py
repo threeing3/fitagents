@@ -1,36 +1,50 @@
 """Tests for approval system and feedback learner."""
 
 import uuid
-from datetime import datetime, timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
-
 
 # ============================================================
 # Approval Manager Tests
 # ============================================================
 
+
+def make_approval_db():
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+
+    from fast_api.app.db.database import Base
+
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    return Session(engine)
+
+
 class TestApprovalManager:
     def test_requires_approval_read_tool(self):
         from fast_api.app.services.approval_manager import ApprovalManager
-        mgr = ApprovalManager(MagicMock())
+
+        mgr = ApprovalManager(make_approval_db())
         assert not mgr.requires_approval("context.build", "read", False)
 
     def test_requires_approval_write_tool(self):
         from fast_api.app.services.approval_manager import ApprovalManager
-        mgr = ApprovalManager(MagicMock())
+
+        mgr = ApprovalManager(make_approval_db())
         assert mgr.requires_approval("memory.write", "write", True)
 
     def test_requires_approval_write_candidate(self):
         from fast_api.app.services.approval_manager import ApprovalManager
-        mgr = ApprovalManager(MagicMock())
+
+        mgr = ApprovalManager(make_approval_db())
         # write_candidate without side_effects — still needs approval since it feeds write ops
         assert mgr.requires_approval("profile.extract", "write_candidate", False)
 
     def test_create_approval(self):
         from fast_api.app.services.approval_manager import ApprovalManager
-        mgr = ApprovalManager(MagicMock())
+
+        mgr = ApprovalManager(make_approval_db())
         user_id = uuid.uuid4()
         approval = mgr.create_approval(
             user_id=user_id,
@@ -46,7 +60,8 @@ class TestApprovalManager:
 
     def test_approve_resolves_pending(self):
         from fast_api.app.services.approval_manager import ApprovalManager
-        mgr = ApprovalManager(MagicMock())
+
+        mgr = ApprovalManager(make_approval_db())
         approval = mgr.create_approval(
             user_id=uuid.uuid4(),
             session_id=None,
@@ -61,7 +76,8 @@ class TestApprovalManager:
 
     def test_deny_resolves_pending(self):
         from fast_api.app.services.approval_manager import ApprovalManager
-        mgr = ApprovalManager(MagicMock())
+
+        mgr = ApprovalManager(make_approval_db())
         approval = mgr.create_approval(
             user_id=uuid.uuid4(),
             session_id=None,
@@ -76,7 +92,8 @@ class TestApprovalManager:
 
     def test_cannot_approve_twice(self):
         from fast_api.app.services.approval_manager import ApprovalManager
-        mgr = ApprovalManager(MagicMock())
+
+        mgr = ApprovalManager(make_approval_db())
         approval = mgr.create_approval(
             user_id=uuid.uuid4(),
             session_id=None,
@@ -91,7 +108,8 @@ class TestApprovalManager:
 
     def test_get_pending(self):
         from fast_api.app.services.approval_manager import ApprovalManager
-        mgr = ApprovalManager(MagicMock())
+
+        mgr = ApprovalManager(make_approval_db())
         user_id = uuid.uuid4()
         mgr.create_approval(user_id, None, "tool1", "d", "write", {})
         mgr.create_approval(user_id, None, "tool2", "d", "write", {})
@@ -100,16 +118,18 @@ class TestApprovalManager:
 
     def test_get_pending_excludes_decided(self):
         from fast_api.app.services.approval_manager import ApprovalManager
-        mgr = ApprovalManager(MagicMock())
+
+        mgr = ApprovalManager(make_approval_db())
         user_id = uuid.uuid4()
         a1 = mgr.create_approval(user_id, None, "tool1", "d", "write", {})
-        a2 = mgr.create_approval(user_id, None, "tool2", "d", "write", {})
+        mgr.create_approval(user_id, None, "tool2", "d", "write", {})
         mgr.approve(a1.approval_id)
         pending = mgr.get_pending(user_id)
         assert len(pending) == 1
 
     def test_check_auto_approve_insufficient_history(self):
         from fast_api.app.services.approval_manager import ApprovalManager
+
         mock_db = MagicMock()
         mock_query = MagicMock()
         mock_query.filter.return_value = mock_query
@@ -121,6 +141,7 @@ class TestApprovalManager:
 
     def test_check_auto_approve_sufficient_history(self):
         from fast_api.app.services.approval_manager import ApprovalManager
+
         mock_db = MagicMock()
         mock_query = MagicMock()
         mock_query.filter.return_value = mock_query
@@ -128,17 +149,20 @@ class TestApprovalManager:
         mock_db.query.return_value = mock_query
 
         mgr = ApprovalManager(mock_db)
-        assert mgr.check_auto_approve(uuid.uuid4(), "plan.generate", "training_plan")
+        assert not mgr.check_auto_approve(uuid.uuid4(), "plan.generate", "training_plan")
 
     def test_max_pending_enforced(self):
         from fast_api.app.services.approval_manager import (
-            ApprovalManager,
             MAX_PENDING_PER_USER,
+            ApprovalManager,
         )
-        mgr = ApprovalManager(MagicMock())
+
+        mgr = ApprovalManager(make_approval_db())
         user_id = uuid.uuid4()
-        for i in range(MAX_PENDING_PER_USER + 2):
+        for i in range(MAX_PENDING_PER_USER):
             mgr.create_approval(user_id, None, f"tool{i}", "d", "write", {})
+        with pytest.raises(ValueError, match="limit"):
+            mgr.create_approval(user_id, None, "overflow", "d", "write", {})
         pending = mgr.get_pending(user_id)
         assert len(pending) <= MAX_PENDING_PER_USER
 
@@ -146,20 +170,21 @@ class TestApprovalManager:
 class TestSummarizeTool:
     def test_known_tool_has_description(self):
         from fast_api.app.services.approval_manager import summarize_tool_for_approval
+
         summary = summarize_tool_for_approval("plan.generate", {"reason": "test"})
         assert "plan" in summary["description"].lower()
         assert summary["tool_name"] == "plan.generate"
 
     def test_unknown_tool_fallback(self):
         from fast_api.app.services.approval_manager import summarize_tool_for_approval
+
         summary = summarize_tool_for_approval("unknown.tool", {})
         assert "Execute tool" in summary["description"]
 
     def test_long_input_truncated(self):
         from fast_api.app.services.approval_manager import summarize_tool_for_approval
-        summary = summarize_tool_for_approval("plan.generate", {
-            "reason": "x" * 1000
-        })
+
+        summary = summarize_tool_for_approval("plan.generate", {"reason": "x" * 1000})
         preview = summary["input_preview"]
         assert len(str(preview.get("reason", ""))) < 500
 
@@ -168,9 +193,11 @@ class TestSummarizeTool:
 # Feedback Learner Tests
 # ============================================================
 
+
 class TestFeedbackCollector:
     def test_get_recent_feedback(self):
         from fast_api.app.services.feedback_learner import FeedbackCollector
+
         mock_db = MagicMock()
         mock_query = MagicMock()
         mock_query.filter.return_value = mock_query
@@ -184,6 +211,7 @@ class TestFeedbackCollector:
 
     def test_get_low_rated(self):
         from fast_api.app.services.feedback_learner import FeedbackCollector
+
         mock_db = MagicMock()
         mock_query = MagicMock()
         mock_query.filter.return_value = mock_query
@@ -197,6 +225,7 @@ class TestFeedbackCollector:
 
     def test_get_top_categories(self):
         from fast_api.app.services.feedback_learner import FeedbackCollector
+
         mock_db = MagicMock()
         mock_query = MagicMock()
         mock_query.filter.return_value = mock_query
@@ -214,16 +243,13 @@ class TestFeedbackCollector:
 
 class TestPreferenceLearner:
     def test_insufficient_data(self):
-        from fast_api.app.services.feedback_learner import (
-            PreferenceLearner, FeedbackCollector
-        )
+        from fast_api.app.services.feedback_learner import FeedbackCollector, PreferenceLearner
+
         mock_db = MagicMock()
         collector = FeedbackCollector(mock_db)
         collector.get_low_rated = MagicMock(return_value=[])
         collector.get_top_categories = MagicMock(return_value=[])
-        collector.get_rating_trend = MagicMock(return_value={
-            "trend": [], "overall_avg": 0
-        })
+        collector.get_rating_trend = MagicMock(return_value={"trend": [], "overall_avg": 0})
 
         learner = PreferenceLearner(collector)
         result = learner.learn(uuid.uuid4())
@@ -231,21 +257,20 @@ class TestPreferenceLearner:
         assert result["behavioral_guidance"] == []
 
     def test_sufficient_data_produces_guidance(self):
-        from fast_api.app.services.feedback_learner import (
-            PreferenceLearner, FeedbackCollector
-        )
+        from fast_api.app.services.feedback_learner import FeedbackCollector, PreferenceLearner
+
         mock_db = MagicMock()
         collector = FeedbackCollector(mock_db)
         # Simulate enough negative feedback
-        collector.get_low_rated = MagicMock(return_value=[
-            {"rating": 2, "category": "too_generic"} for _ in range(4)
-        ])
-        collector.get_top_categories = MagicMock(return_value=[
-            {"category": "too_generic", "count": 4},
-        ])
-        collector.get_rating_trend = MagicMock(return_value={
-            "trend": [], "overall_avg": 2.5
-        })
+        collector.get_low_rated = MagicMock(
+            return_value=[{"rating": 2, "category": "too_generic"} for _ in range(4)]
+        )
+        collector.get_top_categories = MagicMock(
+            return_value=[
+                {"category": "too_generic", "count": 4},
+            ]
+        )
+        collector.get_rating_trend = MagicMock(return_value={"trend": [], "overall_avg": 2.5})
 
         learner = PreferenceLearner(collector)
         result = learner.learn(uuid.uuid4())
@@ -254,21 +279,24 @@ class TestPreferenceLearner:
         assert any("specific" in g.lower() for g in result["behavioral_guidance"])
 
     def test_declining_trend_adds_guidance(self):
-        from fast_api.app.services.feedback_learner import (
-            PreferenceLearner, FeedbackCollector
-        )
+        from fast_api.app.services.feedback_learner import FeedbackCollector, PreferenceLearner
+
         mock_db = MagicMock()
         collector = FeedbackCollector(mock_db)
-        collector.get_low_rated = MagicMock(return_value=[
-            {"rating": 1, "category": "not_helpful"} for _ in range(5)
-        ])
-        collector.get_top_categories = MagicMock(return_value=[
-            {"category": "not_helpful", "count": 5},
-        ])
-        collector.get_rating_trend = MagicMock(return_value={
-            "trend": [{"date": "2026-01-01", "avg_rating": 2.0} for _ in range(5)],
-            "overall_avg": 2.0,
-        })
+        collector.get_low_rated = MagicMock(
+            return_value=[{"rating": 1, "category": "not_helpful"} for _ in range(5)]
+        )
+        collector.get_top_categories = MagicMock(
+            return_value=[
+                {"category": "not_helpful", "count": 5},
+            ]
+        )
+        collector.get_rating_trend = MagicMock(
+            return_value={
+                "trend": [{"date": "2026-01-01", "avg_rating": 2.0} for _ in range(5)],
+                "overall_avg": 2.0,
+            }
+        )
 
         learner = PreferenceLearner(collector)
         result = learner.learn(uuid.uuid4())
@@ -279,15 +307,16 @@ class TestPreferenceLearner:
 class TestPromptEnhancer:
     def test_no_patterns_returns_base(self):
         from fast_api.app.services.feedback_learner import (
-            PromptEnhancer, PreferenceLearner, FeedbackCollector
+            FeedbackCollector,
+            PreferenceLearner,
+            PromptEnhancer,
         )
+
         mock_db = MagicMock()
         collector = FeedbackCollector(mock_db)
         collector.get_low_rated = MagicMock(return_value=[])
         collector.get_top_categories = MagicMock(return_value=[])
-        collector.get_rating_trend = MagicMock(return_value={
-            "trend": [], "overall_avg": 0
-        })
+        collector.get_rating_trend = MagicMock(return_value={"trend": [], "overall_avg": 0})
         learner = PreferenceLearner(collector)
         enhancer = PromptEnhancer(learner)
 
@@ -298,19 +327,22 @@ class TestPromptEnhancer:
 
     def test_patterns_add_learned_section(self):
         from fast_api.app.services.feedback_learner import (
-            PromptEnhancer, PreferenceLearner, FeedbackCollector
+            FeedbackCollector,
+            PreferenceLearner,
+            PromptEnhancer,
         )
+
         mock_db = MagicMock()
         collector = FeedbackCollector(mock_db)
-        collector.get_low_rated = MagicMock(return_value=[
-            {"rating": 1, "category": "too_generic"} for _ in range(4)
-        ])
-        collector.get_top_categories = MagicMock(return_value=[
-            {"category": "too_generic", "count": 4},
-        ])
-        collector.get_rating_trend = MagicMock(return_value={
-            "trend": [], "overall_avg": 3.5
-        })
+        collector.get_low_rated = MagicMock(
+            return_value=[{"rating": 1, "category": "too_generic"} for _ in range(4)]
+        )
+        collector.get_top_categories = MagicMock(
+            return_value=[
+                {"category": "too_generic", "count": 4},
+            ]
+        )
+        collector.get_rating_trend = MagicMock(return_value={"trend": [], "overall_avg": 3.5})
         learner = PreferenceLearner(collector)
         enhancer = PromptEnhancer(learner)
 
@@ -325,6 +357,7 @@ class TestPromptEnhancer:
 class TestCorrectionCategories:
     def test_all_categories_have_guidance(self):
         from fast_api.app.services.feedback_learner import CORRECTION_CATEGORIES
+
         assert len(CORRECTION_CATEGORIES) >= 10
         for guidance in CORRECTION_CATEGORIES.values():
             assert len(guidance) > 20  # Must be meaningful
@@ -357,9 +390,11 @@ class TestBuildAdaptivePrompt:
 # Integration: approval route tests
 # ============================================================
 
+
 class TestApprovalAPI:
     def test_router_exists(self):
         from fast_api.app.api.approval_api import approval_router
+
         assert approval_router is not None
         assert approval_router.prefix == "/v1/approvals"
 
