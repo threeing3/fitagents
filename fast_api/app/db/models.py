@@ -634,6 +634,26 @@ class MemoryExport(Base, TimestampMixin):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class StreamJournal(Base):
+    """Independent diagnostic ownership; no business-row transaction dependency."""
+
+    __tablename__ = "stream_journals"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    owner_id: Mapped[str] = mapped_column(String(80), index=True)
+    session_id: Mapped[str] = mapped_column(String(80))
+    recorded_count: Mapped[int] = mapped_column(Integer, default=0)
+    header: Mapped[dict[str, Any]] = mapped_column(JSONB)
+
+
+class StreamJournalEvent(Base):
+    __tablename__ = "stream_journal_events"
+    journal_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("stream_journals.id"), primary_key=True
+    )
+    position: Mapped[int] = mapped_column(Integer, primary_key=True)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
+
+
 class AgentRun(Base, TimestampMixin):
     __tablename__ = "agent_runs"
 
