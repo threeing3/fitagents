@@ -22,5 +22,6 @@
 5. 尝试本机 Docker 构建，Docker Desktop 引擎未运行，构建没有执行成功；未修改 Docker 或系统设置。后续使用 Render 的实际构建结果验证。
 6. 使用 scripts/verify_cloud_journal.py 尝试只初始化新建空 Neon 演示库。本机 DNS 将该域名解析为代理虚拟地址 198.18.0.100，连接被关闭；没有建立连接或执行迁移。未修改代理、DNS 或系统网络配置。改用 Render 实例启动时迁移，并以云端实际状态验收。
 7. 用户另行确认将新 Neon 连接凭据放入 Render 私密环境变量并公开部署。选择 $0 规格，关闭自动部署；生产环境启用 secure cookie、数据库追踪、持久模型额度（全站每日 20 次）、邀请码注册；共享演示账号暂不启用。
+8. Python 依赖安全审计返回 0；Render 对 e59a08e 的实际镜像构建成功并进入部署。复核运行依赖发现 Dockerfile 原先遗漏 algorithm.inference.intent_catalog；补入包入口、子包入口和 intent_catalog.py 三个小文件，不复制训练数据或权重。
 
 部署结果将在完成后补充。此文件不是上线完成证明。
