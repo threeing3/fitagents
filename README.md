@@ -1,101 +1,146 @@
-# FitAgent · 把健身建议变成可追踪的行动
+# FitAgent · 面向健身需求的 Personal Agent
 
-面向健身场景的长期陪伴智能体：理解目标、维护可纠正记忆、安排训练、跟进反馈，并在需要修改计划时征求批准。
+![FitAgent：对话、有效记忆、受限协作与执行验收](docs/assets/fitagent-overview.svg)
 
-**模型提出建议，执行框架控制状态与写入。** 重点不是“能聊健身”，而是目标、日期、权限、记忆更正和执行结果能否对齐。
+**通过对话记录训练、查询历史、复盘近期状态，并在你的确认下调整计划。**
 
-[快速开始](docs/GETTING_STARTED.md) · [架构](docs/ARCHITECTURE.md) · [自带模型密钥](docs/MODEL_ACCESS.md) · [展示与验证](docs/SHOWCASE.md)
+FitAgent 是面向训练、饮食与恢复管理的 Personal Agent（个人智能体）。它把长期目标、近期记录与可纠正记忆接入建议和执行流程：不是只生成一段健身回答，而是让建议有依据、操作有边界、过程可追踪。
 
-![长期责任页面及执行事件](docs/assets/fitagent-responsibility-demo.png)
+**模型负责理解与候选建议，宿主负责权限、状态、审批和执行验收。**
 
-*原有前端的合成数据演示：展示责任、审批和执行事件的界面组织，不连接业务数据库，不代表真实模型或后台执行结果。*
+[本地运行](docs/GETTING_STARTED.md) · [架构与源码](docs/ARCHITECTURE.md) · [演示与验收](docs/SHOWCASE.md) · [自带模型密钥](docs/MODEL_ACCESS.md)
 
-## 使用场景
+## 用户可以做什么？
 
-> “未来四周每周训练三次，周二只做跑步，不要安排推举。昨天其实训练了 20 分钟，之前记错了。”
-
-目标和约束进入长期状态；更正需要明确训练记录和确认；旧事实与受影响的后续判断同步失效；计划调整先进入审批，而不是悄悄覆盖其他日期。
-
-这是多项能力组成的场景说明，不代表任意自然语言表达都已通过端到端验收。更正对话目前支持明确目标的限定表达。
-
-## 核心能力
-
-| 能力 | 解决的问题 | 源码入口 |
+| 场景 | 交互示例 | 系统处理 |
 | --- | --- | --- |
-| 受控执行 | 模型建议不等于允许写入，检查权限、预算及前置条件 | [执行框架](fast_api/app/services/agent_runtime.py)、[工具分发](fast_api/app/services/agent_tool_dispatcher.py) |
-| 长期责任 | 四周目标需要跟进、批准、暂停及到期 | [责任状态](fast_api/app/services/responsibilities.py)、[审批](fast_api/app/services/approval_manager.py) |
-| 可纠正记忆 | 用户改口后旧事实不能继续影响建议 | [记忆](fast_api/app/services/memory_system.py)、[依赖失效](fast_api/app/services/memory_dependencies.py) |
-| 有边界的计划更新 | 遵守指定日期、运动类型和禁忌，保留其他部分 | [日期变更](fast_api/app/services/dated_plan_changes.py)、[运动约束](fast_api/app/services/exercise_constraints.py) |
-| 训练记录更正 | 防止改错记录、重复写入及覆盖新版本 | [更正服务](fast_api/app/services/workout_corrections.py)、[原有页面](web/src/WorkoutCorrectionPanel.tsx) |
-| 执行回放 | 展示工具、验证、审批和恢复，不展示隐藏思维 | [执行事件](fast_api/app/services/execution_events.py)、[时间线](web/src/ExecutionTimeline.tsx) |
+| 记录与查询 | “今天练了40分钟；查一下最近的训练。” | 采集信息，必要时追问，保存训练记录并支持查询 |
+| 个性化计划 | “每周练三次，周二只跑步，不安排推举。” | 结合档案、历史与约束生成候选计划；限定日期的变更检查修改范围 |
+| 信息纠正 | “昨天其实是20分钟，之前记错了。” | 需要明确记录与确认；更新事实，使旧记忆与相关派生判断失效 |
+| 周期复盘 | “结合最近训练、饮食和恢复情况，复盘这周。” | 证据分析、领域子任务和方案规划协作，交付带依据的建议 |
+| 长期跟踪 | 查看目标、待审批调整与执行历史 | 保存责任及审批状态，支持跟进、暂停与取消；后台需单独启动 |
 
-## 架构
+这是支持的场景类别，不是任意表达均已验收或全部健身功能覆盖的承诺。饮食与恢复同时提供独立记录入口；对话纠正有明确的记录、字段与确认范围。
+
+## 四条技术主线
+
+### 对话式业务执行：把语言接到业务状态
+
+意图路由复用本轮任务集合，工具统一声明参数、权限与前置条件。明确记录、纠正和确认走受控业务路径；开放对话另有受限的模型选工具循环。缺失信息时先追问，模型建议不等于业务写入。
+
+默认采用轻量分发，不让每次请求依次运行四层分类器。语义辅助与 Jev（类型化决策模型）可选，不配置也能运行。
+
+[业务入口](fast_api/app/services/coach_agent.py) · [执行控制](fast_api/app/services/agent_runtime.py) · [工具分发](fast_api/app/services/agent_tool_dispatcher.py) · [模型工具循环](fast_api/app/services/llm_agent.py) · [路由取舍](docs/LIGHTWEIGHT_DELEGATION_20261004.md)
+
+### 事实召回与长期记忆：相似不等于适用
+
+RAG（检索增强生成）服务于当前任务：区分事实、经验、观察与归纳，按任务选择记忆；向量、关键词、实体与时间多路召回，结合 BM25（关键词相关性评分）、RRF（多路排序融合）及重要性、时效性、适用性综合排序。
+
+用户更正后，旧事实退出默认召回，依赖它的派生记忆沿来源关系失效；历史依据保留。没有向量服务时走词法降级路径，不把降级结果标为语义检索成功。
+
+[记忆读写与检索](fast_api/app/services/memory_system.py) · [任务化召回](fast_api/app/services/memory_planner.py) · [依赖失效](fast_api/app/services/memory_dependencies.py) · [上下文构建](fast_api/app/services/context_builder.py)
+
+### 多智能体协作：分工，也约束交付
+
+训练、饮食与恢复子智能体使用隔离上下文和只读工具。周期复盘按“证据分析 → 领域建议 → 方案规划”交接，共享调用预算；宿主验收结构化结果，重新读取证据检查变化。前置任务失败、证据变化或刷新失败时阻断后续方案，子任务不能批准自己或直接修改计划。
+
+这是有边界的协作，不是多个角色自由聊天。离线模式明确显示跳过，不冒充真实模型完成；不宣称多智能体优于单智能体的量化收益。
+
+[领域子智能体](fast_api/app/services/domain_subagents.py) · [复盘交接](fast_api/app/services/review_collaboration.py) · [生命周期](fast_api/app/services/subagent_runtime.py) · [持久目录](fast_api/app/services/subagent_journal.py)
+
+### 安全控制与任务级评测：检查任务是否真的完成
+
+检查账号归属、工具参数和前置依赖；计划变更设置必要审批、版本冲突与重复执行保护。任务级评测检查回答依据、执行路径及最终业务状态，覆盖记忆纠错、协作交接、工具异常与中断。
+
+模型调用、工具结果及子任务事件形成持久记录，前端以折叠时间线和历史面板展示。回放只读取记录，不自动重新执行；不展示隐藏推理，也不承诺精确重建每次模型上下文。
+
+[审批](fast_api/app/services/approval_manager.py) · [追踪读取](fast_api/app/services/execution_trace.py) · [前端时间线](web/src/ExecutionTimeline.tsx) · [任务级验收](algorithm/evaluation/fitagent_journey_eval.py) · [追踪边界](docs/EXECUTION_TRACE_GUIDE_20261004.md)
+
+## 架构一览
 
 ```mermaid
-flowchart LR
-    UI[对话 / 训练 / 长期责任页面] --> API[鉴权与业务接口]
-    API --> Host[执行框架：状态 / 预算 / 权限 / 验证]
-    Host --> Model[用户自己的模型接口]
-    Model --> Proposal[回复或工具建议]
-    Proposal --> Host
-    Host --> Tools[受控工具与审批]
-    Tools --> DB[(档案 / 记忆 / 计划 / 执行事件)]
-    DB --> Host
-    Worker[自行启动的后台工作进程] --> Tools
-    DB --> Replay[执行回放与回归评测]
+flowchart TD
+    UI[对话 / 训练安排 / 记录 / 长期跟踪] --> Host[宿主：身份、会话与领域状态]
+    Host --> Route[意图分发与任务集合]
+    Route --> Context[有效记忆、记录、目标和约束]
+    Context --> Business[受控业务链路 / 受限模型工具循环]
+    Context --> Analysis[周期复盘：证据分析]
+    Analysis --> Domains[训练 / 饮食 / 恢复子智能体]
+    Domains --> Planning[方案规划与结构化交付]
+    Planning --> Accept[宿主验收与证据重验]
+    Business --> Gate[工具校验 / 风险检查 / 必要审批]
+    Accept --> Gate
+    Gate --> State[(档案、记忆、计划与记录)]
+    State --> Context
+    Host --> Trace[持久执行记录与历史查看]
+    Gate --> Trace
+    Trace --> Eval[任务级评测与失败归因]
 ```
 
-单智能体与业务服务编排的混合架构：确定性路径处理明确写操作，模型处理语言理解和建议。不是让模型任意修改数据库，也不是多个角色互相聊天。
+两条执行路径共用宿主权限边界，不是所有请求都运行复盘协作。子任务只交付建议，最终业务写入留在宿主。
 
-前端使用 React（组件化页面框架）；后端使用 FastAPI（接口服务框架）；数据使用 PostgreSQL（关系数据库），可选 pgvector（向量检索扩展）。
+## 页面预览
 
-## 不租服务器，能否使用？
+![当前对话工作台：原有前端与合成接口响应](docs/assets/fitagent-chat-20261006.png)
 
-**仓库展示不需要服务器，完整业务可以在用户本机运行。** 使用远程模型接口时，不需要本机显卡。
+当前原有前端的合成演示截图，展示界面组织，不是实时模型调用或业务验收结果。页面还提供训练安排、训练记录、长期跟踪、设置与开发诊断。
 
-| 方式 | 服务器要求 | 模型密钥 |
-| --- | --- | --- |
-| 阅读首页、架构、测试说明 | 无 | 无 |
-| 本地离线体验页面与规则 | 本地后端与数据库，不需租用 | 无 |
-| 本地使用真实模型 | 本地后端与数据库，不需租用 | 用户自己提供并承担费用 |
-| 公网多人使用完整业务 | 常驻后端、数据库和安全配置 | 自带密钥不能替代基础设施 |
+<details>
+<summary>展开：计划调整如何先审阅、再批准</summary>
 
-不提供共享模型密钥、免费额度或承诺持续在线的公共服务。静态托管页面不能运行数据库和后台任务。
+![长期跟踪与待审批草案：内置合成演示](docs/assets/fitagent-workspace-20261006.png)
 
-## 自带密钥运行
+该页面使用内置合成数据，不连接业务数据库。批准与执行是不同状态，候选调整不代表已经修改计划。
 
-新入口不复用已有模型密钥。用户在自己的终端隐式输入，仅用于该服务进程；不写入配置文件或浏览器存储。
+</details>
+
+操作步骤与证据边界见[演示指南](docs/SHOWCASE.md)。
+
+## 本地使用：不需要租服务器
+
+完整业务可在自己的电脑运行；调用远程模型不要求本机显卡。不提供共享密钥、免费额度或常驻公共服务。
+
+准备 Python（后端运行环境）3.11/3.12、Node.js（前端构建环境）20.19 及以上兼容版本，以及专用于本项目的 PostgreSQL（关系数据库）空库。完整安装步骤见[快速开始](docs/GETTING_STARTED.md)。
 
 ```powershell
-# 先按快速开始安装依赖、构建原有页面并准备自己的新数据库。
-# 确认参数表示允许应用在所选数据库执行迁移。
-python -m scripts.run_local_byok --provider qwen --model YOUR_MODEL_ID --ack-db-migrations
+git clone https://github.com/threeing3/fitagents.git
+cd fitagents
+# 按快速开始安装依赖、构建前端并准备新数据库后：
+python -m scripts.run_local_byok --provider offline --ack-db-migrations
+# 使用真实模型，替换为自己账号可用的模型名称：
+python -m scripts.run_local_byok --provider deepseek --model YOUR_MODEL_ID --ack-db-migrations
 ```
 
-也可选 `deepseek` 或 `offline`（离线规则模式）。真实模式必须输入非空密钥。新入口关闭远程向量与第三方追踪，不自动启动后台工作进程。详见[密钥边界](docs/MODEL_ACCESS.md)。
+启动入口隐式询问数据库连接串及密钥；确认参数表示允许迁移所选数据库，不要指向未经备份审计的重要旧库。只监听本机，打开 <http://127.0.0.1:8015/> 注册使用。不自动启动后台工作进程，默认关闭远程向量调用与第三方追踪。
 
-## 如何验证，不只看演示
+离线模式用于检查规则与业务状态，不能证明模型理解、语义召回或多智能体质量。自带密钥是单部署配置，不是公网逐用户配置密钥的托管服务。
 
-测试覆盖旧记忆失效、批准前禁止写入、重复提交不重复执行、过期版本冲突、跨账号访问拒绝、日期和运动约束、流式回复约束检查。
+## 如何检查项目，而不只看截图？
 
-近期本地全量后端记录为 **1315 项通过、2 项跳过**，另完成原有页面与真实本地数据库的训练更正和重复提交验收。这些是特定版本的本地结果，不是临床效果、线上收益或高并发承诺。新增入口的测试单独记录。
+| 想检查什么 | 阅读与复现入口 |
+| --- | --- |
+| 对话如何成为工具执行 | [执行控制](fast_api/app/services/agent_runtime.py)、[工具循环](fast_api/app/services/llm_agent.py) |
+| 纠正后旧结论为何失效 | [依赖失效测试](tests/test_memory_dependencies.py)、[记忆评测集](tests/evals/hindsight_memory_eval_cases.json) |
+| 子任务有没有真实权限边界 | [领域测试](tests/test_domain_subagents.py)、[子任务运行测试](tests/test_subagent_runtime.py) |
+| 任务是否真的完成 | [固定合成业务链路](algorithm/evaluation/fitagent_journey_eval.py)、[工具循环评测](algorithm/evaluation/tool_loop_task_eval.py) |
+| 中断和历史记录怎样呈现 | [追踪指南](docs/EXECUTION_TRACE_GUIDE_20261004.md)、[验收矩阵](docs/TRACE_ACCEPTANCE_MATRIX_20261005.md) |
 
-[交付记录](docs/FITAGENT_DELIVERY_20261003.md) · [验收范围](docs/FITAGENT_FINAL_SCOPE_AUDIT_20261003.md) · [测试目录](tests/)
+脚本化模型用于协议与故障测试，真实模型评测检查模型行为，二者分别记账。历史验收有版本和范围，不将测试数量当作用户效果或线上稳定性指标。详见[展示与验证](docs/SHOWCASE.md)。
 
-## 项目导航
+## 目录导航
 
 ```text
-fast_api/app/services/  执行控制、记忆、计划、审批与责任
-fast_api/app/api/       登录用户的业务接口
-web/src/               原有产品页面与执行时间线
-algorithm/evaluation/  模型对比与任务链路评测
-scripts/               本地启动、验收与数据库审计
-tests/                 权限、状态一致性与业务回归
-docs/                  架构、复现与范围说明
+fast_api/app/services/  对话执行、记忆、领域子任务、审批与长期责任
+fast_api/app/api/       登录账号范围内的业务与追踪接口
+web/src/               产品页面、执行时间线与历史追踪
+algorithm/evaluation/  模型与任务级评测
+tests/                 回归、隔离、交接与故障测试
+scripts/               本地运行与专项验收
+docs/                  架构、复现、决策与验收范围
 ```
 
 ## 边界与参考
 
-开发中的个人项目，不提供医疗诊断，也不能代替专业教练或医生。现有服务仍是**单个本地部署使用一套模型配置**，不是公网逐用户提交密钥的托管服务。跨进程写入有专项验证，尚无容量承诺。
+个人开发项目，不提供医疗诊断，不代替医生或专业训练指导。当前结合受控工作流、受限模型工具循环和领域子智能体，不是开放式通用自主执行系统。没有公网容量承诺，也未完成多智能体优于单智能体的公平效果对照。
 
-展示组织参考 [Dify](https://github.com/langgenius/dify) 的能力导航、[Open WebUI](https://github.com/open-webui/open-webui) 的自托管说明和 [Open Deep Research](https://github.com/langchain-ai/open_deep_research) 的架构与复现组织；未复制这些项目的代码。
+追踪与子任务生命周期设计参考 [DeepSeek Harness（智能体执行框架）](https://github.com/deepseek-ai/deepseek-harness) 的职责分离；展示组织参考 [Dify](https://github.com/langgenius/dify)、[Open WebUI](https://github.com/open-webui/open-webui) 和 [Open Deep Research](https://github.com/langchain-ai/open_deep_research)。这些是设计参考，不宣称相同完整性或复制其代码。

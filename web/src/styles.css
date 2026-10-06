@@ -2423,12 +2423,13 @@ button:disabled {
 .subagent-turn-form textarea, .subagent-turn-form select { box-sizing: border-box; width: 100%; max-width: 100%; border: 1px solid var(--border); border-radius: 6px; padding: 8px; background: transparent; color: var(--text-primary); font: inherit; }
 .subagent-turn-form textarea { min-height: 72px; resize: vertical; }
 .subagent-turn-form button { justify-self: start; }
-.recorded-trace { min-width: 0; margin: 8px 0; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 12px; color: var(--text-secondary); overflow-wrap: anywhere; }
+.recorded-trace { min-width: 0; max-width: 100%; box-sizing: border-box; margin: 8px 0; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 12px; color: var(--text-secondary); overflow-wrap: anywhere; }
 .recorded-trace summary { cursor: pointer; }
 .recorded-trace ol { padding-left: 20px; }
 .recorded-trace li { margin: 10px 0; }
 .recorded-trace pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 320px; overflow: auto; padding: 10px; background: var(--bg-secondary); border-radius: 6px; }
 .recorded-trace dl { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 4px 8px; }
-.recorded-trace dd { margin: 0; }
+.recorded-trace dd { margin: 0; min-width: 0; }
+.recorded-trace li, .recorded-trace details { min-width: 0; max-width: 100%; }
 .recorded-trace button { margin: 8px; border: 1px solid var(--border); background: transparent; color: inherit; border-radius: 5px; padding: 5px 8px; }
 .recorded-trace .trace-child { border-left: 2px solid var(--border); padding-left: 10px; }

@@ -34,18 +34,18 @@ def main():
     os.environ["LANGCHAIN_TRACING_V2"] = "false"
     settings = config.Settings(
         _env_file=None,
-        database_url=database_url,
-        agent_log_dir=str(directory),
-        llm_provider="offline",
-        embedding_provider="offline",
-        use_pgvector=False,
-        redis_url=None,
-        jwt_secret_key="isolated-http-crash-test-secret-only",
-        openai_api_key=None,
-        deepseek_api_key=None,
-        dashscope_api_key=None,
-        langsmith_api_key=None,
-        demo_mode=False,
+        DATABASE_URL=database_url,
+        AGENT_LOG_DIR=str(directory),
+        LLM_PROVIDER="offline",
+        EMBEDDING_PROVIDER="offline",
+        USE_PGVECTOR=False,
+        REDIS_URL=None,
+        JWT_SECRET_KEY="isolated-http-crash-test-secret-only",
+        OPENAI_API_KEY=None,
+        DEEPSEEK_API_KEY=None,
+        DASHSCOPE_API_KEY=None,
+        LANGSMITH_API_KEY=None,
+        DEMO_MODE=False,
     )
     config.get_settings = lambda: settings
     from fast_api.app.main import app

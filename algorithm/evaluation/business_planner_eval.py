@@ -18,6 +18,7 @@ from algorithm.evaluation.workout_history_model_eval import USER_ID, seed_databa
 from fast_api.app.core.config import Settings
 from fast_api.app.db import models
 from fast_api.app.services.coach_agent import CoachAgentService
+from fast_api.app.services.intent_cascade import IntentCascadePolicy
 from fast_api.app.services.model_provider import ModelProvider
 
 CASES = (
@@ -106,7 +107,12 @@ async def evaluate_case(case, directory: Path, *, mode: str, model=None):
                     "fast_api.app.services.agent_observability.get_settings", return_value=settings
                 ),
             ):
-                response = await CoachAgentService(db, provider).handle_chat_message(
+                service = CoachAgentService(db, provider)
+                # This experiment compares the legacy rule/LLM planners, not
+                # the default lightweight route which intentionally reuses dispatch.
+                service.intent_decision_engine.cascade_policy = IntentCascadePolicy()
+                service.intent_decision_engine.semantic_assistance = True
+                response = await service.handle_chat_message(
                     session_id, USER_ID, message, idempotency_key=f"{case['id']}-{index}"
                 )
                 turns.append(response)

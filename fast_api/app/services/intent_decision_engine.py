@@ -205,7 +205,9 @@ class IntentDecisionEngine:
         provider = self.model_provider.settings.llm_provider
         model_succeeded = bool(model_trace.get("succeeded"))
         provenance = {
-            "routing_mode": "lightweight_delegation_v1",
+            "routing_mode": (
+                "semantic_cascade_v2" if self.semantic_assistance else "lightweight_delegation_v1"
+            ),
             "semantic_assistance_enabled": self.semantic_assistance,
             "delegated_domains": select_domains(
                 {
