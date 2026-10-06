@@ -4,6 +4,7 @@ WORKDIR /build/web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci
 COPY web/ ./
+ARG VITE_PUBLIC_DEMO_ENABLED=false
 RUN npm run build
 
 FROM python:3.11-slim AS runtime

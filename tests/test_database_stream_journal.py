@@ -117,3 +117,11 @@ def test_database_flush_failure_rolls_back_event_and_counter(durable_store):
     assert journals.read_stream_journal(identity, owner, None)["recorded_count"] == 0
     journal.append({"type": "journal.end", "state": "completed"})
     assert journals.read_stream_journal(identity, owner, None)["next_position"] == 1
+
+
+@pytest.mark.parametrize("state", ["completed", "cancelled", "interrupted", "outcome_unknown"])
+def test_terminal_projection_preserves_explicit_recorded_state(state):
+    from fast_api.app.services.execution_trace import stream_trace_node
+
+    assert stream_trace_node({"type": "journal.end", "state": state})["status"] == state
+    assert stream_trace_node({"type": "journal.end"})["status"] == "outcome_unknown"

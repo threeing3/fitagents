@@ -24,4 +24,10 @@
 7. 用户另行确认将新 Neon 连接凭据放入 Render 私密环境变量并公开部署。选择 $0 规格，关闭自动部署；生产环境启用 secure cookie、数据库追踪、持久模型额度（全站每日 20 次）、邀请码注册；共享演示账号暂不启用。
 8. Python 依赖安全审计返回 0；Render 对 e59a08e 的实际镜像构建成功并进入部署。复核运行依赖发现 Dockerfile 原先遗漏 algorithm.inference.intent_catalog；补入包入口、子包入口和 intent_catalog.py 三个小文件，不复制训练数据或权重。
 
-部署结果将在完成后补充。此文件不是上线完成证明。
+9. 首次 e59a08e 部署失败；修复打包后的 20e9c95 在 Render 显示 Deploy succeeded。平台日志证实在独立 Neon 空库执行 001 至 018 迁移，未迁移本地库。实际页面成功打开 https://fitagent-demo.onrender.com/。
+10. `scripts.verify_public_demo prepare` 以两个合成账号验收通过：错误邀请码拒绝、注册与真实模型请求、完成状态、12 条持久事件、两次成功模型调用、全站每日额度 20 和跨账号读取 404；当日已用计数 2。记录：logs/public_demo_prepare_20261007.json（无密码或令牌）。
+11. 2026-10-07 00:51（北京时间）平台 Events 显示 Service restarted by you；随后 `scripts.verify_public_demo read` 在新进程登录并读取原运行 781725ee-9f9d-4308-8ede-5fa44d925e01，12 条事件、两次成功模型记录和当日调用计数 2 不变，隔离检查通过。没有重发模型请求。
+12. 浏览器实际登录合成账号并展开完整执行追踪，显示 69 条合并时间线记录；发现 journal.end 投影未读取 state，误显示 outcome_unknown。修正仅在明确记录结束状态时使用该状态，增加 completed/cancelled/interrupted/unknown 回归，相关测试 30 passed。
+13. 修正邀请制部署中的无效共享演示按钮，增加 VITE_PUBLIC_DEMO_ENABLED 构建开关，容器默认 false；前端 typecheck、93 项组件测试、18 项端到端测试及构建通过。额度、模型回执、子调用和写入回执回归另有 33 passed。
+
+最终显示修正将再次部署。完整背景定时执行器和在线向量嵌入没有上线；全量 Python CI 超时边界仍保留，不冒充全门禁通过。

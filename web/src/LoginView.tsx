@@ -6,6 +6,7 @@ import { useLanguage } from "./LanguageContext";
 type Mode = "login" | "register";
 
 export function LoginView() {
+  const publicDemoEnabled = import.meta.env.VITE_PUBLIC_DEMO_ENABLED !== "false";
   const { login, register, loginDemo } = useAuth();
   const { isZh, language, setLanguage } = useLanguage();
   const [mode, setMode] = useState<Mode>("login");
@@ -208,10 +209,14 @@ export function LoginView() {
           </button>
         </form>
 
-        <button type="button" className="demo-login" disabled={busy} onClick={handleDemoLogin}>
-          <PlayCircle size={17} />
-          {isZh ? "进入公开演示账号" : "Enter public demo"}
-        </button>
+        {publicDemoEnabled ? (
+          <button type="button" className="demo-login" disabled={busy} onClick={handleDemoLogin}>
+            <PlayCircle size={17} />
+            {isZh ? "进入公开演示账号" : "Enter public demo"}
+          </button>
+        ) : (
+          <p className="login-hint">{isZh ? "此演示使用独立账号，请通过邀请码注册。" : "This demo uses separate accounts. Register with an invite code."}</p>
+        )}
 
         {busy && (
           <p className="cold-start-copy">

@@ -1,11 +1,23 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AuthProvider } from "./AuthContext";
 import { LanguageProvider } from "./LanguageContext";
 import { LoginView } from "./LoginView";
 
 describe("LoginView", () => {
+  afterEach(() => vi.unstubAllEnvs());
+  it("hides unavailable shared-demo login for invite-only deployments", () => {
+    vi.stubEnv("VITE_PUBLIC_DEMO_ENABLED", "false");
+    localStorage.removeItem("ai_fitness_language");
+    render(
+      <LanguageProvider>
+        <AuthProvider><LoginView /></AuthProvider>
+      </LanguageProvider>,
+    );
+    expect(screen.queryByRole("button", { name: "进入公开演示账号" })).not.toBeInTheDocument();
+    expect(screen.getByText("此演示使用独立账号，请通过邀请码注册。")).toBeInTheDocument();
+  });
   it("renders Chinese by default, clears legacy credentials, and switches to English", async () => {
     localStorage.setItem("ai_fitness_token", "legacy-script-readable-token");
     localStorage.setItem("ai_fitness_user", "legacy-user");
