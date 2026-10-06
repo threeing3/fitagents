@@ -7,9 +7,9 @@ useDefault = true
 description = "Fixed synthetic password for isolated catalog HTTP test, not a live credential"
 targetRules = ["generic-api-key"]
 condition = "AND"
-regexTarget = "line"
+regexTarget = "secret"
 paths = ['''^tests/test_subagent_catalog_api\.py$''']
-regexes = ['''"password"\s*:\s*"synthetic1234"''']
+regexes = ['''^synthetic1234$''']
 
 [[allowlists]]
 description = "Synthetic passwords used only to bootstrap isolated restart evaluations"

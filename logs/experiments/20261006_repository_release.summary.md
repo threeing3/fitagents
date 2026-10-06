@@ -45,3 +45,9 @@ not a broad test-folder exclusion; full history scanning stays enabled.
 After stopping only this turn's owned preview, npm installation recovered;
 Vitest 4.1.11 component tests passed (92). Both dependency audits now report zero
 known vulnerabilities. OpenAPI schema export passed (80 paths).
+
+Secret allowlist diagnostic: the line-target regex did not match the scanner's
+finding representation. Use an exact secret-value match (`synthetic1234`)
+AND the single fixture path instead. No other passwords or files are exempted.
+Updated frontend rerun: 92 component and 18 browser tests passed; build passed.
+Linux CI frontend and Docker build passed before the scanner-only adjustment.
