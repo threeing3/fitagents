@@ -195,6 +195,66 @@ def list_session_subagents(
         raise HTTPException(status_code=404, detail="Conversation session not found.") from exc
 
 
+@coach_router.get("/chat/sessions/{session_id}/context-compactions")
+def list_context_compactions(
+    session_id: UUID,
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    session = db.get(models.ConversationSession, session_id)
+    if session is None or session.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Conversation session not found.")
+    rows = db.scalars(
+        select(models.ContextCompactionEvent)
+        .where(
+            models.ContextCompactionEvent.owner_id == str(current_user.id),
+            models.ContextCompactionEvent.session_id == str(session_id),
+        )
+        .order_by(models.ContextCompactionEvent.recorded_at, models.ContextCompactionEvent.id)
+        .offset(offset)
+        .limit(limit)
+    )
+    return [
+        {
+            "id": str(row.id),
+            "type": row.event_type,
+            "recorded_at": row.recorded_at.isoformat(),
+            "scope_id": row.scope_id,
+            "compaction_id": row.compaction_id,
+            "details": {
+                key: value
+                for key, value in row.payload.items()
+                if key not in {"input_messages", "checkpoint"}
+            },
+        }
+        for row in rows
+    ]
+
+
+@coach_router.post("/chat/sessions/{session_id}/compact")
+async def compact_session_context(
+    session_id: UUID,
+    service: CoachAgentService = Depends(get_service),
+    current_user: models.User = Depends(get_current_user),
+):
+    from fast_api.app.services.session_compaction import prepare_session_context
+
+    try:
+        result = await prepare_session_context(
+            service.db, service.model_provider, current_user.id, session_id, "", manual=True
+        )
+    except PermissionError as error:
+        raise HTTPException(status_code=404, detail="Conversation session not found.") from error
+    checkpoint = result.get("checkpoint")
+    return {
+        "status": result["status"],
+        "reason": result.get("reason"),
+        "checkpoint_id": checkpoint.get("id") if checkpoint else None,
+    }
+
+
 class SubagentReconcileRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     expected_revision: int = Field(ge=1, strict=True)

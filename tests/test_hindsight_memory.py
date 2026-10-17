@@ -182,19 +182,18 @@ def test_keyword_candidates_prefers_postgres_fts_sql():
     fake_db = FakeDB()
     manager = MemoryManager(fake_db)  # type: ignore[arg-type]
 
-    candidates, scores = manager._keyword_candidates(
+    candidates = manager._keyword_candidates(
         "bench keyword", [models.LongTermMemory.user_id == memory.user_id], 3
     )
 
     sql = str(fake_db.statement.compile(dialect=postgresql.dialect()))
     assert candidates == [memory]
-    assert scores[memory.id] == 0.9
     assert "to_tsvector" in sql
     assert "plainto_tsquery" in sql
     assert "@@" in sql
 
 
-def test_search_memory_entity_match_gets_entity_rank_and_risk_weight():
+def test_search_memory_entity_match_uses_keyword_route_without_risk_bonus():
     db = make_db()
     user_id = uuid.uuid4()
     manager = MemoryManager(db)
@@ -219,9 +218,10 @@ def test_search_memory_entity_match_gets_entity_rank_and_risk_weight():
     results = manager.search_memories(user_id, "methimazole training", top_k=2)
 
     assert results[0].id == medication.id
-    assert results[0].entity_rank == 1
-    assert "entity" in results[0].retrieval_debug["sources"]
-    assert results[0].retrieval_debug["risk_priority"] > 0
+    assert results[0].entity_rank is None
+    assert results[0].keyword_rank == 1
+    assert "keyword" in results[0].retrieval_debug["sources"]
+    assert "risk_priority" not in results[0].retrieval_debug["score_components"]
     assert results[0].final_score is not None
 
 
@@ -258,11 +258,11 @@ def test_search_memory_temporal_range_match_gets_temporal_debug():
     assert recent.id in ids
     assert old.id not in ids
     matched = next(memory for memory in results if memory.id == recent.id)
-    assert matched.temporal_rank == 1
-    assert "temporal" in matched.retrieval_debug["sources"]
+    assert matched.temporal_rank is None
+    assert "temporal_score" in matched.retrieval_debug
 
 
-def test_search_memory_risk_priority_beats_generic_high_importance():
+def test_search_memory_relevant_risk_beats_unrelated_high_importance():
     db = make_db()
     user_id = uuid.uuid4()
     manager = MemoryManager(db)
@@ -286,8 +286,8 @@ def test_search_memory_risk_priority_beats_generic_high_importance():
     results = manager.search_memories(user_id, "chest tightness training", top_k=2)
 
     assert results[0].id == risk.id
-    assert results[0].retrieval_debug["risk_priority"] > 0
-    assert results[0].final_score > results[1].final_score
+    assert len(results) == 1
+    assert "risk_priority" not in results[0].retrieval_debug["score_components"]
 
 
 def test_reflection_creates_observation_and_opinion():

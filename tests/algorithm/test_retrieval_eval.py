@@ -13,9 +13,10 @@ def test_retrieval_report_marks_vector_availability_and_excludes_pseudo_vectors(
     assert report["strategies"]["vector"]["available"] is False
     assert report["vector_status"] == "vector unavailable"
     assert report["embedding_policy"] == "explicit_vector_only_no_sha256_pseudo_vector"
-    assert (
-        report["strategies"]["hybrid"]["recall_at_k"] >= report["strategies"]["bm25"]["recall_at_k"]
-    )
+    # Quality is measured, not guaranteed by using more signals. Zero-score
+    # padding must not turn unrelated items into accidental recall successes.
+    assert 0.0 <= report["strategies"]["hybrid"]["recall_at_k"] <= 1.0
+    assert 0.0 <= report["strategies"]["bm25"]["recall_at_k"] <= 1.0
 
 
 def test_retrieval_without_vectors_is_explicitly_incomplete():

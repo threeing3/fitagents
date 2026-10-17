@@ -74,7 +74,7 @@ class ModelProvider:
             kwargs["base_url"] = self.settings.chat_base_url
         return ChatOpenAI(**kwargs)
 
-    def intent_model(self) -> ChatOpenAI | None:
+    def intent_model(self, *, max_output_tokens: int = 500) -> ChatOpenAI | None:
         """Return a bounded, non-thinking model client for structured intent decisions."""
 
         if not self.settings.has_live_model_key or not self._reserve_live_call():
@@ -85,7 +85,7 @@ class ModelProvider:
             "api_key": self.settings.chat_api_key,
             "timeout": 45,
             "max_retries": 0,
-            "max_tokens": 500,
+            "max_tokens": max(500, min(max_output_tokens, 1800)),
             "callbacks": [
                 ModelCallRecorder(self.settings.llm_provider, self.settings.chat_model, "intent")
             ],
@@ -232,6 +232,38 @@ class ModelProvider:
             return None
         message = await model.ainvoke(messages)
         return str(message.content)
+
+    async def summarize_context(self, request: list[dict]) -> str:
+        """Auxiliary read-only call, preserving message prefix and trailing directive."""
+        from langchain_core.messages import AIMessage
+
+        classes = {
+            "system": SystemMessage,
+            "developer": SystemMessage,
+            "assistant": AIMessage,
+            "user": HumanMessage,
+        }
+        messages = [
+            classes.get(item.get("role"), HumanMessage)(
+                content=(
+                    "[source_message_id=" + str(item["id"]) + "]\n"
+                    if item.get("id")
+                    and not item.get("context_protected")
+                    and item.get("role") not in {"system", "developer"}
+                    else ""
+                )
+                + str(item.get("content") or "")
+            )
+            for item in request
+        ]
+        enforce_prompt_budget(self.settings.chat_model, messages)
+        model = self.chat_model(temperature=0.0)
+        if model is None:
+            raise ValueError("No live model for semantic context compaction")
+        if self.settings.llm_provider == "deepseek":
+            model = model.bind(extra_body={"thinking": {"type": "disabled"}})
+        response = await model.ainvoke(messages)
+        return str(response.content)
 
     async def stream_coach_reply(self, system_prompt: str, user_prompt: str):
         """Stream coach reply with retry on initial connection."""

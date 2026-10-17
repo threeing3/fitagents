@@ -296,7 +296,11 @@ def stream_trace_node(entry):
         "event_id": entry.get("event_id"),
         "node": entry.get("name") or entry.get("type"),
         "status": entry.get("status")
-        or ("outcome_unknown" if entry.get("type") == "journal.end" else "unknown"),
+        or (
+            entry.get("state") or "outcome_unknown"
+            if entry.get("type") == "journal.end"
+            else "unknown"
+        ),
         "stream_sequence": entry.get("stream_sequence"),
         "timestamp_utc": entry.get("recorded_at"),
         "summary": entry.get("summary") or entry.get("text") or entry.get("state") or "",

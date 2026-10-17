@@ -145,6 +145,41 @@ def record_child_state(parent_id, row):
     )
 
 
+def record_context_compaction(event):
+    journal = _journal.get()
+    if journal is None:
+        return
+    state = event.get("status") or (
+        "running" if event["type"] == "compaction/start" else "completed"
+    )
+    if state == "cancelled":
+        state = "outcome_unknown"
+    if event["type"] == "compaction/summary-error":
+        state = "failed"
+    labels = {
+        "compaction/start": "开始整理历史",
+        "compaction/summary": "摘要校验通过",
+        "compaction/installed": "语义检查点已保存",
+        "compaction/summary-error": "摘要校验失败，保留原文",
+        "compaction/end": "历史整理结束",
+    }
+    journal.append(
+        {
+            "event_id": str(uuid.uuid4()),
+            "type": event["type"],
+            "name": event["type"],
+            "status": state,
+            "recorded_at": datetime.now(timezone.utc).isoformat(),
+            "summary": "上下文压缩：" + labels.get(event["type"], "状态更新"),
+            "details": {
+                key: value
+                for key, value in event.items()
+                if key not in {"checkpoint", "input_messages"}
+            },
+        }
+    )
+
+
 def record_auxiliary_call(name, status, details, input_summary=None, *, latency_ms=0):
     journal = _journal.get()
     if journal is None:

@@ -34,11 +34,15 @@ FitAgent 是面向训练、饮食与恢复管理的 Personal Agent（个人智�
 
 ### 事实召回与长期记忆：相似不等于适用
 
-RAG（检索增强生成）服务于当前任务：区分事实、经验、观察与归纳，按任务选择记忆；向量、关键词、实体与时间多路召回，结合 BM25（关键词相关性评分）、RRF（多路排序融合）及重要性、时效性、适用性综合排序。
+RAG（检索增强生成）服务于当前任务：先过滤已失效、被替代或不属于当前用户的记忆，再用 BM25（关键词相关性评分）与向量相似度两路召回，通过 RRF（排名融合）合并候选，最后按时效性与当前任务适用性进行有界调整。时间与适用性不再作为独立召回通道，也不能把不相关记忆变成相关结果。
 
 用户更正后，旧事实退出默认召回，依赖它的派生记忆沿来源关系失效；历史依据保留。没有向量服务时走词法降级路径，不把降级结果标为语义检索成功。
 
 [记忆读写与检索](fast_api/app/services/memory_system.py) · [任务化召回](fast_api/app/services/memory_planner.py) · [依赖失效](fast_api/app/services/memory_dependencies.py) · [上下文构建](fast_api/app/services/context_builder.py)
+
+语义记忆抽取保留来源与校验边界；较早会话可整理为持久化上下文检查点，与最近完整消息共同进入下一轮上下文。摘要保存前检查结构、来源与版本，失败时不安装；原始聊天不删除，恢复时不重放业务写入。
+
+[检索简化说明](docs/RETRIEVAL_SIMPLIFICATION_20261013.md) · [语义抽取说明](docs/SEMANTIC_MEMORY_EXTRACTION_20261009.md) · [上下文检查点说明](docs/CONTEXT_COMPACTION_DELIVERY_20261008.md)
 
 ### 多智能体协作：分工，也约束交付
 

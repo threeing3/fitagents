@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     vector_dimension: int = Field(default=1024, alias="VECTOR_DIMENSION")
     use_pgvector: bool = Field(default=True, alias="USE_PGVECTOR")
     agent_log_dir: str = Field(default="logs/agent-runs", alias="AGENT_LOG_DIR")
+    stream_journal_backend: Literal["file", "database"] = Field(
+        default="file", alias="STREAM_JOURNAL_BACKEND"
+    )
     redis_url: str | None = Field(default=None, alias="REDIS_URL")
     rate_limit_default: str = Field(default="60/minute", alias="RATE_LIMIT_DEFAULT")
     rate_limit_chat: str = Field(default="15/minute", alias="RATE_LIMIT_CHAT")

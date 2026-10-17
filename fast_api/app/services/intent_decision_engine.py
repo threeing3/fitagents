@@ -44,6 +44,7 @@ class IntentEngineResult:
     runtime_mode: RuntimeMode
     runtime_reason: str
     matched_rules: list[str]
+    memory_extraction: dict[str, Any] | None = None
 
 
 class IntentDecisionEngine:
@@ -76,7 +77,13 @@ class IntentDecisionEngine:
         self.jev_client = jev_client
         self.jev_exit_policy = jev_exit_policy or JevExitPolicy()
 
-    async def decide(self, message: str, profile: Any | None = None) -> IntentEngineResult:
+    async def decide(
+        self,
+        message: str,
+        profile: Any | None = None,
+        *,
+        recent_conversation: list[dict] | None = None,
+    ) -> IntentEngineResult:
         started = time.perf_counter()
         rule_started = time.perf_counter()
         rule_decision = self.intent_router.analyze(message, profile=profile)
@@ -144,6 +151,8 @@ class IntentDecisionEngine:
                     force_refine=True,
                     semantic_candidates=cascade.candidates,
                     authoritative_tasks=True,
+                    extract_memory=True,
+                    recent_conversation=recent_conversation,
                 )
                 if not review_trace.get("succeeded"):
                     deepseek_decision = None
@@ -160,6 +169,7 @@ class IntentDecisionEngine:
                 "succeeded": bool(review_trace.get("succeeded")),
                 "fallback_reason": review_trace.get("fallback_reason"),
                 "usage": review_trace.get("usage") or {},
+                "memory_extraction": review_trace.get("memory_extraction"),
             }
         else:
             if should_refine:
@@ -170,6 +180,8 @@ class IntentDecisionEngine:
                     force_refine=True,
                     semantic_candidates=cascade.candidates,
                     authoritative_tasks=True,
+                    extract_memory=True,
+                    recent_conversation=recent_conversation,
                 )
             else:
                 final_decision, model_trace = (
@@ -264,6 +276,10 @@ class IntentDecisionEngine:
             ),
             "model_fallback_reason": model_trace.get("fallback_reason"),
             "model_usage": model_trace.get("usage") or {},
+            "memory_extraction_status": (model_trace.get("memory_extraction") or {}).get("status"),
+            "memory_candidate_count": len(
+                (model_trace.get("memory_extraction") or {}).get("candidates", [])
+            ),
             "safety_override_applied": bool(safety_override_reasons),
             "safety_override_reasons": safety_override_reasons,
             "field_sources": field_sources,
@@ -302,7 +318,12 @@ class IntentDecisionEngine:
         )
         if field_route_plan:
             v2.confidence.update(field_route_plan.field_confidence)
-        return IntentEngineResult(v2, route.mode, route.reason, route.matched_rules)
+        memory_extraction = model_trace.get("memory_extraction")
+        if model_trace.get("attempted") and memory_extraction is None:
+            memory_extraction = {"status": "failed", "candidates": []}
+        return IntentEngineResult(
+            v2, route.mode, route.reason, route.matched_rules, memory_extraction
+        )
 
     @staticmethod
     def _adapter_safety_override_reasons(

@@ -125,6 +125,31 @@ class ConversationSession(Base, TimestampMixin):
     messages: Mapped[list["ChatMessage"]] = relationship(back_populates="session")
 
 
+class ContextCheckpointState(Base):
+    """Independent context surface: no FK locks on business user/session rows."""
+
+    __tablename__ = "context_checkpoint_states"
+    scope_id: Mapped[str] = mapped_column(String(100), primary_key=True)
+    owner_id: Mapped[str] = mapped_column(String(80), index=True)
+    session_id: Mapped[str] = mapped_column(String(80), index=True)
+    revision: Mapped[int] = mapped_column(Integer, default=0)
+    checkpoint: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    active_compaction_id: Mapped[str | None] = mapped_column(String(80))
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ContextCompactionEvent(Base):
+    __tablename__ = "context_compaction_events"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    scope_id: Mapped[str] = mapped_column(String(100), index=True)
+    owner_id: Mapped[str] = mapped_column(String(80), index=True)
+    session_id: Mapped[str] = mapped_column(String(80), index=True)
+    compaction_id: Mapped[str] = mapped_column(String(80), index=True)
+    event_type: Mapped[str] = mapped_column(String(80))
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+
+
 class ChatMessage(Base, TimestampMixin):
     __tablename__ = "chat_messages"
 
@@ -632,6 +657,26 @@ class MemoryExport(Base, TimestampMixin):
     included_sections: Mapped[list[str]] = mapped_column(JSONB, default=list)
     schema_version: Mapped[str] = mapped_column(String(40), default="2026-05-24")
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class StreamJournal(Base):
+    """Independent diagnostic ownership; no business-row transaction dependency."""
+
+    __tablename__ = "stream_journals"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    owner_id: Mapped[str] = mapped_column(String(80), index=True)
+    session_id: Mapped[str] = mapped_column(String(80))
+    recorded_count: Mapped[int] = mapped_column(Integer, default=0)
+    header: Mapped[dict[str, Any]] = mapped_column(JSONB)
+
+
+class StreamJournalEvent(Base):
+    __tablename__ = "stream_journal_events"
+    journal_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("stream_journals.id"), primary_key=True
+    )
+    position: Mapped[int] = mapped_column(Integer, primary_key=True)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
 
 
 class AgentRun(Base, TimestampMixin):

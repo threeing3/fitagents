@@ -4,6 +4,7 @@ WORKDIR /build/web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci
 COPY web/ ./
+ARG VITE_PUBLIC_DEMO_ENABLED=false
 RUN npm run build
 
 FROM python:3.11-slim AS runtime
@@ -21,6 +22,9 @@ RUN pip install --no-cache-dir --upgrade pip \
     && useradd --create-home --uid 10001 appuser
 
 COPY fast_api/ ./fast_api/
+COPY algorithm/__init__.py ./algorithm/__init__.py
+COPY algorithm/inference/__init__.py ./algorithm/inference/__init__.py
+COPY algorithm/inference/intent_catalog.py ./algorithm/inference/intent_catalog.py
 COPY alembic/ ./alembic/
 COPY alembic.ini ./alembic.ini
 COPY --from=web-builder /build/web/dist ./web/dist/

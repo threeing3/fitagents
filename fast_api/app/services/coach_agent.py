@@ -263,6 +263,7 @@ class CoachAgentService:
         self.db.commit()
 
     async def _handle_chat_message_once(self, session_id, user_id, message):
+        await self._prepare_session_context(session_id, user_id, message)
         """Dispatch each turn through the lightweight RuntimeRouter."""
         responsibility_result = self._handle_responsibility_command(session_id, user_id, message)
         if responsibility_result is not None:
@@ -372,7 +373,10 @@ class CoachAgentService:
             if is_workout_followup
             else None
         )
-        route = await self._route_runtime(normalized or message, profile=profile)
+        history = self._onboarding_history(user_id, session_id)
+        route = await self._route_runtime(
+            normalized or message, profile=profile, recent_conversation=history
+        )
         if is_workout_followup:
             route.mode = "code_driven"
             route.reason = "Pending workout record requires deterministic field resolution."
@@ -381,15 +385,24 @@ class CoachAgentService:
             route.reason = "Explicit workout history requires user-scoped persisted evidence."
         return route
 
-    async def _route_runtime(self, message: str, profile: Any | None = None) -> RuntimeRoute:
+    async def _route_runtime(
+        self,
+        message: str,
+        profile: Any | None = None,
+        *,
+        recent_conversation: list[dict] | None = None,
+    ) -> RuntimeRoute:
         settings = get_settings()
-        result = await self.intent_decision_engine.decide(message, profile=profile)
+        result = await self.intent_decision_engine.decide(
+            message, profile=profile, recent_conversation=recent_conversation
+        )
         route = RuntimeRoute(
             mode=result.runtime_mode,
             reason=result.runtime_reason,
             matched_rules=result.matched_rules,
             confidence=float(result.decision.confidence.get("overall", 0.7)),
             intent_decision=result.decision.to_dict(),
+            memory_extraction=result.memory_extraction,
         )
         if settings.agent_runtime_mode == "llm_driven":
             route.mode = "llm_driven"
@@ -627,6 +640,7 @@ class CoachAgentService:
             followup_resolution=followup_resolution.to_dict(),
             intent_decision=runtime_route.intent_decision if runtime_route else None,
             workout_request_key=str(user_msg.id),
+            memory_extraction=runtime_route.memory_extraction if runtime_route else None,
         )
         executor = AgentExecutor()
         execution_plan, planner_debug = await self._build_code_driven_execution_plan(
@@ -1172,6 +1186,7 @@ class CoachAgentService:
         user_id: uuid.UUID,
         message: str,
     ):
+        await self._prepare_session_context(session_id, user_id, message)
         started_at = datetime.utcnow()
         nodes: list[dict[str, Any]] = []
         tool_calls: list[dict[str, Any]] = []
@@ -1605,6 +1620,8 @@ class CoachAgentService:
     ):
         """Dispatch streaming to LLM-driven or code-driven pipeline per turn."""
 
+        await self._prepare_session_context(session_id, user_id, message)
+
         def event(event_type: str, **payload):
             return (
                 json.dumps({"type": event_type, **payload}, ensure_ascii=False, default=str) + "\n"
@@ -1858,6 +1875,7 @@ class CoachAgentService:
             followup_resolution=followup_resolution.to_dict(),
             intent_decision=runtime_route.intent_decision if runtime_route else None,
             workout_request_key=str(user_msg.id),
+            memory_extraction=runtime_route.memory_extraction if runtime_route else None,
         )
         executor = AgentExecutor()
         execution_plan, planner_debug = await self._build_code_driven_execution_plan(
@@ -3435,6 +3453,8 @@ class CoachAgentService:
         message: str,
         extraction: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
+        if extraction is not None and "semantic_memory" in extraction:
+            return list(extraction["semantic_memory"].get("candidates") or [])
         lowered = message.lower()
         candidates: list[dict[str, Any]] = []
         extraction = extraction or self._rule_profile_extraction(message)
@@ -3626,6 +3646,8 @@ class CoachAgentService:
         if memory.memory_type not in {"medical_context", "risk_signal"}:
             return
         metadata = memory.memory_metadata or {}
+        if metadata.get("assertion_polarity") == "negative":
+            return
         injuries = metadata.get("injuries") or []
         body_part = injuries[0] if injuries else None
         risk_type = (
@@ -3723,6 +3745,7 @@ class CoachAgentService:
         followup_resolution: dict[str, Any] | None = None,
         intent_decision: dict[str, Any] | None = None,
         workout_request_key: str | None = None,
+        memory_extraction: dict[str, Any] | None = None,
     ) -> ToolRegistry:
         registry = ToolRegistry()
         effective_message = effective_message or message
@@ -3730,12 +3753,40 @@ class CoachAgentService:
             effective_message, today=self._user_local_date(user_id)
         )
         verification_profiles: dict[str, dict[str, Any]] = {}
+        host_extraction: dict[str, Any] = {}
+
+        async def extract_profile(_: dict[str, Any]) -> dict[str, Any]:
+            nonlocal host_extraction
+            if host_extraction:
+                return copy.deepcopy(host_extraction)
+            source = (
+                effective_message
+                if (followup_resolution or {}).get("question_type") == "profile_measurements"
+                and (followup_resolution or {}).get("resolved")
+                else message
+            )
+            host_extraction = await self.profile_extractor_agent(
+                profile,
+                source,
+                semantic_memory=memory_extraction,
+                recent_conversation=self._onboarding_history(user_id, session_id),
+            )
+            for candidate in host_extraction.get("semantic_memory", {}).get("candidates", []):
+                candidate["memory_metadata"]["source_message_id"] = workout_request_key
+            return copy.deepcopy(host_extraction)
 
         def verify_memory(payload: dict[str, Any]) -> dict[str, Any]:
             verification_profiles["memory.verify"] = copy.deepcopy(self._profile_payload(profile))
-            return self._verify_memory_tool(
-                user_id, effective_message, payload.get("extraction") or {}, profile
-            )
+            extraction_input = dict(payload.get("extraction") or {})
+            # A model-supplied tool argument must not forge host-validated candidates.
+            extraction_input.pop("semantic_memory", None)
+            if "semantic_memory" in host_extraction:
+                extraction_input["semantic_memory"] = copy.deepcopy(
+                    host_extraction["semantic_memory"]
+                )
+            elif self.model_provider.settings.llm_provider != "offline":
+                extraction_input["semantic_memory"] = {"status": "not_extracted", "candidates": []}
+            return self._verify_memory_tool(user_id, effective_message, extraction_input, profile)
 
         def verify_plan(payload: dict[str, Any]) -> dict[str, Any]:
             verification_profiles["plan.verify"] = copy.deepcopy(self._profile_payload(profile))
@@ -3866,13 +3917,7 @@ class CoachAgentService:
                 risk_level="medium",
                 tags=["profile", "extraction"],
             ),
-            lambda _: self.profile_extractor_agent(
-                profile,
-                effective_message
-                if (followup_resolution or {}).get("question_type") == "profile_measurements"
-                and (followup_resolution or {}).get("resolved")
-                else message,
-            ),
+            extract_profile,
             repair_handler=self._repair_profile_extract_tool,
         )
         registry.register(
@@ -4764,48 +4809,17 @@ class CoachAgentService:
         keep_recent: int = 8,
         trigger_tokens: int = 2500,
     ) -> dict[str, Any] | None:
-        session = self.db.get(models.ConversationSession, session_id)
-        if session is None:
-            return None
-        messages = list(
-            self.db.scalars(
-                select(models.ChatMessage)
-                .where(
-                    models.ChatMessage.user_id == user_id,
-                    models.ChatMessage.session_id == session_id,
-                )
-                .order_by(models.ChatMessage.created_at)
-            )
-        )
-        if len(messages) <= keep_recent:
-            return None
-        older = messages[:-keep_recent]
-        token_estimate = sum(
-            int(getattr(message, "token_count", 0) or estimate_tokens(message.content or ""))
-            for message in older
-        )
-        if token_estimate < trigger_tokens:
-            return None
+        # Compatibility read only: semantic compaction now runs before requests.
+        from fast_api.app.services.context_compaction_store import conversation_checkpoint
 
-        previous = session.conversation_summary or {}
-        older_tail = older[-12:]
-        summary_lines = [f"{m.role}: {m.content[:220]}" for m in older_tail if m.content]
-        summary = {
-            "scope": "session_level_conversation_compaction",
-            "summary": (
-                str(previous.get("summary") or "").strip() + "\n" + "\n".join(summary_lines)
-            ).strip()[-4000:],
-            "compacted_message_count": int(previous.get("compacted_message_count") or 0)
-            + len(older),
-            "kept_recent_count": keep_recent,
-            "last_compacted_message_id": str(older[-1].id) if older else None,
-            "token_estimate_before": token_estimate,
-            "updated_at": datetime.utcnow().isoformat(),
-        }
-        session.conversation_summary = summary
-        session.summary_updated_at = datetime.utcnow()
-        self.db.flush()
-        return summary
+        return conversation_checkpoint(self.db, user_id, session_id) or None
+
+    async def _prepare_session_context(self, session_id, user_id, message):
+        from fast_api.app.services.session_compaction import prepare_session_context
+
+        return await prepare_session_context(
+            self.db, self.model_provider, user_id, session_id, message
+        )
 
     def _node(self, name: str, start: float, output: dict[str, Any]) -> dict[str, Any]:
         return {
@@ -5037,12 +5051,44 @@ class CoachAgentService:
         self,
         profile: models.UserProfile,
         text: str,
+        *,
+        semantic_memory: dict[str, Any] | None = None,
+        recent_conversation: list[dict] | None = None,
     ) -> dict[str, Any]:
         extraction = self._rule_profile_extraction(text)
         if self._should_use_llm_extractor(text, extraction):
             llm_patch = await self._llm_profile_patch(profile, text, extraction)
             if llm_patch:
                 self._merge_llm_profile_patch(extraction, llm_patch, text)
+        if semantic_memory is not None:
+            extraction["semantic_memory"] = copy.deepcopy(semantic_memory)
+            extraction["semantic_memory"]["candidates"] = [
+                candidate
+                for candidate in extraction["semantic_memory"].get("candidates", [])
+                if candidate.get("memory_metadata", {}).get("evidence_quote") in text
+            ]
+            extraction["semantic_memory"]["source"] = "shared_intent_call"
+        elif self.model_provider.settings.llm_provider != "offline":
+            from fast_api.app.services.semantic_memory_extraction import extract_semantic_memories
+
+            # Pure reads and confirmation commands do not need an extra extraction call.
+            if history_query(text) is not None or text.strip().lower() in {
+                "好的",
+                "好",
+                "确认",
+                "取消",
+                "谢谢",
+                "ok",
+                "thanks",
+            }:
+                extraction["semantic_memory"] = {"status": "not_required", "candidates": []}
+            else:
+                extraction["semantic_memory"] = await extract_semantic_memories(
+                    self.model_provider, text, recent_conversation
+                )
+                extraction["semantic_memory"]["source"] = "memory_only_call"
+        else:
+            extraction["memory_extraction_mode"] = "offline_rule_diagnostic"
         return extraction
 
     def extract_profile_updates(self, text: str) -> dict[str, Any]:
@@ -6536,6 +6582,8 @@ class CoachAgentService:
             effective_message=effective_message,
             followup_resolution=followup_resolution.to_dict(),
             intent_decision=runtime_route.intent_decision if runtime_route else None,
+            memory_extraction=runtime_route.memory_extraction if runtime_route else None,
+            workout_request_key=str(user_msg.id),
         )
 
         agent = LLMAgent(

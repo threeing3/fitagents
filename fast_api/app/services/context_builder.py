@@ -301,8 +301,14 @@ class FitnessRetrievalService:
         self,
         user_id: uuid.UUID,
         session_id: uuid.UUID | None = None,
-        limit: int = 8,
+        limit: int | None = None,
     ) -> list[dict[str, Any]]:
+        if session_id is not None:
+            from fast_api.app.services.session_compaction import session_surface
+
+            surface = session_surface(self.db, user_id, session_id)
+            recent = [item for item in surface if not item.get("context_checkpoint")]
+            return recent[-limit:] if limit else recent
         filters = [models.ChatMessage.user_id == user_id]
         if session_id is not None:
             filters.append(models.ChatMessage.session_id == session_id)
@@ -311,7 +317,7 @@ class FitnessRetrievalService:
                 select(models.ChatMessage)
                 .where(*filters)
                 .order_by(desc(models.ChatMessage.created_at))
-                .limit(limit)
+                .limit(limit or 8)
             )
         )
         messages.reverse()
@@ -335,7 +341,19 @@ class FitnessRetrievalService:
         session = self.db.get(models.ConversationSession, session_id)
         if session is None or session.user_id != user_id:
             return {}
-        return session.conversation_summary or {}
+        from fast_api.app.services.context_compaction_store import conversation_checkpoint
+
+        checkpoint = conversation_checkpoint(self.db, user_id, session_id)
+        if checkpoint:
+            return {
+                "scope": "semantic_context_checkpoint",
+                "summary": checkpoint["content"],
+                "checkpoint_id": checkpoint["id"],
+                "through_message_id": checkpoint["through_message_id"],
+            }
+        # Keep legacy excerpt summaries stored, but never mix them with the new
+        # semantic surface: they may repeat or contradict original messages.
+        return {}
 
     def get_recent_workout_logs(
         self, user_id: uuid.UUID, days: int = 14, limit: int = 10

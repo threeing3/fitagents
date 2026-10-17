@@ -10,6 +10,33 @@ def test_alembic_ini_exists():
     assert os.path.exists(ini_path), "alembic.ini missing"
 
 
+def test_context_compaction_migration_creates_tables_and_preserves_rollback(monkeypatch):
+    from importlib import util
+    from pathlib import Path
+
+    from sqlalchemy import create_engine, inspect
+
+    from alembic.migration import MigrationContext
+    from alembic.operations import Operations
+
+    path = Path(__file__).parents[1] / "alembic/versions/019_context_compaction.py"
+    specification = util.spec_from_file_location("context_migration", path)
+    module = util.module_from_spec(specification)
+    specification.loader.exec_module(module)
+    assert module.down_revision == "018_stream_journals"
+    engine = create_engine("sqlite:///:memory:")
+    with engine.begin() as connection:
+        monkeypatch.setattr(module, "op", Operations(MigrationContext.configure(connection)))
+        module.upgrade()
+        module.downgrade()
+        assert set(inspect(connection).get_table_names()) == {
+            "context_checkpoint_states",
+            "context_compaction_events",
+        }
+        assert len(inspect(connection).get_indexes("context_compaction_events")) == 4
+    engine.dispose()
+
+
 def test_alembic_env_exists():
     env_path = os.path.join(os.path.dirname(__file__), "..", "alembic", "env.py")
     assert os.path.exists(env_path), "alembic/env.py missing"
@@ -45,7 +72,7 @@ def test_pending_approval_migration_is_additive_and_preserves_audit(monkeypatch)
     config.set_main_option(
         "script_location", os.path.join(os.path.dirname(__file__), "..", "alembic")
     )
-    assert ScriptDirectory.from_config(config).get_current_head() == "017_domain_jsonb_alignment"
+    assert ScriptDirectory.from_config(config).get_current_head() == "019_context_compaction"
     path = os.path.join(
         os.path.dirname(__file__), "..", "alembic", "versions", "015_pending_approvals.py"
     )

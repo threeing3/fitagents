@@ -21,6 +21,16 @@ def journal_path(identity, log_dir=None):
 class DurableStreamJournal:
     def __init__(self, identity, owner_id, session_id, log_dir=None):
         self.identity = str(uuid.UUID(str(identity)))
+        self.closed = False
+        self.database_journal = None
+        if (
+            log_dir is None
+            and getattr(get_settings(), "stream_journal_backend", "file") == "database"
+        ):
+            from fast_api.app.services.database_stream_journal import DatabaseStreamJournal
+
+            self.database_journal = DatabaseStreamJournal(identity, owner_id, session_id)
+            return
         self.path = journal_path(identity, log_dir)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.file = self.path.open("x", encoding="utf-8")
@@ -40,6 +50,8 @@ class DurableStreamJournal:
             raise
 
     def append(self, entry):
+        if self.database_journal is not None:
+            return self.database_journal.append(entry)
         from fast_api.app.services.execution_trace import trace_detail
 
         if self.closed:
@@ -49,12 +61,19 @@ class DurableStreamJournal:
         os.fsync(self.file.fileno())
 
     def close(self):
+        if self.database_journal is not None:
+            self.closed = True
+            return self.database_journal.close()
         if not self.closed:
             self.closed = True
             self.file.close()
 
 
 def read_stream_journal(identity, owner_id, session_id, log_dir=None, *, after=0, limit=None):
+    if log_dir is None and getattr(get_settings(), "stream_journal_backend", "file") == "database":
+        from fast_api.app.services.database_stream_journal import read_database_journal
+
+        return read_database_journal(identity, owner_id, session_id, after=after, limit=limit)
     path = journal_path(identity, log_dir)
     if not path.is_file():
         return None
