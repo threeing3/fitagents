@@ -13,6 +13,8 @@ class RuntimeRoute:
     matched_rules: list[str] = field(default_factory=list)
     confidence: float = 0.5
     intent_decision: dict[str, Any] = field(default_factory=dict)
+    # Private per-turn candidates: never included in the public routing projection.
+    memory_extraction: dict[str, Any] | None = None
 
     def to_dict(self) -> dict:
         return {

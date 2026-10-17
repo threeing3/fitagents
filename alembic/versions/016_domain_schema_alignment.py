@@ -14,6 +14,22 @@ depends_on = None
 
 # Frozen definitions: never import evolving ORM metadata into a historical migration.
 COLUMNS = {
+    "eval_cases": {
+        "eval_dimensions": "jsonb",
+        "expected_scores": "jsonb",
+        "ground_truth": "text",
+        "must_include": "jsonb",
+    },
+    "eval_results": {
+        "agent_run_id": "uuid",
+        "dimension_scores_json": "jsonb",
+        "eval_run_id": "uuid",
+        "input_message": "text",
+        "judge_model": "varchar(120)",
+        "judge_raw_response": "text",
+        "response_text": "text",
+        "rule_checks_json": "jsonb",
+    },
     "coaching_cases": {
         "source": "varchar(160) NOT NULL DEFAULT 'legacy'",
         "status": "varchar(32) NOT NULL DEFAULT 'legacy_unreviewed'",
@@ -126,7 +142,6 @@ COLUMNS = {
         "mood_score": "double precision",
         "plan_id": "uuid",
     },
-    "eval_results": {"agent_run_id": "uuid"},
     "exercise_logs": {"exercise_id": "uuid"},
     "tool_calls": {
         "input_json": "jsonb NOT NULL DEFAULT '{}'::jsonb",

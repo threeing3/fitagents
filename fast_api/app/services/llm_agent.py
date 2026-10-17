@@ -33,7 +33,7 @@ from fast_api.app.services.agent_runtime import (
     AgentTaskTimeline,
     ToolRegistry,
 )
-from fast_api.app.services.context_window_manager import ContextWindowManager, estimate_tokens
+from fast_api.app.services.context_window_manager import ContextWindowManager
 from fast_api.app.services.model_provider import ModelProvider
 from fast_api.app.services.prompt_budget import PromptBudgetExceeded, enforce_prompt_budget
 
@@ -138,8 +138,9 @@ class LLMAgentService:
         model_call_count = 0
         for iteration in range(1, MAX_ITERATIONS + 1):
             call_start = time.perf_counter()
+            messages = await self._compact_runtime_messages(messages)
             try:
-                enforce_prompt_budget(self.model_provider.settings.chat_model, messages)
+                messages = await self._fit_runtime_prompt(messages)
             except PromptBudgetExceeded as exc:
                 self.nodes.append(self.run_logger.event("PromptBudgetRejected", exc.report))
                 return LLMAgentResult(
@@ -158,7 +159,7 @@ class LLMAgentService:
 
             try:
                 model_call_count += 1
-                response = await model.ainvoke(messages)
+                response, messages = await self._invoke_with_context_recovery(model, messages)
             except Exception as exc:
                 logger.error("LLM call failed at iteration %d: %s", iteration, exc)
                 return LLMAgentResult(
@@ -197,8 +198,11 @@ class LLMAgentService:
                 break
 
             # Preserve the action that produced each observation for the next model call.
-            messages.append(AIMessage(content=response_text))
-            for match in tool_call_matches:
+            call_ids = [str(uuid.uuid4()) for _ in tool_call_matches]
+            messages.append(
+                AIMessage(content=response_text, additional_kwargs={"context_tool_calls": call_ids})
+            )
+            for match, protocol_call_id in zip(tool_call_matches, call_ids, strict=True):
                 tool_call_data = self._parse_tool_call_json(match)
                 if tool_call_data is None:
                     invalid = {
@@ -215,6 +219,7 @@ class LLMAgentService:
                     self.nodes.append(self.run_logger.event("ToolProtocolError", invalid))
                     messages.append(
                         HumanMessage(
+                            additional_kwargs={"context_tool_result": protocol_call_id},
                             content=json.dumps(
                                 {
                                     "error": "invalid_tool_call",
@@ -225,7 +230,7 @@ class LLMAgentService:
                                     ),
                                 },
                                 ensure_ascii=False,
-                            )
+                            ),
                         )
                     )
                     continue
@@ -292,36 +297,6 @@ class LLMAgentService:
                             }
                         )
 
-                # ---- Context compaction check ----
-                est_tokens_now = estimate_tokens(
-                    json.dumps(
-                        [{"role": type(m).__name__, "c": str(m.content)[:200]} for m in messages]
-                    )
-                )
-                if est_tokens_now > self.ctx_manager.total_tokens * 0.75:
-                    self.ctx_manager.compaction_count += 1
-                    compacted = [messages[0], messages[1]]
-                    recent = messages[2:]
-                    if len(recent) > 8:
-                        summary = (
-                            "[Earlier context: " + str(len(recent) - 8) + " messages compacted. "
-                            "The user is working with a fitness coach. Continue naturally.]"
-                        )
-                        compacted.append(HumanMessage(content=summary))
-                        compacted.extend(recent[-8:])
-                    else:
-                        compacted.extend(recent)
-                    messages = compacted
-                    self.nodes.append(
-                        self.run_logger.event(
-                            "ContextCompaction",
-                            {
-                                "reason": "approaching_token_limit",
-                                "est_tokens_before": est_tokens_now,
-                            },
-                        )
-                    )
-
                 # Inject tool result
                 result_message = (
                     '<tool_result tool="'
@@ -334,7 +309,12 @@ class LLMAgentService:
                     + "Available tools: "
                     + str(sorted(specs_set))
                 )
-                messages.append(HumanMessage(content=result_message))
+                messages.append(
+                    HumanMessage(
+                        content=result_message,
+                        additional_kwargs={"context_tool_result": protocol_call_id},
+                    )
+                )
 
             if final_response:
                 break
@@ -347,11 +327,12 @@ class LLMAgentService:
                 )
             )
             try:
-                enforce_prompt_budget(self.model_provider.settings.chat_model, messages)
+                messages = await self._compact_runtime_messages(messages)
+                messages = await self._fit_runtime_prompt(messages)
                 model = self.model_provider.chat_model(temperature=0.4)
                 if model:
                     model_call_count += 1
-                    final = await model.ainvoke(messages)
+                    final, messages = await self._invoke_with_context_recovery(model, messages)
                 else:
                     final = None
                 final_response = str(final.content) if final else ""
@@ -440,6 +421,99 @@ class LLMAgentService:
             guardrail=guardrail,
             timeline=self.timeline,
         )
+
+    async def _compact_runtime_messages(self, messages, *, trigger="pressure"):
+        from fast_api.app.services.session_compaction import compact_runtime_context
+
+        surface = []
+        for index, message in enumerate(messages):
+            if not message.id:
+                message.id = str(uuid.uuid4())
+            role = {"system": "system", "ai": "assistant", "human": "user"}.get(
+                message.type, "user"
+            )
+            metadata = message.additional_kwargs
+            item = {
+                "id": message.id,
+                "role": role,
+                "content": str(message.content),
+                "context_protected": index < 2,
+            }
+            if metadata.get("context_checkpoint"):
+                item["context_checkpoint"] = True
+                item["source_message_ids"] = metadata.get("source_message_ids", [])
+            if metadata.get("context_tool_calls"):
+                item["tool_calls"] = [{"id": call} for call in metadata["context_tool_calls"]]
+            if metadata.get("context_tool_result"):
+                item["role"] = "tool"
+                item["tool_call_id"] = metadata["context_tool_result"]
+            surface.append(item)
+        compacted = await compact_runtime_context(
+            self.db,
+            self.model_provider,
+            self.user_id,
+            self.session_id,
+            self.run_logger.request_id,
+            surface,
+            **({"trigger": trigger} if trigger != "pressure" else {}),
+        )
+        if compacted == surface:
+            return messages
+        by_id = {message.id: message for message in messages}
+        return [
+            by_id[item["id"]]
+            if item["id"] in by_id and item["content"] == str(by_id[item["id"]].content)
+            else HumanMessage(
+                id=item["id"],
+                content=item["content"],
+                additional_kwargs={
+                    "context_checkpoint": item.get("context_checkpoint", False),
+                    "source_message_ids": item.get("source_message_ids", []),
+                    **(
+                        {"context_tool_result": item["tool_call_id"]}
+                        if item.get("tool_call_id")
+                        else {}
+                    ),
+                    "context_view_partial": item.get("context_view_partial", False),
+                },
+            )
+            for item in compacted
+        ]
+
+    async def _invoke_with_context_recovery(self, model, messages):
+        """One context-only recovery; never retry or replay tool execution."""
+        try:
+            enforce_prompt_budget(self.model_provider.settings.chat_model, messages)
+            return await model.ainvoke(messages), messages
+        except Exception as error:
+            code = getattr(error, "code", None)
+            body = getattr(error, "body", None)
+            if isinstance(body, dict):
+                nested = body.get("error", body)
+                if isinstance(nested, dict):
+                    code = nested.get("code", code)
+            if not isinstance(error, PromptBudgetExceeded) and code not in {
+                "context_length_exceeded",
+                "context_window_exceeded",
+            }:
+                raise
+            recovered = await self._compact_runtime_messages(messages, trigger="context-overflow")
+            if recovered == messages:
+                raise
+            enforce_prompt_budget(self.model_provider.settings.chat_model, recovered)
+            retry_model = self.model_provider.chat_model(temperature=0.4)
+            if retry_model is None:
+                raise ValueError("Context recovery model unavailable or quota exhausted")
+            return await retry_model.ainvoke(recovered), recovered
+
+    async def _fit_runtime_prompt(self, messages):
+        try:
+            enforce_prompt_budget(self.model_provider.settings.chat_model, messages)
+            return messages
+        except PromptBudgetExceeded:
+            recovered = await self._compact_runtime_messages(messages, trigger="context-overflow")
+            enforce_prompt_budget(self.model_provider.settings.chat_model, recovered)
+            return recovered
 
     # ----------------------------------------------------------------
     # System prompt builder

@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from fast_api.app.services.bm25 import rank_by_bm25
+from fast_api.app.services.retrieval_ranking import adjust_memory_score, reciprocal_rank_score
 
 
 def recall_at_k(retrieved: Iterable[str], expected: Iterable[str], k: int = 5) -> float:
@@ -48,20 +49,11 @@ def _memory_text(record: dict[str, Any]) -> str:
     ).strip()
 
 
-def _normalise(values: dict[str, float]) -> dict[str, float]:
-    if not values:
-        return {}
-    low, high = min(values.values()), max(values.values())
-    if high <= low:
-        return {key: 0.0 for key in values}
-    return {key: (value - low) / (high - low) for key, value in values.items()}
-
-
 def bm25_rank(records: list[dict[str, Any]], query: str) -> list[str]:
     """Return IDs sorted by the production BM25 implementation."""
 
     matches = rank_by_bm25(records, query, _memory_text)
-    indexed = list(enumerate(matches))
+    indexed = [(index, match) for index, match in enumerate(matches) if match.score > 0]
     indexed.sort(key=lambda item: (-item[1].score, item[0]))
     return [_memory_id(match.item) for _, match in indexed]
 
@@ -82,33 +74,35 @@ def vector_rank(records: list[dict[str, Any]]) -> list[str] | None:
 
 
 def hybrid_rank(records: list[dict[str, Any]], query: str) -> tuple[list[str], dict[str, Any]]:
-    """Combine BM25 with explicit semantic, recency and entity signals."""
+    """Use runtime fusion/scoring on explicit fixture signals, not DB recall."""
 
     matches = rank_by_bm25(records, query, _memory_text)
-    bm25_scores = {_memory_id(match.item): float(match.score) for match in matches}
-    bm25_scores = _normalise(bm25_scores)
-    has_vector = vector_rank(records) is not None
-    vector_scores = (
-        _normalise(
-            {_memory_id(record): float(record.get("vector_score") or 0.0) for record in records}
-        )
-        if has_vector
-        else {}
+    lexical = sorted(
+        (match for match in matches if match.score > 0), key=lambda m: m.score, reverse=True
     )
+    keyword_ranks = {_memory_id(match.item): index for index, match in enumerate(lexical)}
+    semantic = vector_rank(records)
+    has_vector = semantic is not None
+    vector_ranks = {memory_id: index for index, memory_id in enumerate(semantic or [])}
     combined: list[tuple[float, int, str]] = []
     for index, record in enumerate(records):
         memory_id = _memory_id(record)
-        score = 0.4 * bm25_scores.get(memory_id, 0.0)
-        if has_vector:
-            score += 0.4 * vector_scores.get(memory_id, 0.0)
-        score += 0.1 * float(record.get("recency_score") or 0.0)
-        score += 0.1 * float(record.get("entity_match") or 0.0)
+        relevance = reciprocal_rank_score(memory_id, [vector_ranks, keyword_ranks])
+        if relevance <= 0:
+            continue
+        score = adjust_memory_score(
+            relevance,
+            float(record.get("recency_score", 0.5)),
+            float(record.get("applicability_adjustment", 0.0)),
+        )
         combined.append((score, index, memory_id))
     combined.sort(key=lambda item: (-item[0], item[1]))
     return [memory_id for _, _, memory_id in combined], {
         "uses_explicit_vector_score": has_vector,
         "vector_fallback": not has_vector,
         "policy": "no_sha256_pseudo_vector",
+        "ranker": "two_route_rrf_temporal_applicability",
+        "evaluation_scope": "fixture_scoring_not_database_recall",
     }
 
 

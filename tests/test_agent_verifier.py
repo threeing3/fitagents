@@ -1,3 +1,5 @@
+import pytest
+
 from fast_api.app.services.agent_verifier import AgentVerifier
 from fast_api.app.services.strategy_memory_policy import build_strategy_memory_response_note
 
@@ -22,11 +24,7 @@ def test_plan_verifier_accepts_repairable_warnings_and_repair_adds_safety_fields
         "target_carbs_g": 200,
         "target_fat_g": 70,
     }
-    context = {
-        "relevant_memories": [
-            {"memory_type": "medical_context", "summary": "甲亢用药背景"}
-        ]
-    }
+    context = {"relevant_memories": [{"memory_type": "medical_context", "summary": "甲亢用药背景"}]}
 
     result = verifier.verify_plan(plan, profile, context)
 
@@ -65,8 +63,47 @@ def test_response_verifier_detects_old_plan_carryover_and_repairs():
 
     assert result.passed is False
     assert "old_plan_carryover" in result.repair_actions
-    assert repair["repaired"] is True
-    assert "旧计划指令" in repair["repair_text"]
+    assert repair["repaired"] is False
+    assert repair["repair_text"] == ""
+    assert repair["unresolved_issues"] == ["old_plan_carryover"]
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        "好的，我按这个理解记录：\n- 当前状态：标准自重正手引体向上，只能拉1–2个\n"
+        "- 测试时间：前天\n- 停练前水平：约4组5次\n"
+        "先不调整现有计划。等你恢复训练1–2次后，再根据实际表现判断。",
+        "你之前卧推3组，每组8次，目前只是记录，不自动追加训练计划。",
+        "先不调整训练计划：等你补充近期表现再讨论。",
+        "Previously I did squats for 3 sets of 8 reps. This is a historical record.",
+        "训练计划需要考虑恢复情况，组数和次数不是越多越好。",
+    ],
+)
+def test_response_verifier_does_not_treat_history_or_plan_mentions_as_prescriptions(response):
+    verifier = AgentVerifier()
+    context = {"current_request_policy": {"allow_plan_content": False}}
+    result = verifier.verify_response(response, "记录一下停练前的水平", context)
+    assert "old_plan_carryover" not in result.repair_actions
+    assert verifier.repair_response(result.to_dict(), context)["repair_text"] == ""
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        "今天训练计划：卧推3组，深蹲3组。",
+        "建议做3组引体向上，每组5次，组间休息两分钟。",
+        "以前卧推3组。接下来建议深蹲4组，每组8次。",
+        "之前深蹲3组，但明天建议做4组。",
+        "Here is today's workout plan: squat 3 sets of 8 reps.",
+        "Previously I did 3 sets. Tomorrow perform 4 sets of squats.",
+    ],
+)
+def test_response_verifier_still_detects_new_unsolicited_prescriptions(response):
+    result = AgentVerifier().verify_response(
+        response, "只记录，不制定计划", {"current_request_policy": {"allow_plan_content": False}}
+    )
+    assert "old_plan_carryover" in result.repair_actions
 
 
 def test_response_verifier_blocks_plan_before_required_clarification():

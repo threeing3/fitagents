@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
+from datetime import datetime, timezone
 from typing import Any
 
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -12,6 +14,11 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from algorithm.inference.intent_catalog import AgentIntentCatalog
 from fast_api.app.services.intent_decision import IntentDecision, IntentRouter
 from fast_api.app.services.model_provider import ModelProvider
+from fast_api.app.services.semantic_memory_extraction import (
+    MEMORY_INSTRUCTION,
+    bounded_background,
+    validate_memory_payload,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +69,8 @@ class LLMIntentClassifier:
         force_refine: bool = False,
         semantic_candidates: list[dict] | None = None,
         authoritative_tasks: bool = False,
+        extract_memory: bool = False,
+        recent_conversation: list[dict] | None = None,
     ) -> tuple[IntentDecision, dict[str, Any]]:
         """Refine once and expose trustworthy invocation/fallback provenance."""
 
@@ -74,7 +83,9 @@ class LLMIntentClassifier:
 
         intent_model = getattr(self.model_provider, "intent_model", None)
         model = (
-            intent_model()
+            intent_model(max_output_tokens=1800)
+            if extract_memory and isinstance(self.model_provider, ModelProvider)
+            else intent_model()
             if callable(intent_model)
             else self.model_provider.chat_model(temperature=0.0)
         )
@@ -86,15 +97,25 @@ class LLMIntentClassifier:
             }
 
         try:
-            response = await model.ainvoke(
-                [
-                    SystemMessage(content=self._system_prompt()),
-                    HumanMessage(
-                        content=self._user_prompt(
-                            message, rule_decision, profile, semantic_candidates
-                        )
-                    ),
-                ]
+            response = await asyncio.wait_for(
+                model.ainvoke(
+                    [
+                        SystemMessage(
+                            content=self._system_prompt()
+                            + (MEMORY_INSTRUCTION if extract_memory else "")
+                        ),
+                        HumanMessage(
+                            content=self._user_prompt(
+                                message,
+                                rule_decision,
+                                profile,
+                                semantic_candidates,
+                                recent_conversation,
+                            )
+                        ),
+                    ]
+                ),
+                timeout=15,
             )
             payload = self._parse_json(str(response.content))
         except Exception as exc:
@@ -105,11 +126,15 @@ class LLMIntentClassifier:
                 "fallback_reason": f"model_call_failed:{type(exc).__name__}",
             }
 
+        memory_extraction = (
+            validate_memory_payload(payload or {}, message) if extract_memory else None
+        )
         if not payload or (authoritative_tasks and not self._valid_task_payload(payload)):
             return rule_decision, {
                 "attempted": True,
                 "succeeded": False,
                 "fallback_reason": "invalid_model_payload",
+                "memory_extraction": memory_extraction,
             }
         usage = getattr(response, "usage_metadata", None)
         return self._merge_with_rule_decision(
@@ -119,6 +144,7 @@ class LLMIntentClassifier:
             "succeeded": True,
             "fallback_reason": None,
             "usage": dict(usage) if isinstance(usage, dict) else {},
+            "memory_extraction": memory_extraction,
         }
 
     def _merge_with_rule_decision(
@@ -232,7 +258,8 @@ class LLMIntentClassifier:
             return default
         return max(0.0, min(1.0, confidence))
 
-    def _parse_json(self, text: str) -> dict[str, Any] | None:
+    @staticmethod
+    def _parse_json(text: str) -> dict[str, Any] | None:
         cleaned = re.sub(r"^```(?:json)?\s*", "", text.strip())
         cleaned = re.sub(r"\s*```$", "", cleaned)
         try:
@@ -295,6 +322,7 @@ class LLMIntentClassifier:
         rule_decision: IntentDecision,
         profile: Any | None,
         semantic_candidates: list[dict] | None = None,
+        recent_conversation: list[dict] | None = None,
     ) -> str:
         profile_summary = {
             "age": getattr(profile, "age", None),
@@ -308,6 +336,8 @@ class LLMIntentClassifier:
         return json.dumps(
             {
                 "current_user_message": message,
+                "reference_time_utc": datetime.now(timezone.utc).isoformat(),
+                "recent_conversation": bounded_background(recent_conversation),
                 "profile_summary": profile_summary,
                 "rule_decision": rule_decision.to_dict(),
                 "semantic_retrieval_candidates": semantic_candidates or [],

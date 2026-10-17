@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any
@@ -50,19 +51,6 @@ class AgentVerifier:
     This is intentionally lightweight. It gives the project a Claude Code-like
     "execute -> verify -> repair" loop without requiring a framework migration.
     """
-
-    PLAN_TERMS = [
-        "training plan",
-        "workout plan",
-        "today's workout",
-        "sets",
-        "reps",
-        "训练计划",
-        "今日训练",
-        "今天练",
-        "组",
-        "次数",
-    ]
 
     def verify_plan(
         self,
@@ -428,10 +416,8 @@ class AgentVerifier:
         additions: list[str] = []
         if "response_too_short" in issue_ids:
             additions.append("我会基于你当前这条消息重新聚焦回答，避免只给一句空泛建议。")
-        if "old_plan_carryover" in issue_ids:
-            additions.append(
-                "本轮校验已阻止旧计划指令继续生效：下面只回答你当前这条消息，不自动追加训练计划。"
-            )
+        # Detection alone does not block a tool or rewrite the response. Keep this
+        # finding in the trace rather than claiming execution was prevented.
         if "missing_medical_boundary_in_response" in issue_ids:
             additions.append(
                 "安全边界：涉及疾病、用药、胸闷、头晕、异常心率或明确疼痛时，我只能做训练强度和动作选择上的保守建议，不能替代医生诊断或用药建议。"
@@ -465,18 +451,58 @@ class AgentVerifier:
 
         repair_text = ""
         if additions:
-            repair_text = "\n\n---\nAgent 自检补充：\n" + "\n".join(
-                f"- {item}" for item in additions
-            )
+            repair_text = "\n\n" + "\n".join(f"- {item}" for item in additions)
         return {
             "repair_text": repair_text,
             "repair_actions": sorted(issue_ids),
             "repaired": bool(repair_text),
+            "unresolved_issues": sorted(issue_ids & {"old_plan_carryover"}),
         }
 
     def _contains_plan_content(self, text: str) -> bool:
-        lowered = text.lower()
-        return any(term in lowered for term in self.PLAN_TERMS)
+        # Inspect clauses independently: history on one line must not hide a new
+        # prescription on the next. Bare mentions of plans/sets are not plans.
+        for clause in re.split(r"[\n。！？；，,!?;]", text.lower()):
+            clause = re.sub(r"[*_`#]", "", clause).strip()
+            if not clause:
+                continue
+            if re.search(
+                r"(?:先不|暂不|不会|不再|不自动|无需|不要|不需要|没有)(?:调整|修改|生成|追加|制定|安排)"
+                r"|\b(?:do not|don't|won't|not going to)\s+(?:change|adjust|generate|add|create)",
+                clause,
+            ):
+                continue
+            new_instruction = bool(
+                re.search(
+                    r"建议|安排|请做|做\s*\d|完成\s*\d|接下来|(?:今天|明天|本周|下周).*(?:练|做)"
+                    r"|\b(?:do|perform|complete|recommend|next|tomorrow)\b",
+                    clause,
+                )
+            )
+            historical = bool(
+                re.search(
+                    r"停练前|之前|以前|原来|上次|昨天|前天|历史|记录|测试|目前|当前|只能|曾经"
+                    r"|\b(?:previously|used to|last time|yesterday|recorded|history|currently)\b",
+                    clause,
+                )
+            )
+            if historical and not new_instruction:
+                continue
+            if re.search(
+                r"(?:训练计划|今日训练|今天练|training plan|workout plan|today's workout)\s*[:：]"
+                r"|(?:给你|为你|以下是|这是|制定|生成|安排).*(?:训练计划|workout plan|training plan)",
+                clause,
+            ):
+                return True
+            dosage = bool(re.search(r"\d+\s*(?:[-–~至]\s*\d+\s*)?(?:组|sets?\b|reps?\b)", clause))
+            if dosage and (
+                new_instruction
+                or re.search(
+                    r"卧推|深蹲|划船|硬拉|引体|俯卧撑|squat|bench|deadlift|pull.?up", clause
+                )
+            ):
+                return True
+        return False
 
     def _append_strategy_memory_response_issues(
         self,

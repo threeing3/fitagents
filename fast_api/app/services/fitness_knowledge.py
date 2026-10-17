@@ -1,6 +1,7 @@
 import copy
 import json
 import re
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +11,7 @@ from sqlalchemy.orm import Session
 from fast_api.app.db import models
 from fast_api.app.services.bm25 import build_weighted_document, rank_by_bm25
 from fast_api.app.services.model_provider import ModelProvider
+from fast_api.app.services.retrieval_ranking import reciprocal_rank_score
 
 KNOWLEDGE_DIR = Path(__file__).resolve().parents[1] / "data" / "fitness_knowledge"
 
@@ -46,7 +48,10 @@ class FitnessKnowledgeService:
         explanation_knowledge = self.retrieve_explanation_knowledge(intent, query, context_packet)
         coaching_cases = self.retrieve_coaching_cases(intent, query, context_packet)
         embedding_mode = self.model_provider.embedding_mode()
-        vector_available = embedding_mode != "vector_unavailable_bm25_fallback"
+        vector_available = any(
+            "semantic" in item.get("retrieval_sources", [])
+            for item in [*explanation_knowledge, *coaching_cases]
+        )
         return {
             "embedding_mode": embedding_mode,
             "explanation_knowledge": explanation_knowledge,
@@ -56,7 +61,7 @@ class FitnessKnowledgeService:
             "debug": {
                 "intent": intent,
                 "query": query,
-                "retrieval_ranker": "hybrid_vector_bm25" if vector_available else "bm25",
+                "retrieval_ranker": "two_route_rrf" if vector_available else "bm25",
                 "vector_available": vector_available,
                 "vector_status": "available" if vector_available else "vector unavailable",
                 "bm25_enabled": True,
@@ -87,7 +92,7 @@ class FitnessKnowledgeService:
         context_packet: dict[str, Any] | None = None,
         top_k: int = 3,
     ) -> list[dict[str, Any]]:
-        if intent == "memory_query":
+        if intent == "memory_query" or top_k <= 0:
             return []
         ranking_query = self._expand_retrieval_query(query)
         if self.db is None:
@@ -98,18 +103,18 @@ class FitnessKnowledgeService:
             ]
 
         filters = [models.ExplanationKnowledge.status == "active"]
-        candidates = self._vector_query(models.ExplanationKnowledge, filters, query, top_k * 3)
-        if not candidates:
-            candidates = list(
-                self.db.scalars(
-                    select(models.ExplanationKnowledge)
-                    .where(*filters)
-                    .order_by(desc(models.ExplanationKnowledge.updated_at))
-                    .limit(top_k * 3)
-                )
-            )
-        ranked = self._rank_explanation_models(candidates, ranking_query)[:top_k]
-        return [self._explanation_payload(match.item, match.normalized_score) for match in ranked]
+        ranked = self._retrieve_knowledge_models(
+            models.ExplanationKnowledge,
+            filters,
+            query,
+            ranking_query,
+            top_k,
+            self._explanation_model_document,
+        )
+        return [
+            {**self._explanation_payload(item, score), "retrieval_sources": sources}
+            for item, score, sources in ranked
+        ]
 
     def retrieve_coaching_cases(
         self,
@@ -118,7 +123,7 @@ class FitnessKnowledgeService:
         context_packet: dict[str, Any] | None = None,
         top_k: int = 2,
     ) -> list[dict[str, Any]]:
-        if intent in {"training_log"}:
+        if intent in {"training_log"} or top_k <= 0:
             return []
         ranking_query = self._expand_retrieval_query(query)
         if self.db is None:
@@ -129,18 +134,67 @@ class FitnessKnowledgeService:
             ]
 
         filters = [models.CoachingCase.status == "active"]
-        candidates = self._vector_query(models.CoachingCase, filters, query, top_k * 3)
-        if not candidates:
-            candidates = list(
-                self.db.scalars(
-                    select(models.CoachingCase)
-                    .where(*filters)
-                    .order_by(desc(models.CoachingCase.updated_at))
-                    .limit(top_k * 3)
-                )
+        ranked = self._retrieve_knowledge_models(
+            models.CoachingCase,
+            filters,
+            query,
+            ranking_query,
+            top_k,
+            self._case_model_document,
+        )
+        return [
+            {**self._case_payload(item, score), "retrieval_sources": sources}
+            for item, score, sources in ranked
+        ]
+
+    def _retrieve_knowledge_models(
+        self,
+        model_class: Any,
+        filters: list[Any],
+        query: str,
+        ranking_query: str,
+        top_k: int,
+        document_builder: Callable[[Any], str],
+    ) -> list[tuple[Any, float, list[str]]]:
+        if self.db is None or top_k <= 0:
+            return []
+        vectors = self._vector_query(model_class, filters, query, top_k * 3)
+        # The built-in knowledge library is small. Bound lexical work explicitly;
+        # do not restrict it to the few most recent vector-fallback documents.
+        pool = list(
+            self.db.scalars(select(model_class).where(*filters).order_by(model_class.id).limit(256))
+        )
+        lexical = sorted(
+            (
+                match
+                for match in rank_by_bm25(pool, ranking_query, document_builder)
+                if match.score > 0
+            ),
+            key=lambda match: match.score,
+            reverse=True,
+        )[: top_k * 3]
+        vector_rank = {item.id: index for index, item in enumerate(vectors)}
+        keyword_rank = {match.item.id: index for index, match in enumerate(lexical)}
+        keyword_scores = {match.item.id: match.normalized_score for match in lexical}
+        by_id = {item.id: item for item in vectors}
+        by_id.update({match.item.id: match.item for match in lexical})
+        ranked = sorted(
+            by_id.values(),
+            key=lambda item: reciprocal_rank_score(item.id, [vector_rank, keyword_rank]),
+            reverse=True,
+        )[:top_k]
+        return [
+            (
+                item,
+                keyword_scores.get(item.id, 0.0),
+                [
+                    label
+                    for label, ranks in [("semantic", vector_rank), ("keyword", keyword_rank)]
+                    if item.id in ranks
+                ],
             )
-        ranked = self._rank_case_models(candidates, ranking_query)[:top_k]
-        return [self._case_payload(match.item, match.normalized_score) for match in ranked]
+            for item in ranked
+        ]
 
     def match_decision_rules(
         self,
@@ -638,20 +692,6 @@ class FitnessKnowledgeService:
             )
         except Exception:
             return []
-
-    def _rank_explanation_models(self, items: list[Any], query: str):
-        return sorted(
-            rank_by_bm25(items, query, self._explanation_model_document),
-            key=lambda match: match.normalized_score,
-            reverse=True,
-        )
-
-    def _rank_case_models(self, items: list[Any], query: str):
-        return sorted(
-            rank_by_bm25(items, query, self._case_model_document),
-            key=lambda match: match.normalized_score,
-            reverse=True,
-        )
 
     def _rank_seed_explanations(self, items: list[dict[str, Any]], query: str):
         return sorted(

@@ -243,6 +243,7 @@ class ContextWindowManager:
             compacted = self._compact_knowledge(knowledge)
             self._knowledge = compacted
             tokens = estimate_dict_tokens(compacted)
+            budget.truncated = compacted != knowledge
         budget.used_tokens = tokens
 
     def set_history(self, messages: list[dict[str, str]]) -> None:
@@ -276,7 +277,7 @@ class ContextWindowManager:
         # Need to trim. Sort and keep most valuable items.
         if budget_name == "history":
             # History: keep most recent
-            sorted_items = items  # Already in order, keep from end
+            sorted_items = list(reversed(items))
         elif budget_name == "memory":
             # Memories: sort by importance (highest first)
             sorted_items = sorted(
@@ -311,7 +312,7 @@ class ContextWindowManager:
             trimmed = len(items) - 1
 
         budget.used_tokens = used
-        budget.items = kept
+        budget.items = list(reversed(kept)) if budget_name == "history" else kept
         budget.truncated = trimmed > 0 or kept != items
 
         if budget.truncated:
@@ -559,7 +560,7 @@ def build_context_packet_with_budget(
         compacted_packet["knowledge_context"] = manager._knowledge
         compacted_packet["_knowledge_truncated"] = True
 
-    if manager.budgets["history"].items:
+    if "recent_conversation" in context_packet or manager.budgets["history"].items:
         compacted_packet["recent_conversation"] = manager.budgets["history"].items
     if manager.budgets["history"].truncated:
         compacted_packet["_history_truncated"] = True

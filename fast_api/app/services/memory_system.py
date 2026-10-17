@@ -3,13 +3,14 @@ import uuid
 from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import desc, func, literal, or_, select
+from sqlalchemy import Text, cast, desc, func, literal, or_, select
 from sqlalchemy.orm import Session
 
 from fast_api.app.db import models
 from fast_api.app.services.bm25 import build_weighted_document, rank_by_bm25
 from fast_api.app.services.memory_temporal_policy import MemoryTemporalPolicy
 from fast_api.app.services.model_provider import ModelProvider
+from fast_api.app.services.retrieval_ranking import adjust_memory_score, reciprocal_rank_score
 
 
 class MemoryManager:
@@ -428,6 +429,8 @@ class MemoryManager:
         current_context: dict[str, Any] | None = None,
         as_of: datetime | None = None,
     ) -> list[models.LongTermMemory]:
+        if top_k <= 0:
+            return []
         as_of = as_of or datetime.utcnow()
         filters = [
             models.LongTermMemory.user_id == user_id,
@@ -460,78 +463,24 @@ class MemoryManager:
 
         vector_candidates = self._semantic_candidates(query, filters, top_k)
 
-        query_entities = self.extract_entities(query)
-        wanted_entities = set(entities or [])
-        wanted_entities.update(entity["canonical"] for entity in query_entities)
-        entity_candidates: list[models.LongTermMemory] = []
-        if wanted_entities:
-            entity_candidates = list(
-                self.db.scalars(
-                    select(models.LongTermMemory)
-                    .where(*filters)
-                    .order_by(
-                        desc(models.LongTermMemory.importance),
-                        desc(models.LongTermMemory.created_at),
-                    )
-                    .limit(top_k * 8)
-                )
-            )
-            entity_candidates = [
-                memory
-                for memory in entity_candidates
-                if self._memory_has_entity(memory, wanted_entities)
-            ]
-
-        keyword_candidates, keyword_signal_scores = self._keyword_candidates(query, filters, top_k)
-
-        temporal_candidates = list(
-            self.db.scalars(
-                select(models.LongTermMemory)
-                .where(*filters)
-                .order_by(
-                    desc(
-                        func.coalesce(
-                            models.LongTermMemory.occurred_end,
-                            models.LongTermMemory.occurred_start,
-                            models.LongTermMemory.mentioned_at,
-                            models.LongTermMemory.created_at,
-                        )
-                    )
-                )
-                .limit(top_k * 3)
-            )
-        )
-        relevance_ids = {
-            memory.id for memory in [*vector_candidates, *entity_candidates, *keyword_candidates]
-        }
-        temporal_candidates = [
-            memory
-            for memory in temporal_candidates
-            if not (
-                self.temporal_policy.is_safety_failed_strategy(memory)
-                and memory.id not in relevance_ids
-            )
-        ]
+        lexical_query = " ".join([query, *sorted(entities or [])])
+        keyword_candidates = self._keyword_candidates(lexical_query, filters, top_k)
         vector_rank = {memory.id: index for index, memory in enumerate(vector_candidates)}
-        entity_rank = {memory.id: index for index, memory in enumerate(entity_candidates)}
-        temporal_rank = {memory.id: index for index, memory in enumerate(temporal_candidates)}
         by_id = {memory.id: memory for memory in vector_candidates}
-        for memory in [*entity_candidates, *keyword_candidates, *temporal_candidates]:
+        for memory in keyword_candidates:
             by_id.setdefault(memory.id, memory)
         candidates = list(by_id.values())
-        bm25_matches = rank_by_bm25(candidates, query, self._memory_bm25_document)
-        bm25_scores = {
-            match.item.id: max(
-                match.normalized_score, keyword_signal_scores.get(match.item.id, 0.0)
-            )
-            for match in bm25_matches
-        }
+        bm25_matches = rank_by_bm25(keyword_candidates, lexical_query, self._memory_bm25_document)
+        bm25_scores = {match.item.id: match.normalized_score for match in bm25_matches}
         keyword_matches = sorted(
             [match for match in bm25_matches if bm25_scores.get(match.item.id, 0.0) > 0],
             key=lambda match: bm25_scores.get(match.item.id, 0.0),
             reverse=True,
         )
         keyword_rank = {match.item.id: index for index, match in enumerate(keyword_matches)}
+        candidates = [
+            item for item in candidates if item.id in vector_rank or item.id in keyword_rank
+        ]
         ranked = sorted(
             candidates,
             key=lambda item: self._memory_score(
@@ -539,8 +488,6 @@ class MemoryManager:
                 bm25_scores.get(item.id, 0.0),
                 vector_rank,
                 keyword_rank,
-                entity_rank,
-                temporal_rank,
                 current_context=current_context,
                 as_of=as_of,
             ),
@@ -552,8 +499,6 @@ class MemoryManager:
                 bm25_scores.get(memory.id, 0.0),
                 vector_rank,
                 keyword_rank,
-                entity_rank,
-                temporal_rank,
                 current_context=current_context,
                 as_of=as_of,
             )
@@ -561,8 +506,6 @@ class MemoryManager:
                 memory,
                 vector_rank,
                 keyword_rank,
-                entity_rank,
-                temporal_rank,
                 final_score,
                 bm25_scores.get(memory.id, 0.0),
                 current_context=current_context,
@@ -733,8 +676,6 @@ class MemoryManager:
         bm25_score: float,
         vector_rank: dict[uuid.UUID, int] | None = None,
         keyword_rank: dict[uuid.UUID, int] | None = None,
-        entity_rank: dict[uuid.UUID, int] | None = None,
-        temporal_rank: dict[uuid.UUID, int] | None = None,
         *,
         current_context: dict[str, Any] | None = None,
         as_of: datetime | None = None,
@@ -744,8 +685,6 @@ class MemoryManager:
             bm25_score,
             vector_rank,
             keyword_rank,
-            entity_rank,
-            temporal_rank,
             current_context=current_context,
             as_of=as_of,
         )["final_score"]
@@ -756,44 +695,22 @@ class MemoryManager:
         bm25_score: float,
         vector_rank: dict[uuid.UUID, int] | None = None,
         keyword_rank: dict[uuid.UUID, int] | None = None,
-        entity_rank: dict[uuid.UUID, int] | None = None,
-        temporal_rank: dict[uuid.UUID, int] | None = None,
         *,
         current_context: dict[str, Any] | None = None,
         as_of: datetime | None = None,
     ) -> dict[str, Any]:
-        rrf_score = 0.0
-        if vector_rank and memory.id in vector_rank:
-            rrf_score += 1.0 / (60.0 + vector_rank[memory.id])
-        if keyword_rank and memory.id in keyword_rank:
-            rrf_score += 1.25 / (60.0 + keyword_rank[memory.id])
-        if entity_rank and memory.id in entity_rank:
-            rrf_score += 1.5 / (60.0 + entity_rank[memory.id])
-        if temporal_rank and memory.id in temporal_rank:
-            rrf_score += 0.75 / (60.0 + temporal_rank[memory.id])
-        importance = float(memory.importance or 0.5)
+        rrf_score = reciprocal_rank_score(memory.id, [vector_rank or {}, keyword_rank or {}])
+        # Direct score callers may supply BM25 without rank lists; production uses RRF only.
+        if not vector_rank and keyword_rank is None:
+            rrf_score = max(0.0, min(1.0, bm25_score))
         temporal = self.temporal_policy.score(memory, as_of=as_of)
         applicability = self.temporal_policy.applicability(memory, current_context)
-        risk_priority = 0.22 if self._is_risk_or_health_memory(memory) else 0.0
-        opinion_penalty = -0.05 if getattr(memory, "memory_network", "world") == "opinion" else 0.0
-        final_score = (
-            rrf_score
-            + bm25_score * 0.45
-            + importance * 0.25
-            + temporal.score * 0.1
-            + applicability.adjustment
-            + risk_priority
-            + opinion_penalty
-        )
+        final_score = adjust_memory_score(rrf_score, temporal.score, applicability.adjustment)
         return {
             "final_score": final_score,
             "rrf_score": rrf_score,
-            "bm25_component": bm25_score * 0.45,
-            "importance_component": importance * 0.25,
-            "temporal_component": temporal.score * 0.1,
+            "temporal_component": -rrf_score * 0.1 * (1.0 - temporal.score),
             "applicability_component": applicability.adjustment,
-            "risk_priority": risk_priority,
-            "opinion_penalty": opinion_penalty,
             "temporal": temporal,
             "applicability": applicability,
         }
@@ -803,9 +720,8 @@ class MemoryManager:
         query: str,
         filters: list[Any],
         top_k: int,
-    ) -> tuple[list[models.LongTermMemory], dict[uuid.UUID, float]]:
+    ) -> list[models.LongTermMemory]:
         candidates: list[models.LongTermMemory] = []
-        signal_scores: dict[uuid.UUID, float] = {}
         if self._is_postgres():
             try:
                 tsvector = func.to_tsvector("simple", self._keyword_search_document_expr())
@@ -823,20 +739,13 @@ class MemoryManager:
                         .limit(top_k * 8)
                     )
                 )
-                for memory, score in rows:
+                for memory, _ in rows:
                     candidates.append(memory)
-                    signal_scores[memory.id] = max(
-                        signal_scores.get(memory.id, 0.0), float(score or 0.0)
-                    )
             except Exception:
                 candidates = []
 
         fallback_candidates = self._keyword_fallback_candidates(query, filters, top_k)
-        for memory, score in fallback_candidates:
-            if memory.id not in {item.id for item in candidates}:
-                candidates.append(memory)
-            signal_scores[memory.id] = max(signal_scores.get(memory.id, 0.0), score)
-        return candidates, signal_scores
+        return list({memory.id: memory for memory in [*candidates, *fallback_candidates]}.values())
 
     def _keyword_search_document_expr(self):
         parts = [
@@ -857,7 +766,7 @@ class MemoryManager:
         query: str,
         filters: list[Any],
         top_k: int,
-    ) -> list[tuple[models.LongTermMemory, float]]:
+    ) -> list[models.LongTermMemory]:
         tokens = self._query_tokens(query)
         if not tokens:
             return []
@@ -869,6 +778,7 @@ class MemoryManager:
             clauses.append(models.LongTermMemory.category.ilike(pattern))
             clauses.append(models.LongTermMemory.memory_type.ilike(pattern))
             clauses.append(models.LongTermMemory.fact_kind.ilike(pattern))
+            clauses.append(cast(models.LongTermMemory.entities, Text).ilike(pattern))
         rows = list(
             self.db.scalars(
                 select(models.LongTermMemory)
@@ -879,11 +789,7 @@ class MemoryManager:
                 .limit(top_k * 12)
             )
         )
-        scored = [
-            (memory, self._token_overlap_score(query, self._memory_bm25_document(memory)))
-            for memory in rows
-        ]
-        return sorted(scored, key=lambda item: item[1], reverse=True)
+        return rows
 
     def _query_tokens(self, text: str) -> list[str]:
         tokens = [
@@ -900,21 +806,11 @@ class MemoryManager:
                 seen.add(token)
         return unique[:12]
 
-    def _token_overlap_score(self, query: str, document: str) -> float:
-        query_tokens = set(self._query_tokens(query))
-        if not query_tokens:
-            return 0.0
-        doc_lower = (document or "").lower()
-        hits = sum(1 for token in query_tokens if token in doc_lower)
-        return hits / len(query_tokens)
-
     def _attach_search_debug(
         self,
         memory: models.LongTermMemory,
         vector_rank: dict[uuid.UUID, int],
         keyword_rank: dict[uuid.UUID, int],
-        entity_rank: dict[uuid.UUID, int],
-        temporal_rank: dict[uuid.UUID, int],
         final_score: float,
         keyword_score: float = 0.0,
         *,
@@ -923,42 +819,35 @@ class MemoryManager:
     ) -> None:
         semantic_rank = self._rank_value(memory.id, vector_rank)
         keyword_rank_value = self._rank_value(memory.id, keyword_rank)
-        entity_rank_value = self._rank_value(memory.id, entity_rank)
-        temporal_rank_value = self._rank_value(memory.id, temporal_rank)
         memory.semantic_rank = semantic_rank
         memory.keyword_rank = keyword_rank_value
-        memory.entity_rank = entity_rank_value
-        memory.temporal_rank = temporal_rank_value
+        # Keep legacy projection fields without claiming removed recall routes.
+        memory.entity_rank = None
+        memory.temporal_rank = None
         memory.final_score = round(final_score, 6)
         sources = []
         if semantic_rank is not None:
             sources.append("semantic")
         if keyword_rank_value is not None:
             sources.append("keyword")
-        if entity_rank_value is not None:
-            sources.append("entity")
-        if temporal_rank_value is not None:
-            sources.append("temporal")
         score_details = self._memory_score_details(
             memory,
             keyword_score,
             vector_rank,
             keyword_rank,
-            entity_rank,
-            temporal_rank,
             current_context=current_context,
             as_of=as_of,
         )
         temporal = score_details["temporal"]
         applicability = score_details["applicability"]
         memory.retrieval_debug = {
+            "ranker": "two_route_rrf_temporal_applicability",
             "sources": sources,
             "semantic_rank": semantic_rank,
             "keyword_rank": keyword_rank_value,
-            "entity_rank": entity_rank_value,
-            "temporal_rank": temporal_rank_value,
+            "entity_rank": None,
+            "temporal_rank": None,
             "keyword_score": round(float(keyword_score or 0.0), 6),
-            "risk_priority": score_details["risk_priority"],
             "importance": float(memory.importance or 0.0),
             "recency": temporal.score,
             "reference_time": temporal.reference_time.isoformat()
@@ -974,12 +863,8 @@ class MemoryManager:
             "applicability_reasons": applicability.reasons,
             "score_components": {
                 "rrf": round(score_details["rrf_score"], 6),
-                "bm25": round(score_details["bm25_component"], 6),
-                "importance": round(score_details["importance_component"], 6),
                 "temporal": round(score_details["temporal_component"], 6),
                 "applicability": round(score_details["applicability_component"], 6),
-                "risk_priority": round(score_details["risk_priority"], 6),
-                "opinion_penalty": round(score_details["opinion_penalty"], 6),
             },
             "final_score": memory.final_score,
         }
@@ -1131,25 +1016,6 @@ class MemoryManager:
             )
             seen.add(key)
         return merged
-
-    def _memory_has_entity(self, memory: models.LongTermMemory, wanted_entities: set[str]) -> bool:
-        for entity in memory.entities or []:
-            if entity.get("canonical") in wanted_entities or entity.get("name") in wanted_entities:
-                return True
-        return False
-
-    def _is_risk_or_health_memory(self, memory: models.LongTermMemory) -> bool:
-        return (
-            memory.category == "risk"
-            or memory.memory_type
-            in {"medical_context", "risk_signal", "symptom_event", "health_fact", "medication"}
-            or getattr(memory, "fact_kind", "")
-            in {"health_fact", "symptom_event", "medication_event", "medication"}
-            or any(
-                (entity.get("type") == "medication")
-                for entity in (getattr(memory, "entities", None) or [])
-            )
-        )
 
     def _catalog_title(self, category: str) -> str:
         return f"{category.replace('_', ' ').title()} Memory"

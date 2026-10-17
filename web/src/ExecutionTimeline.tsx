@@ -34,6 +34,10 @@ const toolLabels: Record<string, [string, string]> = {
   "response.repair": ["修正回复约束", "Repair response constraints"],
   "guardrail.check": ["核对安全边界", "Check safety boundaries"],
   "response.persist": ["保存本轮记录", "Save turn record"],
+  "compaction/start": ["整理较早上下文", "Compact earlier context"],
+  "compaction/summary": ["生成任务检查点", "Generate context checkpoint"],
+  "compaction/installed": ["已更新上下文视图", "Context view updated"],
+  "compaction/end": ["上下文压缩记录", "Context compaction record"],
 };
 
 /** The envelope can mean "event recorded", while metadata describes actual tool outcome. */

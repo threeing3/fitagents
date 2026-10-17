@@ -14,6 +14,103 @@ from fast_api.app.services.model_provider import ModelProvider
 from fast_api.app.services.prompt_budget import PromptBudgetExceeded, enforce_prompt_budget
 
 
+def test_runtime_checkpoint_metadata_survives_model_message_roundtrip(monkeypatch):
+    snapshots = []
+
+    async def compact(db, provider, owner, session, run, surface):
+        snapshots.append(surface)
+        if len(snapshots) == 1:
+            return [
+                *surface[:2],
+                {
+                    "id": "saved-checkpoint",
+                    "role": "user",
+                    "content": "confirmed constraints",
+                    "context_checkpoint": True,
+                    "source_message_ids": ["old-source"],
+                },
+            ]
+        return surface
+
+    monkeypatch.setattr("fast_api.app.services.session_compaction.compact_runtime_context", compact)
+    agent = LLMAgentService(
+        None,
+        SimpleNamespace(settings=SimpleNamespace(chat_model="unknown")),
+        ToolRegistry(),
+        uuid4(),
+        uuid4(),
+        SimpleNamespace(),
+        "review",
+    )
+
+    async def run():
+        messages = await agent._compact_runtime_messages(
+            [SystemMessage(content="rules"), HumanMessage(content="review")]
+        )
+        await agent._compact_runtime_messages(messages)
+
+    asyncio.run(run())
+    assert snapshots[1][2]["context_checkpoint"]
+    assert snapshots[1][2]["source_message_ids"] == ["old-source"]
+
+
+@pytest.mark.parametrize(
+    "code,recover", [("context_length_exceeded", True), ("rate_limit_exceeded", False)]
+)
+def test_provider_overflow_recovers_once_without_tool_replay(code, recover):
+    calls = []
+
+    class Failure(Exception):
+        pass
+
+    class Model:
+        async def ainvoke(self, messages):
+            calls.append(messages)
+            if len(calls) == 1:
+                error = Failure("synthetic failure")
+                error.code = code
+                raise error
+            return AIMessage(content="done")
+
+    reservations = []
+
+    def model(**kwargs):
+        reservations.append(kwargs)
+        return Model()
+
+    agent = LLMAgentService(
+        None,
+        SimpleNamespace(settings=SimpleNamespace(chat_model="unknown"), chat_model=model),
+        ToolRegistry(),
+        uuid4(),
+        uuid4(),
+        SimpleNamespace(),
+        "review",
+    )
+    triggers = []
+
+    async def compact(messages, *, trigger="pressure"):
+        triggers.append(trigger)
+        return [SystemMessage(content="rules"), HumanMessage(content="compressed")]
+
+    agent._compact_runtime_messages = compact
+
+    async def run():
+        return await agent._invoke_with_context_recovery(
+            Model(), [HumanMessage(content="original")]
+        )
+
+    if recover:
+        result, _ = asyncio.run(run())
+        assert result.content == "done"
+        assert len(calls) == 2 and len(reservations) == 1
+        assert triggers == ["context-overflow"]
+    else:
+        with pytest.raises(Failure):
+            asyncio.run(run())
+        assert len(calls) == 1 and not reservations and not triggers
+
+
 @pytest.mark.parametrize(
     "system,user",
     [("x" * 40000, "brief"), ("system", "中" * 3000)],

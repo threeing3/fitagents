@@ -20,9 +20,13 @@ __pycache__/
 .venv/
 venv/
 .coverage
+.coverage.*
 coverage.xml
 coverage-*.json
 htmlcov/
+
+# Local exports, screenshots and database backups stay on this machine.
+output/
 
 # Logs: raw logs stay local; reviewed summaries are safe to version.
 logs/*
