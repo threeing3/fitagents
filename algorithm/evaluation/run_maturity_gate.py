@@ -6,7 +6,6 @@ import argparse
 import json
 import platform
 import subprocess
-import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -46,18 +45,13 @@ def _code_version() -> str:
 
 
 def _business_gate() -> dict[str, Any]:
-    result = subprocess.run(
-        [sys.executable, "-m", "pytest", "tests/test_eval_cases.py", "-q", "--no-cov"],
-        cwd=ROOT,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
+    # The historical test suite was removed; never turn absence into a pass.
     return {
-        "cases": 38,
-        "passed": 38 if result.returncode == 0 else 0,
-        "gate_passed": result.returncode == 0,
-        "command": "python -m pytest tests/test_eval_cases.py -q --no-cov",
+        "cases": 0,
+        "passed": 0,
+        "gate_passed": False,
+        "status": "manual_acceptance_required",
+        "reason": "Historical automated business suite removed; see docs/MANUAL_ACCEPTANCE.md",
     }
 
 

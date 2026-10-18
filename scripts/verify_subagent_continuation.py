@@ -5,14 +5,58 @@ import json
 import subprocess
 import sys
 import uuid
+from types import SimpleNamespace
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from fast_api.app.db import models
+from fast_api.app.services.domain_subagents import project_read
 from fast_api.app.services.subagent_continuation import ContinuableChild
 from fast_api.app.services.subagent_journal import JournalCheckpoint, SubagentJournal
-from tests.test_domain_subagents import Provider, final, reader
+
+
+def final(ids=None):
+    return {
+        "action": "final",
+        "summary": "候选建议",
+        "recommendations": ["先核对时间限制"],
+        "uncertainties": ["记录不足"],
+        "evidence_ids": ids or [],
+    }
+
+
+class Provider:
+    """Scripted provider for this standalone flow; never calls a paid model."""
+
+    settings = SimpleNamespace(chat_model="scripted-continuation")
+
+    def __init__(self, decisions):
+        self.decisions = iter(decisions)
+
+    def has_live_model(self):
+        return True  # Exercises the protocol with scripted responses, not a live model.
+
+    def chat_model(self, **kwargs):
+        return self
+
+    async def ainvoke(self, messages):
+        return SimpleNamespace(content=json.dumps(next(self.decisions), ensure_ascii=False))
+
+
+def reader(domain, tool):
+    return project_read(
+        {
+            "relevant_memories": [
+                {"id": "active", "status": "active", "content": "40分钟"},
+                {"id": "old", "status": "superseded"},
+            ],
+            "recent_training": [{"duration": 40}],
+            "core_profile": {"goal": "maintenance"},
+        },
+        domain,
+        tool,
+    )
 
 
 async def main():

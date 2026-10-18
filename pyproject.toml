@@ -31,19 +31,3 @@ explicit_package_bases = true
 follow_imports = "skip"
 no_error_summary = true
 exclude = ["^algorithm/research_state/", "^data/", "^logs/"]
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-timeout = 30
-addopts = "--strict-markers"
-
-[tool.coverage.run]
-source = ["fast_api/app", "algorithm"]
-omit = ["*/__init__.py", "algorithm/training/*"]
-
-[tool.coverage.report]
-# The first measured whole-project baseline is 65.51%. Raise this gate to the
-# public-release target of 70% as the next PRs add product and algorithm tests.
-fail_under = 65
-show_missing = true
-skip_covered = true

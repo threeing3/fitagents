@@ -124,12 +124,14 @@ python -m scripts.run_local_byok --provider deepseek --model YOUR_MODEL_ID --ack
 | 想检查什么 | 阅读与复现入口 |
 | --- | --- |
 | 对话如何成为工具执行 | [执行控制](fast_api/app/services/agent_runtime.py)、[工具循环](fast_api/app/services/llm_agent.py) |
-| 纠正后旧结论为何失效 | [依赖失效测试](tests/test_memory_dependencies.py)、[记忆评测集](tests/evals/hindsight_memory_eval_cases.json) |
-| 子任务有没有真实权限边界 | [领域测试](tests/test_domain_subagents.py)、[子任务运行测试](tests/test_subagent_runtime.py) |
+| 纠正后旧结论为何失效 | [依赖失效实现](fast_api/app/services/memory_dependencies.py)、[记忆评测集](tests/evals/hindsight_memory_eval_cases.json) |
+| 子任务有没有真实权限边界 | [领域子任务](fast_api/app/services/domain_subagents.py)、[受控运行](fast_api/app/services/subagent_runtime.py) |
 | 任务是否真的完成 | [固定合成业务链路](algorithm/evaluation/fitagent_journey_eval.py)、[工具循环评测](algorithm/evaluation/tool_loop_task_eval.py) |
 | 中断和历史记录怎样呈现 | [追踪指南](docs/EXECUTION_TRACE_GUIDE_20261004.md)、[验收矩阵](docs/TRACE_ACCEPTANCE_MATRIX_20261005.md) |
 
 脚本化模型用于协议与故障测试，真实模型评测检查模型行为，二者分别记账。历史验收有版本和范围，不将测试数量当作用户效果或线上稳定性指标。详见[展示与验证](docs/SHOWCASE.md)。
+
+当前已移除单元与页面自动测试套件，按[业务流程验收清单](docs/MANUAL_ACCEPTANCE.md)核对功能；保留专项流程回放、算法评测数据、静态检查与构建检查。历史测试成绩仅代表对应版本，移除套件不代表历史问题已修复。
 
 ## 目录导航
 
@@ -138,7 +140,7 @@ fast_api/app/services/  对话执行、记忆、领域子任务、审批与长�
 fast_api/app/api/       登录账号范围内的业务与追踪接口
 web/src/               产品页面、执行时间线与历史追踪
 algorithm/evaluation/  模型与任务级评测
-tests/                 回归、隔离、交接与故障测试
+tests/evals/           保留的算法评测数据（不是自动测试套件）
 scripts/               本地运行与专项验收
 docs/                  架构、复现、决策与验收范围
 ```

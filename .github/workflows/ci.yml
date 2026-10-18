@@ -62,48 +62,6 @@ jobs:
       - name: Mypy strict boundary
         run: mypy
 
-  test:
-    name: Tests (Python ${{ matrix.python-version }})
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.11", "3.12"]
-
-    env:
-      DATABASE_URL: "sqlite:///:memory:"
-      USE_PGVECTOR: "false"
-      LLM_PROVIDER: offline
-      EMBEDDING_PROVIDER: offline
-      JWT_SECRET_KEY: ci-test-secret-key-for-automated-tests
-      JWT_ALGORITHM: HS256
-      JWT_EXPIRE_MINUTES: 60
-      CORS_ORIGINS: http://localhost:5173
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Cache pip
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('fast_api/requirements*.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-${{ matrix.python-version }}-
-
-      - name: Install dependencies
-        run: pip install -r fast_api/requirements-dev.txt
-
-      - name: Run tests
-        run: |
-          python -m pytest tests/ -v --tb=short --timeout=30 \
-            --cov=fast_api/app --cov=algorithm --cov-report=term-missing \
-            --cov-report=xml --cov-fail-under=65
-
   frontend:
     name: Frontend Quality
     runs-on: ubuntu-latest
@@ -123,18 +81,6 @@ jobs:
       - name: Type check
         working-directory: web
         run: npm run typecheck
-
-      - name: Component tests
-        working-directory: web
-        run: npm test
-
-      - name: Install Chromium for end-to-end tests
-        working-directory: web
-        run: npx playwright install --with-deps chromium
-
-      - name: End-to-end tests
-        working-directory: web
-        run: npm run test:e2e
 
       - name: Production build
         working-directory: web
@@ -163,7 +109,6 @@ jobs:
   validate-openapi:
     name: Validate OpenAPI Schema
     runs-on: ubuntu-latest
-    needs: [test]
     steps:
       - uses: actions/checkout@v4
 

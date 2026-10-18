@@ -36,8 +36,8 @@ CURRICULUM: tuple[ModuleCard, ...] = (
         "能解释训练样本为什么需要版本、来源、切分和可追踪字段，并能独立扩展一个 Schema。",
         (),
         ("dataclass", "JSONL", "Schema validation", "版本化数据接口"),
-        ("algorithm/data/schemas.py", "tests/algorithm/test_data_contracts.py"),
-        ("python -m pytest -q tests/algorithm/test_data_contracts.py",),
+        ("algorithm/data/schemas.py", "algorithm/data/validate_dataset.py"),
+        ("python -m algorithm.data.validate_dataset --help",),
         (
             "给 TrainingExample 增加一个字段，写出非法输入测试，再说明兼容旧数据的策略。",
             "手工构造一条 tool decision 样本，解释它和普通回复样本的差异。",
@@ -129,7 +129,7 @@ CURRICULUM: tuple[ModuleCard, ...] = (
             "tests/evals/retrieval_eval_cases.json",
             "fast_api/app/services/memory_system.py",
         ),
-        ("python -m pytest -q tests/algorithm/test_retrieval_eval.py",),
+        ("python -m algorithm.app_algorithms.memory_retrieval_eval",),
         (
             "构造 10 条记忆和 3 个查询，手算 Recall@1/3/5，再和代码结果对照。",
             "比较只用相似度与加入时间衰减后的排序，写出一个失败案例。",
@@ -152,7 +152,7 @@ CURRICULUM: tuple[ModuleCard, ...] = (
             "algorithm/app_algorithms/tool_plan_eval.py",
             "algorithm/app_algorithms/response_reranker.py",
         ),
-        ("python -m pytest -q tests/algorithm/test_algorithm_metrics.py",),
+        ("python -m algorithm.app_algorithms.tool_plan_eval",),
         (
             "为一个训练计划问题画出 intent -> tools -> validation -> response 的状态流。",
             "故意生成一个危险候选，验证回复重排序不能覆盖确定性护栏。",
@@ -246,7 +246,10 @@ CURRICULUM: tuple[ModuleCard, ...] = (
             "docs/INTERVIEW_DEMO_SCRIPT.md",
             "logs/experiments",
         ),
-        ("python -m compileall -q fast_api tests algorithm", "python -m pytest -q tests/algorithm"),
+        (
+            "python -m compileall -q fast_api/app algorithm",
+            "python -m scripts.run_refactor_acceptance --help",
+        ),
         (
             "为一个指标提升写出 hypothesis、对照组、测试集、失败分析和下一步。",
             "录制 3 分钟演示：普通问题、计划问题、低分反馈、模型对比。",
